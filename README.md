@@ -168,6 +168,8 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 
 全屏图片查看器是全屏手势场景，未加底栏以免遮挡图片。
 
+键盘弹出时底栏会主动滑出屏幕：`bottom` gravity 的 `BottomNavigationView` 在窗口被压缩时会浮到键盘上方，挡住输入区域。`SMTHBaseActivity` 里用 `OnGlobalLayoutListener` 比较 `getWindowVisibleDisplayFrame()` 与屏幕高度，遮挡超过屏幕 15%（底部导航条自身远达不到这个比例）即判定键盘出现，把底栏 `translationY` 到自身高度之外，收起后复位。逻辑放在基类里，所有带底栏的页面（版面搜索、发帖、用户查询等）行为一致。
+
 ### 6. 新增「我的」页面
 
 底栏第四项由「邮箱」改为「我的」，用一个可滚动的分组列表把个人信息、常用入口和大部分设置聚合到一起，不必再翻抽屉菜单：
@@ -224,7 +226,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1036；`versionName` 手动递增，当前为 26.11.22，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1037；`versionName` 手动递增，当前为 26.11.23，不再随构建日期自动变化。
 
 调试版本：
 

@@ -4,8 +4,11 @@ import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Rect;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewTreeObserver;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.zfdang.SMTHApplication;
@@ -19,6 +22,9 @@ public class SMTHBaseActivity extends AppCompatActivity {
   public static final String EXTRA_TARGET_TAB = "rzsmth_target_tab";
 
   protected ProgressDialog pDialog = null;
+
+  private ViewTreeObserver.OnGlobalLayoutListener mKeyboardListener = null;
+  private boolean mKeyboardVisible = false;
 
   /**
    * 绑定通用底部导航栏。页面布局 include 了 @layout/bottom_nav_bar 后调用即可。
@@ -41,6 +47,55 @@ public class SMTHBaseActivity extends AppCompatActivity {
         current.setChecked(true);
       }
     }
+
+    hideBottomNavigationWhenKeyboardShows(nav);
+  }
+
+  /**
+   * 软键盘弹出时窗口会被压缩，bottom gravity 的底栏会跟着浮到键盘上方。
+   * 这里监听可见区域的变化，键盘出现就把底栏滑出屏幕，收起后再滑回来。
+   */
+  private void hideBottomNavigationWhenKeyboardShows(final BottomNavigationView nav) {
+    final View content = getWindow().getDecorView().findViewById(android.R.id.content);
+    if (content == null) {
+      return;
+    }
+
+    mKeyboardListener = new ViewTreeObserver.OnGlobalLayoutListener() {
+      @Override public void onGlobalLayout() {
+        if (nav.getHeight() == 0) {
+          return;
+        }
+        Rect visibleFrame = new Rect();
+        content.getWindowVisibleDisplayFrame(visibleFrame);
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int coveredHeight = screenHeight - visibleFrame.bottom;
+        // 底部导航条本身占掉的高度远小于屏幕的 15%，只有键盘才够得着这个阈值
+        boolean keyboardVisible = coveredHeight > screenHeight * 0.15f;
+        if (keyboardVisible == mKeyboardVisible) {
+          return;
+        }
+        mKeyboardVisible = keyboardVisible;
+
+        nav.animate().cancel();
+        nav.animate()
+            .translationY(keyboardVisible ? nav.getHeight() : 0)
+            .setDuration(160)
+            .start();
+      }
+    };
+    content.getViewTreeObserver().addOnGlobalLayoutListener(mKeyboardListener);
+  }
+
+  private void releaseKeyboardListener() {
+    if (mKeyboardListener == null) {
+      return;
+    }
+    View content = getWindow().getDecorView().findViewById(android.R.id.content);
+    if (content != null) {
+      content.getViewTreeObserver().removeOnGlobalLayoutListener(mKeyboardListener);
+    }
+    mKeyboardListener = null;
   }
 
   /** 默认行为：回主页并切到对应标签。MainActivity 会重写此方法直接切换 fragment。 */
@@ -71,6 +126,7 @@ public class SMTHBaseActivity extends AppCompatActivity {
   @Override protected void onDestroy() {
     super.onDestroy();
 
+    releaseKeyboardListener();
     dismissProgress();
   }
 
