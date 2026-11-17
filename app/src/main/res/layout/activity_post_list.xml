@@ -34,6 +34,8 @@
       android:layout_height="match_parent"
       android:paddingLeft="@dimen/activity_horizontal_margin_left"
       android:paddingRight="@dimen/activity_horizontal_margin_right"
+      android:paddingBottom="@dimen/bottom_nav_height"
+      android:clipToPadding="false"
       android:background="@color/body_background_night"
       android:orientation="vertical"
       app:layout_behavior="com.zfdang.zsmth_android.helpers.CustomScrollingViewBehavior"
@@ -144,5 +146,7 @@
     <!-- footer -->
     <include layout="@layout/post_list_page_navigator"/>
   </LinearLayout>
+
+  <include layout="@layout/bottom_nav_bar" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

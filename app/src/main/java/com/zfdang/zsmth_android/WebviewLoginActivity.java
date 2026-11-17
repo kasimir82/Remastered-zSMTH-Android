@@ -23,6 +23,7 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_webview_login);
+        setupBottomNavigation();
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.webview_login_toolbar);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {

@@ -12,6 +12,7 @@ public class ChildSafetyActivity extends SMTHBaseActivity {
   @Override protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_child_safety);
+        setupBottomNavigation();
     setSupportActionBar(findViewById(R.id.toolbar));
     setTitle(R.string.child_safety_title);
     if (getSupportActionBar() != null) getSupportActionBar().setDisplayHomeAsUpEnabled(true);

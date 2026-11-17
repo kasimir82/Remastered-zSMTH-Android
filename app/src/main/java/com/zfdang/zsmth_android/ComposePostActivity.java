@@ -178,6 +178,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
       @Override public void handleOnBackPressed() { handleBackAction(); }
     });
     setContentView(R.layout.activity_compose_post);
+        setupBottomNavigation();
 
     Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);

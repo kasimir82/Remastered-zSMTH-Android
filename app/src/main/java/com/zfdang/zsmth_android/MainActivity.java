@@ -97,6 +97,7 @@ public class MainActivity extends SMTHBaseActivity
   private boolean mDoubleBackToExit = false;
   private Handler mHandler = null;
   private NavigationView mNavigationView;
+  private BottomNavigationView mBottomNav;
 
   private static final int notificationID = 273;
 
@@ -114,12 +115,9 @@ public class MainActivity extends SMTHBaseActivity
     // zsmth_actionbar_size @ dimen ==> ThemeOverlay.ActionBar @ styles ==> theme @ app_bar_main.xml
 
     // init bottom navigation bar (replaces the old floating action menu)
-    BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
-    bottomNav.setOnNavigationItemSelectedListener(item -> {
-      onNavigationItemID(item.getItemId());
-      mNavigationView.setCheckedItem(item.getItemId());
-      return true;
-    });
+    mBottomNav = findViewById(R.id.bottom_nav);
+    setupBottomNavigation();
+    applyTargetTabFromIntent(getIntent());
 
     mDrawer = findViewById(R.id.drawer_layout);
     mToggle = new ActionBarDrawerToggle(this, mDrawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
@@ -343,9 +341,31 @@ public class MainActivity extends SMTHBaseActivity
     AnalyticsPrivacy.onPause(this);
   }
 
+  /** 从其他页面的底栏跳转回来时，切到指定的标签 */
+  private void applyTargetTabFromIntent(Intent intent) {
+    if (intent == null || mNavigationView == null) {
+      return;
+    }
+    int targetTab = intent.getIntExtra(EXTRA_TARGET_TAB, 0);
+    if (targetTab != 0) {
+      onNavigationItemID(targetTab);
+      mNavigationView.setCheckedItem(targetTab);
+      if (mBottomNav != null) {
+        mBottomNav.setSelectedItemId(targetTab);
+      }
+      intent.removeExtra(EXTRA_TARGET_TAB);
+    }
+  }
+
+  @Override protected void onBottomNavItemSelected(int itemId) {
+    onNavigationItemID(itemId);
+    mNavigationView.setCheckedItem(itemId);
+  }
+
   @Override protected void onNewIntent(Intent intent) {
     // this method will be triggered by showNotification(message);
     super.onNewIntent(intent);
+    applyTargetTabFromIntent(intent);
     FragmentManager fm = getSupportFragmentManager();
     Bundle bundle = intent.getExtras();
     if (bundle != null) {
@@ -656,6 +676,17 @@ public class MainActivity extends SMTHBaseActivity
       // favorite board will manage the title by itself. its title will vary depending on folder path
       if (fragment != favoriteBoardFragment) {
         setTitle(SMTHApplication.App_Title_Prefix + title);
+      }
+    }
+
+    // 四个主标签在底栏也有入口，切换时同步高亮，避免抽屉和底栏状态不一致
+    if (mBottomNav != null
+        && (menuID == R.id.nav_guidance || menuID == R.id.nav_all_boards
+        || menuID == R.id.nav_favorite || menuID == R.id.nav_mail)) {
+      Menu bottomMenu = mBottomNav.getMenu();
+      MenuItem target = bottomMenu.findItem(menuID);
+      if (target != null && !target.isChecked()) {
+        target.setChecked(true);
       }
     }
 

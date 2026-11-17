@@ -168,6 +168,7 @@ public class PostListActivity extends SMTHBaseActivity
     SwipeBackHelper.onCreate(this);
 
     setContentView(R.layout.activity_post_list);
+    setupBottomNavigation();
     Toolbar toolbar = (Toolbar) findViewById(R.id.post_list_toolbar);
     setSupportActionBar(toolbar);
 

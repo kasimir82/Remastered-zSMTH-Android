@@ -29,4 +29,6 @@
           android:text="@string/child_safety_report_action" />
     </LinearLayout>
   </ScrollView>
+  <include layout="@layout/bottom_nav_bar" />
+
 </LinearLayout>

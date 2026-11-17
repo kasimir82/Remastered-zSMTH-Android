@@ -112,6 +112,7 @@ public class BoardTopicActivity extends SMTHBaseActivity
         SwipeBackHelper.onCreate(this);
 
         setContentView(R.layout.activity_board_topic);
+        setupBottomNavigation();
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.board_topic_toolbar);
         setSupportActionBar(toolbar);

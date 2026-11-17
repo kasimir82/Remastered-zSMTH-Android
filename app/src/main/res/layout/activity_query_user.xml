@@ -30,4 +30,6 @@
 
   <include layout="@layout/content_query_user"/>
 
+  <include layout="@layout/bottom_nav_bar" />
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

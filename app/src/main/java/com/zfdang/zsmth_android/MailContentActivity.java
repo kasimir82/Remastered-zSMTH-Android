@@ -39,7 +39,7 @@ import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
-public class MailContentActivity extends AppCompatActivity {
+public class MailContentActivity extends SMTHBaseActivity {
 
   private static final String TAG = "MailContent";
   private Mail mMail;
@@ -68,6 +68,7 @@ public class MailContentActivity extends AppCompatActivity {
     SwipeBackHelper.onCreate(this);
 
     setContentView(R.layout.activity_mail_content);
+    setupBottomNavigation();
 
     mMailTitle = (TextView) findViewById(R.id.mail_content_title);
     // init post widget

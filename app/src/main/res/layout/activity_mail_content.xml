@@ -28,4 +28,6 @@
 
   <include layout="@layout/content_mail_content"/>
 
+  <include layout="@layout/bottom_nav_bar" />
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -65,6 +65,7 @@ public class BlockSettingsActivity extends SMTHBaseActivity {
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_block_settings);
+        setupBottomNavigation();
 
         setSupportActionBar(findViewById(R.id.toolbar));
         setTitle("屏蔽设置");
