@@ -147,6 +147,21 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 | `SMTHApplication.java` | `App_Title_Prefix` → `"RzSMTH - "` |
 | `app/build.gradle` | 产物名改为 `RzSMTH-{debug,release}-v*.apk` |
 
+### 5. 主界面改为底部四栏导航
+
+上游在主界面右下角放了一个悬浮 `z` 按钮，点开后是一个圆形子菜单，里面才是「十大导读 / 收藏夹 / 所有版面 / 邮箱」四个入口。现在改成底部固定导航栏，一键直达：
+
+| 标签 | 对应页面 |
+|---|---|
+| 首页 | 十大导读 |
+| 版面 | 所有版面 |
+| 收藏 | 收藏夹 |
+| 邮箱 | 邮箱 |
+
+四个入口与悬浮菜单原本的功能完全一致，只是换成了更直观的呈现方式。选中项带圆角高亮背景，对应颜色资源在 `res/color/bottom_nav_item_color.xml` 和 `res/drawable/bottom_nav_item_background.xml`。
+
+改动文件：`app_bar_main.xml`（移除 FAB，加入 `BottomNavigationView`）、`content_main.xml`（留出底部栏空间）、`MainActivity.java`（接入切换监听，移除旧的 `initCircularActionMenu`）、`res/menu/bottom_nav_menu.xml`（新增）。左侧抽屉菜单保持不变，设置、屏蔽设置、关于等入口仍在其中。
+
 ## 构建
 
 环境要求与上游一致：

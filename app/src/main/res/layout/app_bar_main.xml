@@ -32,14 +32,16 @@
 
   <include layout="@layout/content_main"/>
 
-  <com.google.android.material.floatingactionbutton.FloatingActionButton
-      android:id="@+id/fab"
-      android:layout_width="wrap_content"
+  <com.google.android.material.bottomnavigation.BottomNavigationView
+      android:id="@+id/bottom_nav"
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_gravity="bottom|end"
-      android:layout_margin="@dimen/fab_margin"
-      app:fabSize="mini"
-      android:src="@drawable/zpad"
-      />
+      android:layout_gravity="bottom"
+      android:background="@color/nav_background"
+      app:itemBackground="@drawable/bottom_nav_item_background"
+      app:itemIconTint="@color/bottom_nav_item_color"
+      app:itemTextColor="@color/bottom_nav_item_color"
+      app:labelVisibilityMode="labeled"
+      app:menu="@menu/bottom_nav_menu" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

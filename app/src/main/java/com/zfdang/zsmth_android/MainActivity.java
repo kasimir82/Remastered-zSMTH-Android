@@ -24,7 +24,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.Window;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -33,7 +32,6 @@ import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.content.res.ResourcesCompat;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
@@ -44,11 +42,9 @@ import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkManager;
 import androidx.work.WorkRequest;
 
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.navigation.NavigationView;
 import com.mikepenz.aboutlibraries.LibsBuilder;
-import com.oguzdev.circularfloatingactionmenu.library.FloatingActionMenu;
-import com.oguzdev.circularfloatingactionmenu.library.SubActionButton;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.fresco.WrapContentDraweeView;
 import com.zfdang.zsmth_android.listeners.OnBoardFragmentInteractionListener;
@@ -100,7 +96,6 @@ public class MainActivity extends SMTHBaseActivity
   // press BACK in 2 seconds, app will quit
   private boolean mDoubleBackToExit = false;
   private Handler mHandler = null;
-  private FloatingActionMenu mActionMenu;
   private NavigationView mNavigationView;
 
   private static final int notificationID = 273;
@@ -118,9 +113,13 @@ public class MainActivity extends SMTHBaseActivity
     // http://stackoverflow.com/questions/17439683/how-to-change-action-bar-size
     // zsmth_actionbar_size @ dimen ==> ThemeOverlay.ActionBar @ styles ==> theme @ app_bar_main.xml
 
-    // init floating action button & circular action menu
-    FloatingActionButton fab = findViewById(R.id.fab);
-    initCircularActionMenu(fab);
+    // init bottom navigation bar (replaces the old floating action menu)
+    BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
+    bottomNav.setOnNavigationItemSelectedListener(item -> {
+      onNavigationItemID(item.getItemId());
+      mNavigationView.setCheckedItem(item.getItemId());
+      return true;
+    });
 
     mDrawer = findViewById(R.id.drawer_layout);
     mToggle = new ActionBarDrawerToggle(this, mDrawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
@@ -229,69 +228,6 @@ public class MainActivity extends SMTHBaseActivity
         })
         .setCancelable(false)
         .show();
-  }
-
-  private void initCircularActionMenu(FloatingActionButton fab) {
-    SubActionButton.Builder itemBuilder = new SubActionButton.Builder(this);
-
-    ImageView itemIcon1 = new ImageView(this);
-    itemIcon1.setImageDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_whatshot_white_48dp, null));
-    SubActionButton button1 = itemBuilder.setContentView(itemIcon1)
-        .setBackgroundDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.navigation_button_background, null))
-        .build();
-    button1.setOnClickListener(new View.OnClickListener() {
-      @Override public void onClick(View v) {
-        mActionMenu.close(true);
-        onNavigationItemID(R.id.nav_guidance);
-        mNavigationView.setCheckedItem(R.id.nav_guidance);
-      }
-    });
-
-    ImageView itemIcon2 = new ImageView(this);
-    itemIcon2.setImageDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_star_white_48dp, null));
-    SubActionButton button2 = itemBuilder.setContentView(itemIcon2)
-        .setBackgroundDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.navigation_button_background, null))
-        .build();
-    button2.setOnClickListener(new View.OnClickListener() {
-      @Override public void onClick(View v) {
-        mActionMenu.close(true);
-        onNavigationItemID(R.id.nav_favorite);
-        mNavigationView.setCheckedItem(R.id.nav_favorite);
-      }
-    });
-
-    ImageView itemIcon3 = new ImageView(this);
-    itemIcon3.setImageDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_format_list_bulleted_white_48dp, null));
-    SubActionButton button3 = itemBuilder.setContentView(itemIcon3)
-        .setBackgroundDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.navigation_button_background, null))
-        .build();
-    button3.setOnClickListener(new View.OnClickListener() {
-      @Override public void onClick(View v) {
-        mActionMenu.close(true);
-        onNavigationItemID(R.id.nav_all_boards);
-        mNavigationView.setCheckedItem(R.id.nav_all_boards);
-      }
-    });
-
-    ImageView itemIcon4 = new ImageView(this);
-    itemIcon4.setImageDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_email_white_48dp, null));
-    SubActionButton button4 = itemBuilder.setContentView(itemIcon4)
-        .setBackgroundDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.navigation_button_background, null))
-        .build();
-    button4.setOnClickListener(new View.OnClickListener() {
-      @Override public void onClick(View v) {
-        mActionMenu.close(true);
-        onNavigationItemID(R.id.nav_mail);
-        mNavigationView.setCheckedItem(R.id.nav_mail);
-      }
-    });
-
-    mActionMenu = new FloatingActionMenu.Builder(this).addSubActionView(button1)
-        .addSubActionView(button2)
-        .addSubActionView(button3)
-        .addSubActionView(button4)
-        .attachTo(fab)
-        .build();
   }
 
   // triger the background service right now
