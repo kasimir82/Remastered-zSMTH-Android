@@ -178,7 +178,9 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 ./gradlew assembleRelease
 ```
 
-产物位于 `app/build/outputs/apk/release/RzSMTH-release-v*.apk`，已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
+产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
+
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1032；`versionName` 手动递增，当前为 26.11.18，不再随构建日期自动变化。
 
 调试版本：
 
