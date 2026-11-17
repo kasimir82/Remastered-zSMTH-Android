@@ -191,6 +191,21 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 
 > 列表底部单独留出了 `bottom_nav_height` 的内边距：`content_main` 挂着 `CustomScrollingViewBehavior`，它会在滚动时按 AppBar 折叠量重写 child 的 `paddingBottom`，只靠布局里的固定 padding 会被覆盖掉，最后一条会被底栏压住。
 
+### 7. 版面主题排序方式
+
+版面页标题栏新增排序按钮（`ic_sort_white_24dp`），点击弹出「排序方式」单选：
+
+| 选项 | 行为 |
+|---|---|
+| 最后回复 | 服务端默认顺序，即最近有人回复的主题排在最前（切回该项会重新拉取第 1 页） |
+| 发表时间 | 按主题的发布时间倒序，新发布的排在最前 |
+
+水木的版面列表接口没有排序参数（nForum 一直只按最后回复排），所以这里是在客户端对**已加载的那一页**重排：分页位置仍由服务端决定，第 1 页排完不会影响第 2 页的取数。每页的「第 N 页」分隔符会被当作块边界，块内排序、块顺序不变；置顶帖始终固定在各页最前，不会因为发布时间旧而被排到末尾。
+
+排序键取自列表里发布时间那一列（`yyyy-MM-dd`，也兼容「今天 / 昨天 / MM-dd / HH:mm」这几种相对格式，见 `Topic.getPublishSortKey()`）；排序用稳定排序，同一天的帖子保持服务端返回的先后顺序。搜索模式下不提供排序（结果本身已是时间倒序）。
+
+选择记录在 `Settings.TOPIC_SORT_MODE`，对所有版面生效，刷新或翻页后仍然保持。
+
 ## 构建
 
 环境要求与上游一致：
@@ -209,7 +224,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1035；`versionName` 手动递增，当前为 26.11.21，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1036；`versionName` 手动递增，当前为 26.11.22，不再随构建日期自动变化。
 
 调试版本：
 

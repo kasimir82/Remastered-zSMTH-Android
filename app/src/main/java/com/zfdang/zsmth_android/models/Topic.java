@@ -146,6 +146,46 @@ public class Topic implements Parcelable {
     this.publishDate = publishDate;
   }
 
+  private static final java.util.regex.Pattern DATE_FULL =
+      java.util.regex.Pattern.compile("(\\d{4})-(\\d{1,2})-(\\d{1,2})");
+  private static final java.util.regex.Pattern DATE_SHORT =
+      java.util.regex.Pattern.compile("(\\d{1,2})-(\\d{1,2})");
+  private static final java.util.regex.Pattern TIME_ONLY =
+      java.util.regex.Pattern.compile("(\\d{1,2}):(\\d{2})");
+
+  /**
+   * 「按发表时间排序」用的排序键，值越大表示越新。
+   * 版面列表里的发布时间通常是 yyyy-MM-dd，较早的页面或用相对时间时可能是「今天 / 昨天 / MM-dd / HH:mm」。
+   */
+  public long getPublishSortKey() {
+    String date = publishDate == null ? "" : publishDate.trim();
+    if (date.length() == 0) {
+      return 0;
+    }
+    java.util.regex.Matcher full = DATE_FULL.matcher(date);
+    if (full.find()) {
+      return Long.parseLong(full.group(1)) * 10000L
+          + Long.parseLong(full.group(2)) * 100L
+          + Long.parseLong(full.group(3));
+    }
+    if (date.startsWith("今天")) {
+      return 99999999L;
+    }
+    if (date.startsWith("昨天")) {
+      return 99999998L;
+    }
+    java.util.regex.Matcher shortDate = DATE_SHORT.matcher(date);
+    if (shortDate.find()) {
+      int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+      return year * 10000L + Long.parseLong(shortDate.group(1)) * 100L + Long.parseLong(shortDate.group(2));
+    }
+    if (TIME_ONLY.matcher(date).find()) {
+      // 只给了时刻，说明就是今天发的
+      return 99999999L;
+    }
+    return 0;
+  }
+
   public String getReplier() {
     return replier;
   }

@@ -407,11 +407,29 @@ public class Settings {
   }
 
 
+  // 版面主题排序方式: 0 = 最后回复(服务端默认顺序), 1 = 发表时间(按本页发布时间倒序)
+  public static final int SORT_BY_LAST_REPLY = 0;
+  public static final int SORT_BY_PUBLISH_TIME = 1;
+
+  private static final String TOPIC_SORT_MODE = "TOPIC_SORT_MODE";
+  private int iTopicSortMode;
+
+  public int getTopicSortMode() {
+    return iTopicSortMode;
+  }
+
+  public void setTopicSortMode(int mode) {
+    if (this.iTopicSortMode != mode) {
+      this.iTopicSortMode = mode;
+      mEditor.putInt(TOPIC_SORT_MODE, this.iTopicSortMode);
+      mEditor.commit();
+    }
+  }
+
   // defined in arrays.xml
   // 0: large font; 1: normal font; 2: small, 3: extra small 4: extra large 5: extremely large
   // defaut: 1 - normal font
-  private static final String ZSMTH_FONT_INDEX = "ZSMTH_FONT_INDEX";
-  private int iFontIndex;
+  private static final String ZSMTH_FONT_INDEX = "ZSMTH_FONT_INDEX";  private int iFontIndex;
 
   public int getFontIndex() {
     return iFontIndex;
@@ -519,6 +537,7 @@ public class Settings {
     bPostNavBar = mPreference.getBoolean(SHOW_POST_NAVITATION_BAR, true);
     bVolumeKeyScroll = mPreference.getBoolean(VOLUME_KEY_SCROLL, true);
     iFontIndex = mPreference.getInt(ZSMTH_FONT_INDEX, 1);
+    iTopicSortMode = mPreference.getInt(TOPIC_SORT_MODE, SORT_BY_LAST_REPLY);
 
     mPostCache = mPreference.getString(COMPOSE_POST_CACHE, "");
   }

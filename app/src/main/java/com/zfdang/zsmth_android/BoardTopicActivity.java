@@ -1,10 +1,12 @@
 package com.zfdang.zsmth_android;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -33,6 +35,9 @@ import io.reactivex.ObservableSource;
 import io.reactivex.annotations.NonNull;
 import io.reactivex.disposables.Disposable;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import okhttp3.ResponseBody;
@@ -192,6 +197,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
             Intent intent = new Intent(this, ComposePostActivity.class);
             intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
             startActivityForResult(intent, ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE);
+        } else if (id == R.id.board_topic_action_sort) {
+            showSortModeDialog();
         } else if (id == R.id.board_topic_action_search) {
             PopupSearchWindow popup = new PopupSearchWindow();
             popup.initPopupWindow(this);
@@ -347,8 +354,97 @@ public class BoardTopicActivity extends SMTHBaseActivity
                     @Override
                     public void onComplete() {
                         clearLoadingHints();
+                        // 逐条插入结束后再统一重排，避免与 notifyItemInserted 冲突
+                        if (!isSearchMode && mSetting.getTopicSortMode() == Settings.SORT_BY_PUBLISH_TIME) {
+                            mRecyclerView.post(new Runnable() {
+                                @Override public void run() {
+                                    sortBoardTopicsByPublishTime();
+                                }
+                            });
+                        }
                     }
                 });
+    }
+
+    /** 按发表时间倒序重排已加载的主题；置顶帖固定在各页最前 */
+    private void sortBoardTopicsByPublishTime() {
+        List<Topic> topics = TopicListContent.BOARD_TOPICS;
+        if (topics.size() < 2) {
+            return;
+        }
+
+        int start = 0;
+        for (int i = 0; i <= topics.size(); i++) {
+            if (i == topics.size() || topics.get(i).isCategory) {
+                sortTopicsRange(topics, start, i);
+                start = i + 1;
+            }
+        }
+        if (mRecyclerView.getAdapter() != null) {
+            mRecyclerView.getAdapter().notifyDataSetChanged();
+        }
+    }
+
+    private void sortTopicsRange(List<Topic> topics, int from, int to) {
+        if (to - from < 2) {
+            return;
+        }
+        List<Topic> sticky = new ArrayList<>();
+        List<Topic> normal = new ArrayList<>();
+        for (int i = from; i < to; i++) {
+            Topic topic = topics.get(i);
+            if (topic.isSticky) {
+                sticky.add(topic);
+            } else {
+                normal.add(topic);
+            }
+        }
+        // Collections.sort 是稳定排序，同一天的帖子保持服务端返回的先后顺序
+        Collections.sort(normal, new Comparator<Topic>() {
+            @Override public int compare(Topic lhs, Topic rhs) {
+                return Long.compare(rhs.getPublishSortKey(), lhs.getPublishSortKey());
+            }
+        });
+        int index = from;
+        for (Topic topic : sticky) {
+            topics.set(index++, topic);
+        }
+        for (Topic topic : normal) {
+            topics.set(index++, topic);
+        }
+    }
+
+    private void showSortModeDialog() {
+        if (isSearchMode) {
+            Toast.makeText(this, "搜索结果本身就是按时间倒序的", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final String[] modes = { "最后回复", "发表时间" };
+        int checked = mSetting.getTopicSortMode();
+        if (checked < 0 || checked >= modes.length) {
+            checked = Settings.SORT_BY_LAST_REPLY;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("排序方式")
+            .setSingleChoiceItems(modes, checked, new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface dialog, int which) {
+                    dialog.dismiss();
+                    if (which == mSetting.getTopicSortMode()) {
+                        return;
+                    }
+                    mSetting.setTopicSortMode(which);
+                    if (which == Settings.SORT_BY_PUBLISH_TIME) {
+                        sortBoardTopicsByPublishTime();
+                        Toast.makeText(BoardTopicActivity.this, "已按发表时间排序", Toast.LENGTH_SHORT).show();
+                    } else {
+                        // 本页顺序已经被打乱，切回最后回复需要重新向服务器取一次
+                        RefreshBoardTopicFromPageOne();
+                    }
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
     }
 
     @Override
