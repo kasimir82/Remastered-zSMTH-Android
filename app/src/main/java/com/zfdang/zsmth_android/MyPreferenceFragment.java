@@ -2,6 +2,7 @@ package com.zfdang.zsmth_android;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.os.Bundle;
@@ -56,6 +57,7 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
   CheckBoxPreference notification_control_at;
 
   Preference app_version;
+  Preference feed_setting;
 
   @Override public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -329,9 +331,35 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
       }
     });
 
+    feed_setting = findPreference("setting_feed");
+    feed_setting.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+      @Override public boolean onPreferenceClick(Preference preference) {
+        startActivity(new Intent(getActivity(), FeedSettingsActivity.class));
+        return true;
+      }
+    });
+    updateFeedSummary();
+
     updateOkHttp3Cache();
     updateFrescoCache();
     updateVersionInfo();
+  }
+
+  @Override public void onResume() {
+    super.onResume();
+    updateFeedSummary();
+  }
+
+  private void updateFeedSummary() {
+    if (feed_setting == null) {
+      return;
+    }
+    FeedConfig config = FeedConfig.getInstance();
+    if (config.isEnabled()) {
+      feed_setting.setSummary("已开启，来源版面 " + config.getBoardCount() + " 个");
+    } else {
+      feed_setting.setSummary("未开启，信息流显示十大导读");
+    }
   }
 
   @Override public void onCreatePreferences(Bundle bundle, String s) {

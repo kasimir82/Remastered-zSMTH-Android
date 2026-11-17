@@ -30,6 +30,7 @@ import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.fresco.FrescoUtils;
 import com.zfdang.zsmth_android.fresco.MyPhotoView;
 import com.zfdang.zsmth_android.helpers.FileSizeUtil;
+import com.zfdang.zsmth_android.helpers.ShareImageHelper;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -56,6 +57,7 @@ public class FSImageViewerActivity extends AppCompatActivity implements OnPhotoT
   private ImageView btBack;
   private ImageView btInfo;
   private ImageView btSave;
+  private ImageView btShare;
 
   private static final int RC_READ_WRITE_STORAGE = 123;
   String mTargetImagePath;
@@ -136,6 +138,18 @@ public class FSImageViewerActivity extends AppCompatActivity implements OnPhotoT
           mTargetImageAnimation = photoView.isAnimation();
         }
         saveImageToFile();
+      }
+    });
+
+    btShare = (ImageView) findViewById(R.id.fullscreen_button_share);
+    btShare.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        int position = mViewPager.getCurrentItem();
+        if (position < 0 || position >= mURLs.size()) {
+          return;
+        }
+        ShareImageHelper.shareImage(FSImageViewerActivity.this, mURLs.get(position));
       }
     });
 

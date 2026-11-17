@@ -69,16 +69,24 @@ Observable<UserStatus> queryActiveUserStatus();
 
 ### 2.1 修正图片 CDN 域名
 
-上游把帖子附件等图片地址补成 `https://static.newsmth.net/...`（`SMTHHelper.java` 的 `SMTH_IMAGE_PREFIX_CDN`），但该域名已不再解析，导致帖子里的图片全部显示失败：
+上游把帖子附件等图片地址补成 `https://static.newsmth.net/...`（`SMTHHelper.java` 的 `SMTH_IMAGE_PREFIX_CDN`），但该域名已不再解析，导致帖子里的图片全部显示失败。
+
+改为 `https://static.mysmth.net`。该域名是当前站点实际使用的 CDN，头像、表情等公开图片恢复正常。
+
+### 2.1.1 附件图片强制走主站
+
+只换 CDN 域名还不够：正文里的附件图片（`/nForum/att/...`）在 `static.mysmth.net` 下依然全部破损。
+
+原因是登录 Cookie 的域是 `.newsmth.net`，而 `static.mysmth.net` 属于 `mysmth.net`，跨域带不上会话。未登录时该域返回的是 HTTP 200 + `text/html`（一个「您未登录，请登录后再操作」的错误页），而不是 401，所以图片解码器拿到的是 HTML，直接显示成破损图标：
 
 ```
-static.newsmth.net    → Could not resolve host / ping: unknown host
-www.newsmth.net       → 200 image/jpeg
-att.newsmth.net       → 200 image/jpeg
-static.mysmth.net     → 200 image/jpeg
+https://static.mysmth.net/nForum/att/Universal/4210265/229  → 200 text/html  2093 字节
+https://www.newsmth.net/nForum/att/Universal/4210265/229    → 200 image/jpeg（带 Cookie 时）
 ```
 
-改为 `https://static.mysmth.net`。该域名是当前站点实际使用的 CDN，帖子附件图片恢复正常。
+现在 `preprocessSMTHImageURL()` 对包含 `/nForum/att/` 的地址强制使用 `https://www.newsmth.net`，其余图片继续走 CDN。设置页的「图片来源」开关只影响非附件图片。
+
+> 排查时容易误判：这些附件地址在浏览器里打开可能是正常的（浏览器带着 `www` 域的 Cookie），但 App 里因为走了 CDN 域而失败。
 
 ### 2.2 调整字体档位
 
@@ -153,8 +161,8 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 
 | 标签 | 对应页面 |
 |---|---|
-| 首页 | 十大导读 |
 | 版面 | 所有版面 |
+| 信息流 | 十大导读，或勾选版面的新帖汇总（见第 9 节） |
 | 收藏 | 收藏夹 |
 | 我的 | 个人信息、屏蔽设置与常用设置（站内信入口也在这里） |
 
@@ -204,9 +212,54 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 
 水木的版面列表接口没有排序参数（nForum 一直只按最后回复排），所以这里是在客户端对**已加载的那一页**重排：分页位置仍由服务端决定，第 1 页排完不会影响第 2 页的取数。每页的「第 N 页」分隔符会被当作块边界，块内排序、块顺序不变；置顶帖始终固定在各页最前，不会因为发布时间旧而被排到末尾。
 
-排序键取自列表里发布时间那一列（`yyyy-MM-dd`，也兼容「今天 / 昨天 / MM-dd / HH:mm」这几种相对格式，见 `Topic.getPublishSortKey()`）；排序用稳定排序，同一天的帖子保持服务端返回的先后顺序。搜索模式下不提供排序（结果本身已是时间倒序）。
+排序键取自列表里发布时间那一列（`yyyy-MM-dd`，也兼容「今天 / 昨天 / MM-dd / HH:mm(:ss)」等相对格式，见 `Topic.parseSortKey()`）；排序用稳定排序，同一天的帖子保持服务端返回的先后顺序。搜索模式下不提供排序（结果本身已是时间倒序）。
 
 选择记录在 `Settings.TOPIC_SORT_MODE`，对所有版面生效，刷新或翻页后仍然保持。
+
+### 8. 图片分享
+
+两个入口：
+
+| 入口 | 行为 |
+|---|---|
+| 帖子正文里长按图片 | 直接调起系统分享面板 |
+| 全屏看图页第 4 个按钮（分享图标） | 分享当前这一张 |
+
+系统分享只认 `content://`，所以必须先落盘。`ShareImageHelper` 的做法是：
+
+1. 先问 Fresco 要磁盘缓存（`FrescoUtils.getCachedImageOnDisk`），命中就直接复制，不重新下载；
+2. 未命中时用带登录 Cookie 的 OkHttp 拉原图；
+3. 统一写到 `cacheDir/attachments/`——这个目录在清单里已经由 `${applicationId}.attachments` 这个 `FileProvider` 暴露（原本给拍照上传用）；
+4. 用文件头判断真实格式（`FF D8` → jpg、`GIF8` → gif、`89 PNG` → png），再套上对应 MIME 类型走 `ACTION_SEND`。
+
+因此 jpg、gif、png 都能分享，GIF 是按原始字节发出去的，不会退化成静帧。分享用的临时文件带 `share_` 前缀，超过 24 小时的会在下次分享时顺手清掉，不会越积越多。
+
+实现文件：`helpers/ShareImageHelper.java`、`FSImageViewerActivity`（第 4 个按钮）、`PostRecyclerViewAdapter`（两种图文模式都绑了长按）、`res/drawable/ic_share_white_36dp.xml`。
+
+### 9. 信息流
+
+底栏第二个位置是「信息流」，它有两种形态，由设置里的总开关决定：
+
+| 开关 | 页面内容 |
+|---|---|
+| 关闭（默认） | 原来的十大导读，行为完全不变 |
+| 打开 | 把勾选的几个版面第一页的帖子合并到一页，按发布时间倒序 |
+
+来源版面从**收藏夹**里挑：「我的 → 信息流设置」或「设置 → 信息流设置」进入，页面打开时会自动导入收藏夹里的版面（连同收藏夹第一层目录里的版面），每行一个复选框，勾选即保存，不需要额外确认。
+
+实现要点：
+
+- 抓取用 `getBoardTopicsByPage(board, "1")`，`flatMap` 并发 4 个版面，任一版面失败只影响自己，不会拖垮整页；
+- 标题栏有排序按钮，可选「发表时间」（默认）或「最后回复」，独立于版面页的排序设置，记在 `Settings.FEED_SORT_MODE`。按哪种排序，列表右侧就显示哪个时间，不会出现看起来乱序的情况；
+- 排序键由 `Topic.parseSortKey()` 统一解析，支持 `yyyy-MM-dd`、`MM-dd HH:mm(:ss)`、`MM-dd`、`HH:mm(:ss)` 和「今天 / 昨天」，结果换算成「日期 × 100000 + 当天秒数」。秒级精度很关键：水木列表里今天的帖子只给到秒，早期按分钟解析时同一分钟内的帖子会全部并列，看起来就是乱序；
+- 结果放在静态内存缓存里（`FeedFragment.FEED_TOPICS`），切标签页回来不重复请求，只有下拉刷新、来源版面变化、切换排序或缓存超过 10 分钟才重新抓；
+- 下拉用和其它页面一致的 `ClassicsHeader`（带「正在刷新 / 上次更新」），标题栏的刷新按钮也接到了当前页面的刷新入口；
+- 点击条目直接进帖子，版面名取自收藏夹里那一项；
+- 开关切换后会立刻生效：在「信息流」标签下从设置页返回，`MainActivity.syncGuidanceFragment()` 会把 fragment 换成对应的那个。
+
+打开信息流后如果一条也没勾选，页面会提示去设置里选择；未登录时设置页无法导入收藏夹，会给出提示。
+
+实现文件：`FeedFragment.java`、`FeedConfig.java`、`FeedSettingsActivity.java`、`res/layout/fragment_feed.xml`、`res/layout/item_feed_topic.xml`、`res/layout/activity_feed_settings.xml`、`res/layout/item_feed_board.xml`。
 
 ## 构建
 
@@ -226,7 +279,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1037；`versionName` 手动递增，当前为 26.11.23，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1040；`versionName` 手动递增，当前为 26.11.26，不再随构建日期自动变化。
 
 调试版本：
 

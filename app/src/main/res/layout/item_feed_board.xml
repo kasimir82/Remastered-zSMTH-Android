@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/feed_board_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="52dp"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="6dp">
+
+  <androidx.appcompat.widget.AppCompatCheckBox
+      android:id="@+id/feed_board_check"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:clickable="false"
+      android:focusable="false" />
+
+  <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="6dp"
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/feed_board_chs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/status_text_night"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/feed_board_eng"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/mine_row_summary"
+        android:textSize="12sp" />
+  </LinearLayout>
+
+</LinearLayout>

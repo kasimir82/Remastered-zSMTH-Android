@@ -51,6 +51,11 @@
             android:exported="false"
             android:label="屏蔽设置"
             android:theme="@style/AppTheme.NoActionBar" />
+        <activity android:name=".FeedSettingsActivity"
+            android:exported="false"
+            android:label="信息流设置"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".LoginActivity"
             android:theme="@style/AppTheme.NoActionBar"

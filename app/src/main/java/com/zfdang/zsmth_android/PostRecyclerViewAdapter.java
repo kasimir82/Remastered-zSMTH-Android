@@ -21,6 +21,7 @@ import com.klinker.android.link_builder.LinkConsumableTextView;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.fresco.WrapContentDraweeView;
 import com.zfdang.zsmth_android.helpers.ActivityUtils;
+import com.zfdang.zsmth_android.helpers.ShareImageHelper;
 import com.zfdang.zsmth_android.models.Attachment;
 import com.zfdang.zsmth_android.models.ContentSegment;
 import com.zfdang.zsmth_android.models.Post;
@@ -106,6 +107,20 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
             }
           });
 
+          // 长按图片直接调起系统分享
+          image.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) {
+              int position = (int) v.getTag(R.id.image_tag);
+              List<Attachment> attaches = post.getAttachFiles();
+              if (position >= 0 && position < attaches.size()) {
+                ShareImageHelper.shareImage(mListener, attaches.get(position).getOriginalImageSource());
+              } else {
+                ShareImageHelper.shareImage(mListener, content.getUrl());
+              }
+              return true;
+            }
+          });
+
           // add image to list, instead of adding to viewgroup directly
           imgList.add(image);
         } else {
@@ -132,6 +147,20 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
               intent.putStringArrayListExtra(SMTHApplication.ATTACHMENT_URLS, urls);
               intent.putExtra(SMTHApplication.ATTACHMENT_CURRENT_POS, position);
               mListener.startActivity(intent);
+            }
+          });
+
+          // 长按图片直接调起系统分享
+          image.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) {
+              int position = (int) v.getTag(R.id.image_tag);
+              List<Attachment> attaches = post.getAttachFiles();
+              if (position >= 0 && position < attaches.size()) {
+                ShareImageHelper.shareImage(mListener, attaches.get(position).getOriginalImageSource());
+              } else {
+                ShareImageHelper.shareImage(mListener, content.getUrl());
+              }
+              return true;
             }
           });
 

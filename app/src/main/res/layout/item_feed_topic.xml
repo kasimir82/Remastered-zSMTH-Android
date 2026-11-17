@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/recyclerview_item_bg"
+    android:orientation="vertical"
+    android:paddingStart="8dp"
+    android:paddingTop="9dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="9dp">
+
+  <TextView
+      android:id="@+id/feed_topic_title"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:ellipsize="end"
+      android:lineSpacingExtra="2dp"
+      android:maxLines="2"
+      android:text="Topic"
+      android:textColor="@color/board_topic_title"
+      android:textSize="@dimen/zsmth_font_size_medium" />
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+    <TextView
+        android:id="@+id/feed_topic_board"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="版面"
+        android:textColor="@color/board_topic_author"
+        android:textSize="@dimen/zsmth_font_size_extra_extra_small" />
+
+    <TextView
+        android:id="@+id/feed_topic_author"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="作者"
+        android:textColor="@color/board_topic_date"
+        android:textSize="@dimen/zsmth_font_size_extra_extra_small" />
+
+    <View
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/feed_topic_reply"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="@color/board_topic_status"
+        android:textSize="@dimen/zsmth_font_size_extra_extra_small" />
+
+    <TextView
+        android:id="@+id/feed_topic_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="2012-09-18"
+        android:textColor="@color/board_topic_date"
+        android:textSize="@dimen/zsmth_font_size_extra_extra_small" />
+  </LinearLayout>
+
+</LinearLayout>

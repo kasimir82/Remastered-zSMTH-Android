@@ -2,14 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
   <item
-      android:id="@+id/nav_guidance"
-      android:icon="@drawable/ic_whatshot_white_48dp"
-      android:title="首页" />
-
-  <item
       android:id="@+id/nav_all_boards"
       android:icon="@drawable/ic_format_list_bulleted_white_48dp"
       android:title="版面" />
+
+  <item
+      android:id="@+id/nav_guidance"
+      android:icon="@drawable/ic_whatshot_white_48dp"
+      android:title="信息流" />
 
   <item
       android:id="@+id/nav_favorite"

@@ -81,6 +81,7 @@ public class MineFragment extends Fragment {
     items.add(MineItem.row("favorite", R.drawable.ic_mine_star, "收藏夹", null));
     items.add(MineItem.row("mail", R.drawable.ic_mine_mail, "站内信", null));
     items.add(MineItem.row("draft", R.drawable.ic_mine_draft, "发帖草稿", draftSummary()));
+    items.add(MineItem.row("feed_settings", R.drawable.ic_mine_nav, "信息流设置", feedSummary()));
 
     items.add(MineItem.section("屏蔽与外观"));
     items.add(MineItem.row("block", R.drawable.ic_mine_block, "本机屏蔽", blockSummary()));
@@ -88,8 +89,8 @@ public class MineFragment extends Fragment {
     items.add(MineItem.row("font", R.drawable.ic_mine_font, "字体大小", fontSummary()));
 
     items.add(MineItem.section("阅读"));
-    items.add(MineItem.toggle("entry_hot", R.drawable.ic_mine_home, "首页默认内容",
-        settings.isLaunchHotTopic() ? "十大导读" : "收藏夹", settings.isLaunchHotTopic()));
+    items.add(MineItem.toggle("entry_hot", R.drawable.ic_mine_home, "启动页面",
+        settings.isLaunchHotTopic() ? "信息流" : "收藏夹", settings.isLaunchHotTopic()));
     items.add(MineItem.toggle("post_nav", R.drawable.ic_mine_nav, "帖子快速导航栏", null, settings.hasPostNavBar()));
     items.add(MineItem.toggle("volume", R.drawable.ic_mine_volume, "音量键翻页", null, settings.isVolumeKeyScroll()));
     items.add(MineItem.toggle("board_master", R.drawable.ic_mine_shield, "版主专用功能", null, settings.isBoardMasterOnly()));
@@ -124,8 +125,15 @@ public class MineFragment extends Fragment {
     return TextUtils.isEmpty(cache) ? "无" : "有未发送的内容";
   }
 
-  private String blockSummary() {
-    int userCount = 0;
+  private String feedSummary() {
+    FeedConfig config = FeedConfig.getInstance();
+    if (config.isEnabled()) {
+      return "已开启 · " + config.getBoardCount() + " 个版面";
+    }
+    return "未开启";
+  }
+
+  private String blockSummary() {    int userCount = 0;
     int keywordCount = 0;
     for (BlockListManager.Entry entry : BlockListManager.getInstance().getEntries()) {
       if (entry.isUser()) {
@@ -228,6 +236,10 @@ public class MineFragment extends Fragment {
 
       case "block":
         startActivity(new Intent(activity, BlockSettingsActivity.class));
+        break;
+
+      case "feed_settings":
+        startActivity(new Intent(activity, FeedSettingsActivity.class));
         break;
 
       case "night":

@@ -414,6 +414,22 @@ public class Settings {
   private static final String TOPIC_SORT_MODE = "TOPIC_SORT_MODE";
   private int iTopicSortMode;
 
+  // 信息流排序：0 = 最后回复, 1 = 发表时间（默认）
+  private static final String FEED_SORT_MODE = "FEED_SORT_MODE";
+  private int iFeedSortMode = SORT_BY_PUBLISH_TIME;
+
+  public int getFeedSortMode() {
+    return iFeedSortMode;
+  }
+
+  public void setFeedSortMode(int mode) {
+    if (this.iFeedSortMode != mode) {
+      this.iFeedSortMode = mode;
+      mEditor.putInt(FEED_SORT_MODE, this.iFeedSortMode);
+      mEditor.commit();
+    }
+  }
+
   public int getTopicSortMode() {
     return iTopicSortMode;
   }
@@ -538,6 +554,7 @@ public class Settings {
     bVolumeKeyScroll = mPreference.getBoolean(VOLUME_KEY_SCROLL, true);
     iFontIndex = mPreference.getInt(ZSMTH_FONT_INDEX, 1);
     iTopicSortMode = mPreference.getInt(TOPIC_SORT_MODE, SORT_BY_LAST_REPLY);
+    iFeedSortMode = mPreference.getInt(FEED_SORT_MODE, SORT_BY_PUBLISH_TIME);
 
     mPostCache = mPreference.getString(COMPOSE_POST_CACHE, "");
   }

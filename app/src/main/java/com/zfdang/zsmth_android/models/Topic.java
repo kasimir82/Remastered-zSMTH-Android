@@ -150,40 +150,82 @@ public class Topic implements Parcelable {
       java.util.regex.Pattern.compile("(\\d{4})-(\\d{1,2})-(\\d{1,2})");
   private static final java.util.regex.Pattern DATE_SHORT =
       java.util.regex.Pattern.compile("(\\d{1,2})-(\\d{1,2})");
+  private static final java.util.regex.Pattern DATE_TIME_SHORT =
+      java.util.regex.Pattern.compile("(\\d{1,2})-(\\d{1,2})\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?");
   private static final java.util.regex.Pattern TIME_ONLY =
-      java.util.regex.Pattern.compile("(\\d{1,2}):(\\d{2})");
+      java.util.regex.Pattern.compile("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?");
+
+  /** 排序键统一成「日期 * 100000 + 当天秒数」，值越大越新 */
+  private static final long SORT_KEY_SCALE = 100000L;
+  /** 只给了时刻说明是当天，用比任何真实日期都大的日子占位 */
+  private static final long SORT_KEY_TODAY = 99999999L;
+  private static final long SORT_KEY_YESTERDAY = 99999998L;
+
+  private static long secondsOf(java.util.regex.Matcher matcher, int hourGroup, int minuteGroup, int secondGroup) {
+    long seconds = Long.parseLong(matcher.group(hourGroup)) * 3600L
+        + Long.parseLong(matcher.group(minuteGroup)) * 60L;
+    if (matcher.group(secondGroup) != null) {
+      seconds += Long.parseLong(matcher.group(secondGroup));
+    }
+    return seconds;
+  }
 
   /**
-   * 「按发表时间排序」用的排序键，值越大表示越新。
-   * 版面列表里的发布时间通常是 yyyy-MM-dd，较早的页面或用相对时间时可能是「今天 / 昨天 / MM-dd / HH:mm」。
+   * 把列表里各种时间写法统一成可比较的键：
+   * yyyy-MM-dd、MM-dd HH:mm(:ss)、MM-dd、HH:mm(:ss)、「今天 / 昨天」，认不出来时退回 fallback。
    */
-  public long getPublishSortKey() {
-    String date = publishDate == null ? "" : publishDate.trim();
+  private static long parseSortKey(String raw, long fallback) {
+    String date = raw == null ? "" : raw.trim();
     if (date.length() == 0) {
-      return 0;
+      return fallback;
     }
+
     java.util.regex.Matcher full = DATE_FULL.matcher(date);
     if (full.find()) {
-      return Long.parseLong(full.group(1)) * 10000L
+      return (Long.parseLong(full.group(1)) * 10000L
           + Long.parseLong(full.group(2)) * 100L
-          + Long.parseLong(full.group(3));
+          + Long.parseLong(full.group(3))) * SORT_KEY_SCALE;
     }
+
+    java.util.regex.Matcher shortDateTime = DATE_TIME_SHORT.matcher(date);
+    if (shortDateTime.find()) {
+      int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+      return (year * 10000L + Long.parseLong(shortDateTime.group(1)) * 100L
+          + Long.parseLong(shortDateTime.group(2))) * SORT_KEY_SCALE
+          + secondsOf(shortDateTime, 3, 4, 5);
+    }
+
     if (date.startsWith("今天")) {
-      return 99999999L;
+      return SORT_KEY_TODAY * SORT_KEY_SCALE;
     }
     if (date.startsWith("昨天")) {
-      return 99999998L;
+      return SORT_KEY_YESTERDAY * SORT_KEY_SCALE;
     }
+
+    java.util.regex.Matcher time = TIME_ONLY.matcher(date);
+    if (time.find()) {
+      // 只有时刻，说明就是当天；精确到秒，否则同一分钟内的帖子会并列
+      return SORT_KEY_TODAY * SORT_KEY_SCALE + secondsOf(time, 1, 2, 3);
+    }
+
     java.util.regex.Matcher shortDate = DATE_SHORT.matcher(date);
     if (shortDate.find()) {
       int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
-      return year * 10000L + Long.parseLong(shortDate.group(1)) * 100L + Long.parseLong(shortDate.group(2));
+      return (year * 10000L + Long.parseLong(shortDate.group(1)) * 100L
+          + Long.parseLong(shortDate.group(2))) * SORT_KEY_SCALE;
     }
-    if (TIME_ONLY.matcher(date).find()) {
-      // 只给了时刻，说明就是今天发的
-      return 99999999L;
-    }
-    return 0;
+
+    return fallback;
+  }
+
+  /** 「按发表时间排序」用的排序键 */
+  public long getPublishSortKey() {
+    return parseSortKey(publishDate, 0L);
+  }
+
+  /** 「按最后回复排序」用的排序键，拿不到回复时间时退回发布时间 */
+  public long getReplySortKey() {
+    return parseSortKey(replyDate, getPublishSortKey());
   }
 
   public String getReplier() {

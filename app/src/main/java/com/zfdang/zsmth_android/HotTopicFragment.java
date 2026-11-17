@@ -92,7 +92,7 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
       mRecyclerView.setAdapter(new HotTopicRecyclerViewAdapter(TopicListContent.HOT_TOPICS, mListener));
     }
 
-    getActivity().setTitle(SMTHApplication.App_Title_Prefix + "首页导读");
+    getActivity().setTitle(SMTHApplication.App_Title_Prefix + "信息流");
 
     if (TopicListContent.HOT_TOPICS.size() == 0) {
       RefreshGuidance();

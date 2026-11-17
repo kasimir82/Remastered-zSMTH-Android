@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+  <com.scwang.smart.refresh.layout.SmartRefreshLayout
+      android:id="@+id/feed_refresh_layout"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent">
+
+    <com.scwang.smart.refresh.header.ClassicsHeader
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/feed_recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp"
+        android:scrollbars="none" />
+
+  </com.scwang.smart.refresh.layout.SmartRefreshLayout>
+
+  <TextView
+      android:id="@+id/feed_topic_empty"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_gravity="center"
+      android:gravity="center"
+      android:lineSpacingExtra="6dp"
+      android:padding="32dp"
+      android:text="还没有选择信息来源\n请到「设置 → 信息流设置」里勾选要汇总的版面"
+      android:textColor="@color/status_text_night"
+      android:textSize="14sp"
+      android:visibility="gone" />
+
+</FrameLayout>

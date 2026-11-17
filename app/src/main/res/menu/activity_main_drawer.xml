@@ -7,7 +7,7 @@
     <item
         android:id="@+id/nav_guidance"
         android:icon="@drawable/ic_whatshot_white_48dp"
-        android:title="十大导读"/>
+        android:title="信息流"/>
     <item
         android:id="@+id/nav_favorite"
         android:icon="@drawable/ic_star_white_48dp"

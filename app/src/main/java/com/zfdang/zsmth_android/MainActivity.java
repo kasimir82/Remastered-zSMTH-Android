@@ -81,6 +81,7 @@ public class MainActivity extends SMTHBaseActivity
   // guidance fragment: display hot topics
   // this fragment is using RecyclerView to show all hot topics
   HotTopicFragment hotTopicFragment = null;
+  FeedFragment feedFragment = null;
   FavoriteBoardFragment favoriteBoardFragment = null;
   AllBoardFragment allBoardFragment = null;
   MailListFragment mailListFragment = null;
@@ -119,6 +120,11 @@ public class MainActivity extends SMTHBaseActivity
     mBottomNav = findViewById(R.id.bottom_nav);
     setupBottomNavigation();
     applyTargetTabFromIntent(getIntent());
+    // 恢复上次停留的标签高亮，建 Activity 时底栏默认会选中第一个
+    MenuItem currentTab = mBottomNav.getMenu().findItem(SMTHApplication.currentTabId);
+    if (currentTab != null) {
+      currentTab.setChecked(true);
+    }
 
     mDrawer = findViewById(R.id.drawer_layout);
     mToggle = new ActionBarDrawerToggle(this, mDrawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
@@ -158,9 +164,12 @@ public class MainActivity extends SMTHBaseActivity
     if (initialTab == R.id.nav_mine || initialTab == R.id.nav_all_boards) {
       onNavigationItemID(initialTab);
     } else if (Settings.getInstance().isLaunchHotTopic()) {
-      fm.beginTransaction().replace(R.id.content_frame, hotTopicFragment).commit();
+      Fragment initialFragment = FeedConfig.getInstance().isEnabled() ? feedFragment : hotTopicFragment;
+      fm.beginTransaction().replace(R.id.content_frame, initialFragment).commit();
+      setTitle(SMTHApplication.App_Title_Prefix + "信息流");
     } else {
       fm.beginTransaction().replace(R.id.content_frame, favoriteBoardFragment).commit();
+      setTitle(SMTHApplication.App_Title_Prefix + "收藏夹");
     }
 
     getSupportFragmentManager().addOnBackStackChangedListener(new FragmentManager.OnBackStackChangedListener() {
@@ -408,10 +417,36 @@ public class MainActivity extends SMTHBaseActivity
   @Override protected void onResume() {
     super.onResume();
     AnalyticsPrivacy.onResume(this);
+    syncGuidanceFragment();
+  }
+
+  /** 信息流开关可能刚从设置页改过，回到该标签时切到对应的页面 */
+  private void syncGuidanceFragment() {
+    if (SMTHApplication.currentTabId != R.id.nav_guidance || hotTopicFragment == null || feedFragment == null) {
+      return;
+    }
+    Fragment current = getSupportFragmentManager().findFragmentById(R.id.content_frame);
+    // 用户可能正停在设置/关于等抽屉页面，这时不要抢着换掉
+    if (current != hotTopicFragment && current != feedFragment) {
+      return;
+    }
+    boolean feedEnabled = FeedConfig.getInstance().isEnabled();
+    if (feedEnabled && current != feedFragment) {
+      getSupportFragmentManager().beginTransaction()
+          .replace(R.id.content_frame, feedFragment)
+          .commitAllowingStateLoss();
+      setTitle(SMTHApplication.App_Title_Prefix + "信息流");
+    } else if (!feedEnabled && current == feedFragment) {
+      getSupportFragmentManager().beginTransaction()
+          .replace(R.id.content_frame, hotTopicFragment)
+          .commitAllowingStateLoss();
+      setTitle(SMTHApplication.App_Title_Prefix + "信息流");
+    }
   }
 
   protected void initFragments() {
     hotTopicFragment = new HotTopicFragment();
+    feedFragment = new FeedFragment();
 
     // following initilization can be delayed
     favoriteBoardFragment = new FavoriteBoardFragment();
@@ -503,6 +538,9 @@ public class MainActivity extends SMTHBaseActivity
       } else if (tab == R.id.nav_favorite && fragment != favoriteBoardFragment) {
         target = favoriteBoardFragment;
         title = "收藏夹";
+      } else if (tab == R.id.nav_guidance && FeedConfig.getInstance().isEnabled() && fragment != feedFragment) {
+        target = feedFragment;
+        title = "信息流";
       }
 
       FragmentManager fm = getSupportFragmentManager();
@@ -590,7 +628,10 @@ public class MainActivity extends SMTHBaseActivity
     // automatically handle clicks on the Home/Up button, so long
     // as you specify a parent activity in AndroidManifest.xml.
     int id = item.getItemId();
-    if (id == R.id.main_action_notifications) {
+    if (id == R.id.main_action_refresh) {
+      refreshCurrentPage();
+      return true;
+    } else if (id == R.id.main_action_notifications) {
       if (Build.VERSION.SDK_INT >= 33) {
         androidx.core.app.ActivityCompat.requestPermissions(this,
             new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1028);
@@ -616,6 +657,25 @@ public class MainActivity extends SMTHBaseActivity
     }
 
     return super.onOptionsItemSelected(item);
+  }
+
+  /** 标题栏的刷新按钮：按当前停留的页面分别刷新 */
+  private void refreshCurrentPage() {
+    Fragment current = getSupportFragmentManager().findFragmentById(R.id.content_frame);
+    if (current == null) {
+      return;
+    }
+    if (current == feedFragment) {
+      feedFragment.refreshFromMenu();
+    } else if (current == hotTopicFragment) {
+      hotTopicFragment.RefreshGuidanceFromWWW();
+    } else if (current == favoriteBoardFragment) {
+      favoriteBoardFragment.RefreshFavoriteBoardsWithCache();
+    } else if (current == allBoardFragment) {
+      allBoardFragment.LoadAllBoardsWithoutCache();
+    } else if (current == mineFragment) {
+      mineFragment.refreshUserInfo();
+    }
   }
 
   public void onLogin() {
@@ -665,8 +725,13 @@ public class MainActivity extends SMTHBaseActivity
     String title = "";
 
     if (menuID == R.id.nav_guidance) {
-      fragment = hotTopicFragment;
-      title = "首页导读";
+      // 信息流开关关闭时仍然显示老的十大导读
+      if (FeedConfig.getInstance().isEnabled()) {
+        fragment = feedFragment;
+      } else {
+        fragment = hotTopicFragment;
+      }
+      title = "信息流";
     } else if (menuID == R.id.nav_favorite) {
       fragment = favoriteBoardFragment;
       title = "收藏夹";

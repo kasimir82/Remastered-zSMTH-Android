@@ -1414,6 +1414,14 @@ public class SMTHHelper {
         url = SMTH_IMAGE_PREFIX_CDN + original;
       }
 
+      // 附件图片（/nForum/att/）必须走主站：登录 Cookie 属于 .newsmth.net，
+      // static.mysmth.net 是另一个域，带不上会话，只会返回「未登录」的 HTML，
+      // 于是正文里的图片全部变成破损图标。
+      if (url.contains("/nForum/att/")) {
+        return url.replace(SMTH_IMAGE_PREFIX_CDN, SMTH_IMAGE_PREFIX_DIRECT)
+            .replace("https://www.mysmth.net", SMTH_IMAGE_PREFIX_DIRECT);
+      }
+
       if (Settings.getInstance().isImageSourceCDN()) {
         url = url.replace(SMTH_IMAGE_PREFIX_DIRECT, SMTH_IMAGE_PREFIX_CDN);
       } else {
