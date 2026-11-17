@@ -45,3 +45,7 @@ freeline/
 /docs/*.apk
 /docs/*.mp4
 /app/qqwry/
+
+# 本地凭据文件（位于工作区根目录，绝不能入库）
+/GITHUB_TOKEN_DO_NOT_COMMIT.md
+GITHUB_TOKEN*.md
