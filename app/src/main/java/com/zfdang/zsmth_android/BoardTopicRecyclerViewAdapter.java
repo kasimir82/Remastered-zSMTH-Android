@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+import com.zfdang.zsmth_android.helpers.StringUtils;
 import com.zfdang.zsmth_android.listeners.OnTopicFragmentInteractionListener;
 import com.zfdang.zsmth_android.models.Topic;
 import java.util.List;
@@ -49,8 +50,8 @@ public class BoardTopicRecyclerViewAdapter extends RecyclerView.Adapter<BoardTop
       holder.mTitle.setText(topic.getTitle());
       holder.mAuthor.setText(topic.getAuthor());
       holder.mReplier.setText(topic.getReplier());
-      holder.mPublishDate.setText(topic.getPublishDate());
-      holder.mReplyDate.setText(topic.getReplyDate());
+      holder.mPublishDate.setText(StringUtils.formatTopicDate(topic.getPublishDate()));
+      holder.mReplyDate.setText(StringUtils.formatTopicDate(topic.getReplyDate()));
       holder.mStatusSummary.setText(topic.getStatusSummary());
 
       if (topic.hasAttach()) {

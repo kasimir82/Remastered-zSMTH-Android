@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -24,6 +25,8 @@ import org.jsoup.select.Elements;
  */
 public class Post {
   private static final String ATTACHMENT_MARK = "###ZSMTH_ATTACHMENT###";
+  // 冒号开头的引文块用这个标记包起来，parseContentToSegments 会拆成可折叠的独立段
+  private static final String QUOTE_MARK = "###ZSMTH_QUOTE###";
   public static int ACTION_DEFAULT = 0;
   public static int ACTION_FIRST_POST_IN_SUBJECT = 1;
   public static int ACTION_PREVIOUS_POST_IN_SUBJECT = 2;
@@ -266,8 +269,8 @@ public class Post {
     mSegments.clear();
 
     if (attachFiles == null || attachFiles.size() == 0) {
-      // no attachment, add all content as one segment
-      mSegments.add(new ContentSegment(ContentSegment.SEGMENT_TEXT, htmlContentAndLikes));
+      // no attachment, split quotes out so they can be collapsed
+      addTextSegmentsSplittingQuotes(htmlContentAndLikes, true);
     } else {
       // when there are attachments here, separate them one by one
       String[] segments = htmlContentAndLikes.split(ATTACHMENT_MARK);
@@ -281,7 +284,7 @@ public class Post {
         if (!StringUtils.isEmptyString(segment) || attachIndex == 0) {
           // since we expect there will always be a textview before imageview
           // even the first text segment is empty, we still add it
-          mSegments.add(new ContentSegment(ContentSegment.SEGMENT_TEXT, segment));
+          addTextSegmentsSplittingQuotes(segment, true);
         }
 
         // add next image attachment to results
@@ -310,6 +313,27 @@ public class Post {
     //                Log.d("ContentSegment", String.format("Text, {%s}", content.getSpanned().toString()));
     //            }
     //        }
+  }
+
+  /**
+   * 把一段 HTML 文本按 QUOTE_MARK 拆开：奇数下标是引文（标记对之间的内容），
+   * 生成 quote=true 的段供界面折叠。避免出现空段，第一段即使为空也保留（保证图片前有文本视图）。
+   */
+  private void addTextSegmentsSplittingQuotes(String html, boolean keepFirstIfEmpty) {
+    if (html == null) {
+      return;
+    }
+    String[] parts = html.split(Pattern.quote(QUOTE_MARK));
+    for (int i = 0; i < parts.length; i++) {
+      String part = parts[i];
+      boolean isQuote = (i % 2 == 1);
+      if (StringUtils.isEmptyString(part) && !(i == 0 && keepFirstIfEmpty)) {
+        continue;
+      }
+      ContentSegment seg = new ContentSegment(ContentSegment.SEGMENT_TEXT, part);
+      seg.setQuote(isQuote);
+      mSegments.add(seg);
+    }
   }
 
   /*
@@ -374,10 +398,15 @@ public class Post {
         continue;
       }
 
-      // handle quoted content
+      // handle quoted content: 连续的冒号引文行收成一个块, 之后拆成可折叠的段
       if (line.startsWith(":")) {
-        line = "<font color=#299999>" + line + "</font>";
-        sb.append(line).append("<br />");
+        StringBuilder quoteBlock = new StringBuilder();
+        while (i < lines.length && lines[i].startsWith(":")) {
+          quoteBlock.append("<font color=#299999>").append(lines[i]).append("</font><br />");
+          i++;
+        }
+        i--; // 外层 for 还会 i++
+        sb.append(QUOTE_MARK).append(quoteBlock).append(QUOTE_MARK);
         continue;
       }
 

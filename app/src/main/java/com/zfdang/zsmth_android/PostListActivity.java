@@ -49,6 +49,7 @@ import com.scwang.smart.refresh.layout.listener.OnLoadMoreListener;
 import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.RecyclerViewUtil;
+import com.zfdang.zsmth_android.helpers.ShareImageHelper;
 import com.zfdang.zsmth_android.models.Attachment;
 import com.zfdang.zsmth_android.models.Board;
 import com.zfdang.zsmth_android.models.ComposePostContext;
@@ -495,7 +496,49 @@ public class PostListActivity extends SMTHBaseActivity
     return super.onKeyUp(keyCode, event);
   }
 
-  @Override
+  /**
+   * 长按落在帖内图片上：弹「查看大图 / 分享图片」菜单。
+   * 图片短按不拦截事件，交给楼层手势层做翻页。
+   */
+  @Override public boolean onImageLongClicked(final int position, final int imageIndex) {
+    if (position == RecyclerView.NO_POSITION || position >= PostListContent.POSTS.size()) {
+      return false;
+    }
+    final Post post = PostListContent.POSTS.get(position);
+    new AlertDialog.Builder(this)
+        .setTitle("图片操作")
+        .setItems(new String[]{"查看大图", "分享图片"}, (dialog, which) -> {
+          if (which == 0) {
+            Intent intent = new Intent(this, FSImageViewerActivity.class);
+            ArrayList<String> urls = new ArrayList<>();
+            List<Attachment> attaches = post.getAttachFiles();
+            if (attaches != null) {
+              for (Attachment attach : attaches) {
+                urls.add(attach.getOriginalImageSource());
+              }
+            }
+            if (urls.isEmpty()) {
+              return;
+            }
+            int idx = imageIndex;
+            if (idx < 0 || idx >= urls.size()) {
+              idx = 0;
+            }
+            intent.putStringArrayListExtra(SMTHApplication.ATTACHMENT_URLS, urls);
+            intent.putExtra(SMTHApplication.ATTACHMENT_CURRENT_POS, idx);
+            startActivity(intent);
+          } else {
+            List<Attachment> attaches = post.getAttachFiles();
+            if (imageIndex >= 0 && attaches != null && imageIndex < attaches.size()) {
+              ShareImageHelper.shareImage(this, attaches.get(imageIndex).getOriginalImageSource());
+            }
+          }
+        })
+        .setNegativeButton("取消", null)
+        .show();
+    return true;
+  }
+
   public boolean onItemLongClicked(final int position, View v) {
     if (position == RecyclerView.NO_POSITION || position >= PostListContent.POSTS.size())
       return false;

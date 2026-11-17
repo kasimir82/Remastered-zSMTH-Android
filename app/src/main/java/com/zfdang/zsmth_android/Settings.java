@@ -86,6 +86,43 @@ public class Settings {
     }
   }
 
+  /**
+   * 上次成功登录的时间戳(毫秒)。cookie 由 WebView CookieManager 持久化，登录成功后
+   * 一段时间内不应再次自动登录——水木对频繁登录有限制(会返回"账号过多/请勿频繁登录")。
+   */
+  private static final String LAST_LOGIN_TIME = "last_login_time";
+  private long lastLoginTime;
+
+  public long getLastLoginTime() {
+    return lastLoginTime;
+  }
+
+  public void setLastLoginTime(long time) {
+    if (this.lastLoginTime != time) {
+      this.lastLoginTime = time;
+      mEditor.putLong(LAST_LOGIN_TIME, this.lastLoginTime);
+      mEditor.commit();
+    }
+  }
+
+  /**
+   * 被水木判定"登录过于频繁"后的冷却截止时间(毫秒)，在此之前不再自动登录。
+   */
+  private static final String LOGIN_COOLDOWN_UNTIL = "login_cooldown_until";
+  private long loginCooldownUntil;
+
+  public long getLoginCooldownUntil() {
+    return loginCooldownUntil;
+  }
+
+  public void setLoginCooldownUntil(long time) {
+    if (this.loginCooldownUntil != time) {
+      this.loginCooldownUntil = time;
+      mEditor.putLong(LOGIN_COOLDOWN_UNTIL, this.loginCooldownUntil);
+      mEditor.commit();
+    }
+  }
+
   // after user init login action, set online = true;
   // after user init logout action, set online = false;
   // this value will impact autoLogin behaviour of service
@@ -521,6 +558,8 @@ public class Settings {
     mPassword = mPreference.getString(PASSWORD_KEY, "");
     bSaveInfo = mPreference.getBoolean(SAVE_INFO, true);
     bLastLoginSuccess = mPreference.getBoolean(LAST_LOGIN_SUCCESS, false);
+    lastLoginTime = mPreference.getLong(LAST_LOGIN_TIME, 0L);
+    loginCooldownUntil = mPreference.getLong(LOGIN_COOLDOWN_UNTIL, 0L);
     bUserOnline = mPreference.getBoolean(USER_ONLINE, false);
 
     bUseSignature = mPreference.getBoolean(USE_DEVICE_SIGNATURE, true);

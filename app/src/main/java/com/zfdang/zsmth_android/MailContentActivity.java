@@ -17,11 +17,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.jude.swipbackhelper.SwipeBackHelper;
-import com.klinker.android.link_builder.LinkBuilder;
 import com.klinker.android.link_builder.LinkConsumableTextView;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.fresco.WrapContentDraweeView;
-import com.zfdang.zsmth_android.helpers.ActivityUtils;
+import com.zfdang.zsmth_android.helpers.QuoteTextHelper;
 import com.zfdang.zsmth_android.models.ComposePostContext;
 import com.zfdang.zsmth_android.models.ContentSegment;
 import com.zfdang.zsmth_android.models.Mail;
@@ -146,8 +145,7 @@ public class MailContentActivity extends SMTHBaseActivity {
       // there are multiple segments, add the first contentView first
       // contentView is always available, we don't have to inflate it again
       ContentSegment content = contents.get(0);
-      contentView.setText(content.getSpanned());
-      LinkBuilder.on(contentView).addLinks(ActivityUtils.getPostSupportedLinks(MailContentActivity.this)).build();
+      QuoteTextHelper.bind(contentView, content, MailContentActivity.this, false);
 
       viewGroup.addView(contentView);
     }
@@ -174,8 +172,7 @@ public class MailContentActivity extends SMTHBaseActivity {
 
         // Add the links and make the links clickable
         LinkConsumableTextView tv = (LinkConsumableTextView) inflater.inflate(R.layout.post_item_content, viewGroup, false);
-        tv.setText(content.getSpanned());
-        LinkBuilder.on(tv).addLinks(ActivityUtils.getPostSupportedLinks(MailContentActivity.this)).build();
+        QuoteTextHelper.bind(tv, content, MailContentActivity.this, true);
 
         // Add the text view to the parent layout
         viewGroup.addView(tv);

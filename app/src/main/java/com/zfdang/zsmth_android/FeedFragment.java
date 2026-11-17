@@ -23,6 +23,8 @@ import com.scwang.smart.refresh.layout.SmartRefreshLayout;
 import com.scwang.smart.refresh.layout.api.RefreshLayout;
 import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
 import com.zfdang.SMTHApplication;
+import com.zfdang.zsmth_android.helpers.BlockListManager;
+import com.zfdang.zsmth_android.helpers.StringUtils;
 import com.zfdang.zsmth_android.models.Board;
 import com.zfdang.zsmth_android.models.Topic;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
@@ -159,7 +161,13 @@ public class FeedFragment extends Fragment {
 
   /** 标题栏的刷新按钮调用 */
   public void refreshFromMenu() {
-    loadFeed(true);
+    // 主动显示刷新头，和手动下拉的反馈一致（autoRefresh 会回调 OnRefreshListener）。
+    // 若当前页面不在信息流状态（比如没在刷新布局里），直接强制重抓兜底。
+    if (mRefreshLayout != null && !mRefreshLayout.isRefreshing()) {
+      mRefreshLayout.autoRefresh();
+    } else {
+      loadFeed(true);
+    }
   }
 
   private String signatureOf(List<Board> boards) {
@@ -232,7 +240,14 @@ public class FeedFragment extends Fragment {
             List<Topic> merged = new ArrayList<>();
             for (List<Topic> part : parts) {
               if (part != null && part.size() > 0) {
-                merged.addAll(part);
+                for (Topic topic : part) {
+                  // 信息流直接合并了抓取结果，没走 TopicListContent.addBoardTopic，
+                  // 所以要在这里手动套用同一套作者/关键词屏蔽规则
+                  if (topic != null && !BlockListManager.getInstance()
+                      .isBlocked(topic.getAuthor(), topic.getTitle())) {
+                    merged.add(topic);
+                  }
+                }
               }
             }
             // 按当前选择的排序方式合并，最新的在最上面
@@ -339,9 +354,9 @@ public class FeedFragment extends Fragment {
         // 按什么排序就显示哪个时间，否则看起来像乱序
         if (Settings.getInstance().getFeedSortMode() == Settings.SORT_BY_LAST_REPLY
             && !TextUtils.isEmpty(topic.getReplyDate())) {
-          date.setText(topic.getReplyDate());
+          date.setText(StringUtils.formatTopicDate(topic.getReplyDate()));
         } else {
-          date.setText(topic.getPublishDate());
+          date.setText(StringUtils.formatTopicDate(topic.getPublishDate()));
         }
 
         itemView.setOnClickListener(new View.OnClickListener() {

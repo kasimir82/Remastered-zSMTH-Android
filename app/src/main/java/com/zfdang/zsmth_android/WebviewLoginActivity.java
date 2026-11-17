@@ -1,5 +1,6 @@
 package com.zfdang.zsmth_android;
 
+import android.app.Activity;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
@@ -36,6 +37,30 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
         if(extras != null) {
             username = extras.getString(LoginActivity.USERNAME);
             password = extras.getString(LoginActivity.PASSWORD);
+        }
+
+        // cookie 里已经有有效登录用户时，不要重复打开登录页提交表单——
+        // 水木对短时间内重复登录有限制（"账号过多/请勿频繁登录"）。
+        String existingUser = WebviewLoginClient.readUserId();
+        if (existingUser != null && !existingUser.isEmpty()
+                && !"guest".equalsIgnoreCase(existingUser)) {
+            Log.i(TAG, "already logged in as " + existingUser + ", skip login form");
+            com.zfdang.zsmth_android.helpers.LoginThrottle.onLoginSuccess();
+            setResult(Activity.RESULT_OK);
+            finish();
+            return;
+        }
+
+        // 处于登录频繁冷却期，直接拒绝，不再向水木提交登录
+        if (com.zfdang.zsmth_android.helpers.LoginThrottle.inCooldown()) {
+            Log.w(TAG, "in login cooldown, skip webview login");
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("登录受限")
+                    .setMessage("由于此前登录过于频繁，水木暂时限制了登录。已暂停自动登录 12 小时，请稍后再试。")
+                    .setPositiveButton("知道了", (dialog, which) -> finish())
+                    .setOnCancelListener(dialog -> finish())
+                    .show();
+            return;
         }
 
         mWebView = (WebView) findViewById(R.id.webview_login);
@@ -102,6 +127,49 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
                 Log.i(TAG, "Console: " + consoleMessage.message() + " -- " + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber());
                 return super.onConsoleMessage(consoleMessage);
+            }
+
+            /**
+             * 水木在登录过于频繁时会用 JS 弹窗提示"账号过多/无法重复登录/是否踢掉多余窗口"。
+             * 识别到就进入冷却、停止后续自动登录，并给出明确提示，而不是让用户反复点确定重试。
+             */
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, final android.webkit.JsResult result) {
+                if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)) {
+                    com.zfdang.zsmth_android.helpers.LoginThrottle.onTooFrequent(message);
+                    Log.w(TAG, "too frequent login dialog: " + message);
+                    new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
+                            .setTitle("登录受限")
+                            .setMessage("水木提示登录过于频繁（" + message + "）。已暂停自动登录 12 小时，请稍后再试。")
+                            .setPositiveButton("知道了", (dialog, which) -> {
+                                result.confirm();
+                                finish();
+                            })
+                            .setOnCancelListener(dialog -> result.cancel())
+                            .show();
+                    return true;
+                }
+                return super.onJsAlert(view, url, message, result);
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, final android.webkit.JsResult result) {
+                if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)) {
+                    com.zfdang.zsmth_android.helpers.LoginThrottle.onTooFrequent(message);
+                    Log.w(TAG, "too frequent login confirm: " + message);
+                    // 用户点的"踢掉多余窗口"会挤掉其它设备的登录，这里直接取消并结束
+                    new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
+                            .setTitle("登录受限")
+                            .setMessage("水木提示：" + message + "。已暂停自动登录 12 小时，请稍后再试。")
+                            .setPositiveButton("知道了", (dialog, which) -> {
+                                result.cancel();
+                                finish();
+                            })
+                            .setOnCancelListener(dialog -> result.cancel())
+                            .show();
+                    return true;
+                }
+                return super.onJsConfirm(view, url, message, result);
             }
         });
 

@@ -113,6 +113,9 @@ https://www.newsmth.net/nForum/att/Universal/4210265/229    → 200 image/jpeg�
 | 十大导读 | `TopicListContent.addHotTopic` |
 | 版面主题列表（含搜索结果） | `TopicListContent.addBoardTopic` |
 | 帖子楼层 | `PostListContent.addItem` |
+| 信息流 | `FeedFragment.loadFeed` 合并处套用 `BlockListManager.isBlocked` |
+
+信息流是直接合并抓取结果的，没有走 `TopicListContent.addBoardTopic`，所以单独补了过滤。作者名还可能在解析时带上 Unicode 空格（如 U+2002），`String.trim()` 只处理 ≤ U+0020 的字符，会把「ETO」归一化成「 ETO」导致屏蔽失效；`BlockListManager.normalize()` 已改为用 `Character.isWhitespace || isSpaceChar` 去掉两端空白。
 
 三个方法由 `void` 改为返回 `boolean`，调用处按返回值决定是否 `notifyItemInserted`，避免索引错位。
 
@@ -173,6 +176,8 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 底栏做成了通用组件 `res/layout/bottom_nav_bar.xml`，并在 `SMTHBaseActivity` 中提供统一的 `setupBottomNavigation()`。因此版面、帖子、用户资料、邮件内容、登录、发帖、屏蔽设置、儿童安全等页面也都常驻这一栏。在子页面点击标签会回主页（`FLAG_ACTIVITY_CLEAR_TOP`）并切到对应 fragment。
 
 当前标签 id 记录在 `SMTHApplication.currentTabId`，子页面进入时会恢复这个高亮，所以从「收藏」点进版面、帖子后底栏仍停留在「收藏」，不会跳回最左边。帖子页底部的翻页栏与右侧上下翻页按钮都单独抬高了 `bottom_nav_height`，不会被底栏遮住。
+
+底栏高度固定为 `@dimen/bottom_nav_height`（56dp），`app:itemIconSize=20dp`。早先两处 `BottomNavigationView` 都用 `wrap_content`，会被 48dp 的图标资源撑到约 75dp，文字下方留白偏大；改成固定高度并缩小图标后，和其它页面预留的 56dp padding 也刚好对齐。
 
 全屏图片查看器是全屏手势场景，未加底栏以免遮挡图片。
 
@@ -253,7 +258,7 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 - 标题栏有排序按钮，可选「发表时间」（默认）或「最后回复」，独立于版面页的排序设置，记在 `Settings.FEED_SORT_MODE`。按哪种排序，列表右侧就显示哪个时间，不会出现看起来乱序的情况；
 - 排序键由 `Topic.parseSortKey()` 统一解析，支持 `yyyy-MM-dd`、`MM-dd HH:mm(:ss)`、`MM-dd`、`HH:mm(:ss)` 和「今天 / 昨天」，结果换算成「日期 × 100000 + 当天秒数」。秒级精度很关键：水木列表里今天的帖子只给到秒，早期按分钟解析时同一分钟内的帖子会全部并列，看起来就是乱序；
 - 结果放在静态内存缓存里（`FeedFragment.FEED_TOPICS`），切标签页回来不重复请求，只有下拉刷新、来源版面变化、切换排序或缓存超过 10 分钟才重新抓；
-- 下拉用和其它页面一致的 `ClassicsHeader`（带「正在刷新 / 上次更新」），标题栏的刷新按钮也接到了当前页面的刷新入口；
+- 下拉用和其它页面一致的 `ClassicsHeader`（带「正在刷新 / 上次更新」），标题栏的刷新按钮也接到了当前页面的刷新入口；在信息流标签下双击底栏的「信息流」按钮也会触发同样的刷新（`SMTHBaseActivity.onBottomNavItemReselected` → `MainActivity` 的 500ms 双击检测 → `FeedFragment.refreshFromMenu`，用 `autoRefresh()` 显示刷新头）；单击不触发，避免误触；
 - 点击条目直接进帖子，版面名取自收藏夹里那一项；
 - 开关切换后会立刻生效：在「信息流」标签下从设置页返回，`MainActivity.syncGuidanceFragment()` 会把 fragment 换成对应的那个。
 
@@ -279,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1040；`versionName` 手动递增，当前为 26.11.26，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1045；`versionName` 手动递增，当前为 26.11.31，不再随构建日期自动变化。
 
 调试版本：
 
@@ -289,6 +294,28 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 ```
 
 > debug 版 `debuggable=true`，可用 `adb shell run-as com.zfdang.zsmth_android` 读取应用私有目录，便于排查登录态和 Cookie。
+
+## 10. 时间显示压缩与引文折叠（v26.11.28）
+
+- **时间格式**：版面列表、信息流里的发帖/回复时间由 `StringUtils.formatTopicDate()` 统一处理——4 位年份缩成 2 位（`2026-10-10` → `26-10-10`），`HH:mm:ss` 去掉秒（`20:31:21` → `20:31`）。帖子楼层和邮件正文由 `StringUtils.getFormattedString()` 改为 `yy-MM-dd HH:mm`。排序仍读 `Topic` 里的原始字段，不受显示格式影响。
+- **引文折叠**：帖子正文里冒号 `:` 开头的连续行在解析时收成一个 `quote=true` 的 `ContentSegment`（`Post.parsePostPureContentFormat`），界面上默认显示「展开引文（N 行）」，点击展开全文、再点收起（`QuoteTextHelper`）。帖子页和邮件正文页共用同一套绑定逻辑，首段 TextView 复用时会清掉旧的点击监听。
+
+## 11. 底栏兼容与登录节流（v26.11.29）
+
+- **底栏在 vivo 上重叠**：两处 `BottomNavigationView` 曾被改成固定 `@dimen/bottom_nav_height`（56dp），vivo 的字体度量下 item 内图标+文字超过这个高度，导致图文重叠。改回 `wrap_content`、只保留 `app:itemIconSize=20dp`，各系统按自身度量算高度后正常（小米、vivo 均已验证）。
+- **登录节流**：水木服务端对频繁登录有限制（`0105 请勿频繁登录`、JS 弹窗「您已登录的账号过多，无法重复登录 / 是否踢掉多余窗口」）。新增 `helpers/LoginThrottle.java` 统一管理：
+  - 登录成功（含 Worker 查到已登录）记录 `Settings.lastLoginTime`，6 小时内不重复自动登录；cookie 由 WebView CookieManager 持久化，`saveFromResponse` 里补了 `flush()` 确保落盘；
+  - 识别 `0105` 或文案含「频繁 / 账号过多 / 重复登录 / 踢掉」，进入 12 小时冷却（`Settings.loginCooldownUntil`），期间 Worker 不自动登录，打开登录页直接弹「登录受限」拦截；
+  - `WebviewLoginActivity` 打开时若 cookie 已有有效用户则直接返回成功、不再提交表单；WebChromeClient 拦截 `onJsAlert/onJsConfirm` 里的受限弹窗并进入冷却；
+  - 顺带修正 Worker 里把成功码 `0005` 误判为登录失败的旧逻辑。
+
+## 12. 帖子翻页对齐与图片长按菜单（v26.11.30）
+
+- **点击翻页改为楼层对齐**（v26.11.30 引入，v26.11.31 完善）：`RecyclerViewGestureListener` 原来点屏幕下半只按固定像素滚（`ScrollRecyclerViewByKey`，0.8×视口高），停靠位置随楼层高度变化、不确定。现在的规则是：
+  - 下一楼顶部**已在视口内**（短帖子，能看到下一楼开头）→ 用 `LinearSmoothScroller` + `SNAP_TO_START` 精确对齐到视口上沿（标题栏下沿），点一次前进一楼；
+  - 下一楼**还没露头**（当前楼很长/带大图）→ 正常滚一屏（0.8×视口高），反复点直到下一楼露头，再点就精确对齐；
+  - 点上半屏对称处理（回到本楼顶部或上一楼）。
+- **帖子图片短按翻页、长按出菜单**：图片不再设置任何点击/长按监听（`PostRecyclerViewAdapter.bindImageClicks()` 只打 `image_tag`），短按事件冒泡到楼层手势层正常翻页；长按由 `RecyclerViewGestureListener.onLongPress()` 识别触点落在带 `image_tag` 的图片上，回调 `PostListActivity.onImageLongClicked()` 弹「查看大图 / 分享图片 / 取消」。网格模式和混排模式都走这套。全屏看图器里原有的分享按钮不受影响。
 
 ## 已知问题
 

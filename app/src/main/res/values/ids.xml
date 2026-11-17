@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <item name="image_tag" type="id"/>
+  <!-- 引文 TextView 的展开状态 (Boolean) -->
+  <item name="quote_expanded" type="id"/>
 
   <!--drawee-->
   <item name="uriPath" type="id"/>

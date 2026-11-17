@@ -39,6 +39,10 @@ public class SMTHBaseActivity extends AppCompatActivity {
       onBottomNavItemSelected(item.getItemId());
       return true;
     });
+    // 重复点击当前已选中的标签不会走上面的 Selected 回调，而是走这里
+    nav.setOnNavigationItemReselectedListener(item -> {
+      onBottomNavItemReselected(item.getItemId());
+    });
 
     // 子页面保持主页当前的标签高亮，不要一进来就跳回最左边
     if (!(this instanceof MainActivity)) {
@@ -104,6 +108,10 @@ public class SMTHBaseActivity extends AppCompatActivity {
     intent.putExtra(EXTRA_TARGET_TAB, itemId);
     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
     startActivity(intent);
+  }
+
+  /** 重复点击当前已选中的标签。默认无操作，MainActivity 会用它实现双击信息流刷新。 */
+  protected void onBottomNavItemReselected(int itemId) {
   }
 
   // http://stackoverflow.com/questions/22924825/view-not-attached-to-window-manager-crash

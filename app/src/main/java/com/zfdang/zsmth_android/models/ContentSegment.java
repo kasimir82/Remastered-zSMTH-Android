@@ -17,6 +17,8 @@ public class ContentSegment {
   private String url;
   // image index among all attachments, it will be used for full screen image viewer
   private int imgIndex;
+  // true 表示这段是冒号开头的引文，界面上默认折叠、点击展开
+  private boolean quote;
 
   public int getImgIndex() {
     return imgIndex;
@@ -48,6 +50,14 @@ public class ContentSegment {
 
   public int getType() {
     return type;
+  }
+
+  public boolean isQuote() {
+    return quote;
+  }
+
+  public void setQuote(boolean quote) {
+    this.quote = quote;
   }
 
   public String getUrl() {

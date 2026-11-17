@@ -1,7 +1,6 @@
 package com.zfdang.zsmth_android;
 
 import android.app.Activity;
-import android.content.Intent;
 
 import android.widget.GridLayout;
 import android.widget.ImageView;
@@ -21,8 +20,7 @@ import com.klinker.android.link_builder.LinkConsumableTextView;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.fresco.WrapContentDraweeView;
 import com.zfdang.zsmth_android.helpers.ActivityUtils;
-import com.zfdang.zsmth_android.helpers.ShareImageHelper;
-import com.zfdang.zsmth_android.models.Attachment;
+import com.zfdang.zsmth_android.helpers.QuoteTextHelper;
 import com.zfdang.zsmth_android.models.ContentSegment;
 import com.zfdang.zsmth_android.models.Post;
 import java.util.ArrayList;
@@ -50,6 +48,19 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
     return new ViewHolder(view);
   }
 
+  private void bindTextSegment(TextView tv, ContentSegment content, boolean addLinks) {
+    QuoteTextHelper.bind(tv, content, mListener, addLinks);
+  }
+
+  /**
+   * 图片本身不设任何点击/长按监听：短按事件冒泡到楼层 view 的手势层触发翻页，
+   * 长按由 RecyclerViewGestureListener 识别到 image_tag 后回调 onImageLongClicked 弹菜单。
+   * 这里只打上 image_tag 供识别（含图片在楼层里的序号）。
+   */
+  private void bindImageClicks(View image, final Post post, final ContentSegment content) {
+    image.setTag(R.id.image_tag, content.getImgIndex());
+  }
+
   //    MailContentActivity.inflateContentViewGroup is using the same logic, please make sure they are consistent
   public void inflateContentViewGroup(ViewGroup viewGroup, TextView contentView, final Post post) {
     // remove all child view in viewgroup
@@ -62,8 +73,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
       // there are multiple segments, add the first contentView first
       // contentView is always available, we don't have to inflate it again
       ContentSegment content = contents.get(0);
-      contentView.setText(content.getSpanned());
-      LinkBuilder.on(contentView).addLinks(ActivityUtils.getPostSupportedLinks(mListener)).build();
+      bindTextSegment(contentView, content, false);
 
       viewGroup.addView(contentView);
     }
@@ -84,42 +94,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
           image.setScaleType(ImageView.ScaleType.CENTER_CROP);
           image.setPadding(5, 5, 5, 5);
           Glide.with(mListener).load(content.getUrl()).into(image);
-          image.setTag(R.id.image_tag, content.getImgIndex());
-
-          // set onclicklistener
-          image.setTag(R.id.image_tag, content.getImgIndex());
-          image.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-              int position = (int) v.getTag(R.id.image_tag);
-
-              Intent intent = new Intent(mListener, FSImageViewerActivity.class);
-
-              ArrayList<String> urls = new ArrayList<>();
-              List<Attachment> attaches = post.getAttachFiles();
-              for (Attachment attach : attaches) {
-                // load original image in FS image viewer
-                urls.add(attach.getOriginalImageSource());
-              }
-
-              intent.putStringArrayListExtra(SMTHApplication.ATTACHMENT_URLS, urls);
-              intent.putExtra(SMTHApplication.ATTACHMENT_CURRENT_POS, position);
-              mListener.startActivity(intent);
-            }
-          });
-
-          // 长按图片直接调起系统分享
-          image.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override public boolean onLongClick(View v) {
-              int position = (int) v.getTag(R.id.image_tag);
-              List<Attachment> attaches = post.getAttachFiles();
-              if (position >= 0 && position < attaches.size()) {
-                ShareImageHelper.shareImage(mListener, attaches.get(position).getOriginalImageSource());
-              } else {
-                ShareImageHelper.shareImage(mListener, content.getUrl());
-              }
-              return true;
-            }
-          });
+          bindImageClicks(image, post, content);
 
           // add image to list, instead of adding to viewgroup directly
           imgList.add(image);
@@ -129,40 +104,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
           WrapContentDraweeView image = (WrapContentDraweeView) inflater.inflate(R.layout.post_item_imageview, viewGroup, false);
           image.setImageFromStringURL(content.getUrl());
 
-          // set onclicklistener
-          image.setTag(R.id.image_tag, content.getImgIndex());
-          image.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-              int position = (int) v.getTag(R.id.image_tag);
-
-              Intent intent = new Intent(mListener, FSImageViewerActivity.class);
-
-              ArrayList<String> urls = new ArrayList<>();
-              List<Attachment> attaches = post.getAttachFiles();
-              for (Attachment attach : attaches) {
-                // load original image in FS image viewer
-                urls.add(attach.getOriginalImageSource());
-              }
-
-              intent.putStringArrayListExtra(SMTHApplication.ATTACHMENT_URLS, urls);
-              intent.putExtra(SMTHApplication.ATTACHMENT_CURRENT_POS, position);
-              mListener.startActivity(intent);
-            }
-          });
-
-          // 长按图片直接调起系统分享
-          image.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override public boolean onLongClick(View v) {
-              int position = (int) v.getTag(R.id.image_tag);
-              List<Attachment> attaches = post.getAttachFiles();
-              if (position >= 0 && position < attaches.size()) {
-                ShareImageHelper.shareImage(mListener, attaches.get(position).getOriginalImageSource());
-              } else {
-                ShareImageHelper.shareImage(mListener, content.getUrl());
-              }
-              return true;
-            }
-          });
+          bindImageClicks(image, post, content);
 
           // Add the text view to the parent layout
           viewGroup.addView(image);
@@ -171,10 +113,8 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
       } else if (content.getType() == ContentSegment.SEGMENT_TEXT) {
         // Log.d("CreateView", "Text: " + content.getSpanned().toString());
 
-        // Add the links and make the links clickable
         LinkConsumableTextView tv = (LinkConsumableTextView) inflater.inflate(R.layout.post_item_content, viewGroup, false);
-        tv.setText(content.getSpanned());
-        LinkBuilder.on(tv).addLinks(ActivityUtils.getPostSupportedLinks(mListener)).build();
+        bindTextSegment(tv, content, true);
 
         // Add the text view to the parent layout
         viewGroup.addView(tv);

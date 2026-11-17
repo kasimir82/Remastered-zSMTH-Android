@@ -17,6 +17,7 @@ import androidx.work.WorkerParameters;
 
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.Settings;
+import com.zfdang.zsmth_android.helpers.LoginThrottle;
 import com.zfdang.zsmth_android.helpers.MakeList;
 import com.zfdang.zsmth_android.newsmth.AjaxResponse;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
@@ -100,8 +101,15 @@ public class MaintainUserStatusWorker extends Worker {
 
                 // check it's logined user, or guest
                 if (!TextUtils.equals(userStatus.getId(), "guest")) {
-                    // logined user, just return the status for next step
+                    // logined user: cookie 还有效，刷新一下登录时间并直接返回，绝不重复登录
                     // Log.d(TAG, "call: 2.1 valid logined user: " + userStatus.getId());
+                    LoginThrottle.onLoginSuccess();
+                    return userStatus;
+                }
+
+                // guest：先做节流判断。cookie 有效期内 / 登录冷却期内都不要再次登录，
+                // 否则每隔 2 分钟一次自动登录会很快触发水木的"账号过多"限制。
+                if (!LoginThrottle.canAutoLogin()) {
                     return userStatus;
                 }
 
@@ -121,11 +129,15 @@ public class MaintainUserStatusWorker extends Worker {
                             if (response.getAjax_st() == 1) {
                                 // {"ajax_st":1,"ajax_code":"0005","ajax_msg":"操作成功"}
                                 return AjaxResponse.AJAX_RESULT_OK;
-                            } else if (response.getAjax_code().equals("0005")) {
-                                // {"ajax_st":0,"ajax_code":"0101","ajax_msg":"您的用户名并不存在，或者您的密码错误"}
+                            }
+                            // 0105/账号过多/频繁登录：进入冷却，避免继续登录被封
+                            if (LoginThrottle.isTooFrequent(response)) {
+                                LoginThrottle.onTooFrequent(response.toString());
+                                Log.w(TAG, "login blocked: too frequent, enter cooldown");
                                 return AjaxResponse.AJAX_RESULT_FAILED;
                             }
-                            return AjaxResponse.AJAX_RESULT_UNKNOWN;
+                            // {"ajax_st":0,"ajax_code":"0101","ajax_msg":"您的用户名并不存在，或者您的密码错误"}
+                            return AjaxResponse.AJAX_RESULT_FAILED;
                         }
                     }).blockingIterable();
 
@@ -137,6 +149,7 @@ public class MaintainUserStatusWorker extends Worker {
                         if (result == AjaxResponse.AJAX_RESULT_OK) {
                             // set flag, so that we will query user status again
                             //Log.d(TAG, "call: 2.2.3. Login success");
+                            LoginThrottle.onLoginSuccess();
                             bLoginSuccess = true;
                         } else if (result == AjaxResponse.AJAX_RESULT_FAILED) {
                             // set flag, so that we will not login again next time

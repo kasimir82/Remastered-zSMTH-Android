@@ -207,7 +207,17 @@ public class BlockListManager {
     }
 
     private static String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (value == null) return "";
+        // trim() 只去掉 <= U+0020 的空白，水木作者名里可能带 U+2002/U+00A0 等 Unicode 空格
+        // （实测 "[ ETO]" 前有 U+2002），会导致归一化后匹配不上黑名单，这里手动去掉两端空白。
+        int start = 0, end = value.length();
+        while (start < end && isSpaceChar(value.charAt(start))) start++;
+        while (end > start && isSpaceChar(value.charAt(end - 1))) end--;
+        return value.substring(start, end).toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isSpaceChar(char c) {
+        return Character.isWhitespace(c) || Character.isSpaceChar(c);
     }
 
     /** 界面展示用的一条规则 */

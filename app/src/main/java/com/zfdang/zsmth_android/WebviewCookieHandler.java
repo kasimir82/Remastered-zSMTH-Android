@@ -28,6 +28,15 @@ public final class WebviewCookieHandler implements CookieJar {
         for (Cookie cookie : cookies) {
             webviewCookieManager.setCookie(urlString, cookie.toString());
         }
+        // setCookie 是异步的，登录后立即 flush 落盘，避免进程被系统回收后
+        // cookie 丢失、下次启动又触发一次登录（水木对频繁登录有限制）
+        if (!cookies.isEmpty()) {
+            try {
+                webviewCookieManager.flush();
+            } catch (Throwable t) {
+                // 部分老版本 WebView 不支持，忽略
+            }
+        }
     }
 
     @Override

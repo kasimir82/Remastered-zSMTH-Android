@@ -101,6 +101,10 @@ public class MainActivity extends SMTHBaseActivity
   private NavigationView mNavigationView;
   private BottomNavigationView mBottomNav;
 
+  /** 双击信息流标签刷新：记录上一次点击的时间戳 */
+  private long mLastFeedTabTap = 0;
+  private static final long FEED_DOUBLE_TAP_INTERVAL = 500L;
+
   private static final int notificationID = 273;
 
   @Override protected void onCreate(Bundle savedInstanceState) {
@@ -374,6 +378,23 @@ public class MainActivity extends SMTHBaseActivity
   @Override protected void onBottomNavItemSelected(int itemId) {
     onNavigationItemID(itemId);
     mNavigationView.setCheckedItem(itemId);
+  }
+
+  /**
+   * 重复点击已选中的标签。双击「信息流」时刷新当前页——信息流开着就重新抓取所选版面，
+   * 关着（显示十大导读）就刷新导读。单击不处理，避免误触。
+   */
+  @Override protected void onBottomNavItemReselected(int itemId) {
+    if (itemId != R.id.nav_guidance || mNavigationView == null) {
+      return;
+    }
+    long now = System.currentTimeMillis();
+    if (now - mLastFeedTabTap < FEED_DOUBLE_TAP_INTERVAL) {
+      mLastFeedTabTap = 0;
+      refreshCurrentPage();
+    } else {
+      mLastFeedTabTap = now;
+    }
   }
 
   @Override protected void onNewIntent(Intent intent) {

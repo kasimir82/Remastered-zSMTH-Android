@@ -19,6 +19,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import com.zfdang.SMTHApplication;
+import com.zfdang.zsmth_android.helpers.LoginThrottle;
 import com.zfdang.zsmth_android.newsmth.AjaxResponse;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
 import io.reactivex.Observer;
@@ -48,6 +49,16 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
     setContentView(R.layout.activity_login);
         setupBottomNavigation();
     setSupportActionBar(findViewById(R.id.login_toolbar));
+
+    // 处于登录频繁冷却期：提示并不再显示可提交的登录表单
+    if (LoginThrottle.inCooldown()) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("登录受限")
+                .setMessage("由于此前登录过于频繁，水木暂时限制了登录。已暂停自动登录 12 小时，请稍后再试。")
+                .setPositiveButton("知道了", (dialog, which) -> finish())
+                .setOnCancelListener(dialog -> finish())
+                .show();
+    }
 
     // these two variables should be loaded from preference
     Settings setting = Settings.getInstance();
@@ -147,6 +158,9 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
 //      Log.d(TAG, "receive login result");
       if (resultCode == RESULT_OK) {
         Toast.makeText(getApplicationContext(), "登录成功!", Toast.LENGTH_SHORT).show();
+        // WebView 登录成功也记录时间，避免 Worker 紧接着再登录一次
+        LoginThrottle.onLoginSuccess();
+        Settings.getInstance().setLastLoginSuccess(true);
         Intent resultIntent = new Intent();
         setResult(Activity.RESULT_OK, resultIntent);
         finish();
@@ -190,13 +204,21 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
                     Settings.getInstance().setUsername(username);
                     Settings.getInstance().setPassword(password);
                     Settings.getInstance().setLastLoginSuccess(true);
+                    LoginThrottle.onLoginSuccess();
 
                     Intent resultIntent = new Intent();
                     setResult(Activity.RESULT_OK, resultIntent);
                     finish();
                     break;
                   default:
-                    Toast.makeText(SMTHApplication.getAppContext(), ajaxResponse.toString(), Toast.LENGTH_LONG).show();
+                    // 频繁登录/账号过多：冷却一段时间，并给出明确提示
+                    if (LoginThrottle.isTooFrequent(ajaxResponse)) {
+                      LoginThrottle.onTooFrequent(ajaxResponse.toString());
+                      Toast.makeText(getApplicationContext(),
+                          "登录过于频繁，已暂停自动登录 12 小时，请稍后再试", Toast.LENGTH_LONG).show();
+                    } else {
+                      Toast.makeText(SMTHApplication.getAppContext(), ajaxResponse.toString(), Toast.LENGTH_LONG).show();
+                    }
                     break;
                 }
               }

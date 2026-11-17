@@ -15,9 +15,23 @@ public class StringUtils {
   private static SimpleDateFormat dateformat = null;
 
   public static String getFormattedString(Date date) {
-    if (dateformat == null) dateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    if (dateformat == null) dateformat = new SimpleDateFormat("yy-MM-dd HH:mm");
     if (date != null) return dateformat.format(date);
     return "";
+  }
+
+  /**
+   * 版面/信息流里服务端给的时间字符串，只改显示：年份缩成两位、去掉秒。
+   * 例：2026-10-10 20:31:21 -> 26-10-10 20:31。
+   * 不动 Topic 里的原始字段，排序用的 parseSortKey 仍读原始值。
+   */
+  public static String formatTopicDate(String raw) {
+    if (raw == null) return "";
+    String text = raw;
+    // 吃掉年份前两位、保留后两位：2026-10-10 -> 26-10-10
+    text = text.replaceAll("\\d{2}(\\d{2}-\\d{1,2}-\\d{1,2})", "$1");
+    text = text.replaceAll("(\\d{1,2}:\\d{2}):\\d{2}", "$1");
+    return text;
   }
 
   public static String subStringBetween(String line, String str1, String str2) {
