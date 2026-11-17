@@ -680,6 +680,10 @@ public class MainActivity extends SMTHBaseActivity
     }
 
     // 四个主标签在底栏也有入口，切换时同步高亮，避免抽屉和底栏状态不一致
+    if (menuID == R.id.nav_guidance || menuID == R.id.nav_all_boards
+        || menuID == R.id.nav_favorite || menuID == R.id.nav_mail) {
+      SMTHApplication.currentTabId = menuID;
+    }
     if (mBottomNav != null
         && (menuID == R.id.nav_guidance || menuID == R.id.nav_all_boards
         || menuID == R.id.nav_favorite || menuID == R.id.nav_mail)) {

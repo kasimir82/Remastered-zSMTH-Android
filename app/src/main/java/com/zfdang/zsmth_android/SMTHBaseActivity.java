@@ -8,6 +8,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.zfdang.SMTHApplication;
 
 /**
  * Created by zfdang on 2016-5-10.
@@ -32,6 +33,14 @@ public class SMTHBaseActivity extends AppCompatActivity {
       onBottomNavItemSelected(item.getItemId());
       return true;
     });
+
+    // 子页面保持主页当前的标签高亮，不要一进来就跳回最左边
+    if (!(this instanceof MainActivity)) {
+      MenuItem current = nav.getMenu().findItem(SMTHApplication.currentTabId);
+      if (current != null) {
+        current.setChecked(true);
+      }
+    }
   }
 
   /** 默认行为：回主页并切到对应标签。MainActivity 会重写此方法直接切换 fragment。 */

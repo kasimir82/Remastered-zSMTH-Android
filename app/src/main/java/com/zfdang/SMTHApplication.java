@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.imagepipeline.backends.okhttp3.OkHttpImagePipelineConfigFactory;
 import com.facebook.imagepipeline.core.ImagePipelineConfig;
+import com.zfdang.zsmth_android.R;
 import com.zfdang.zsmth_android.Settings;
 import com.zfdang.zsmth_android.helpers.GEODatabase;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
@@ -23,6 +24,9 @@ public class SMTHApplication extends Application {
   // Android Application的作用
   private static Context context;
   public static String App_Title_Prefix = "RzSMTH - ";
+
+  /** 当前主页标签 id，供子页面底栏保持同一个高亮项 */
+  public static int currentTabId = R.id.nav_guidance;
 
   public static final String FROM_BOARD = "From_Board";
   public static final String FROM_BOARD_HOT = "FROM_HOTTOPICS";

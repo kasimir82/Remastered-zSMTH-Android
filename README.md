@@ -162,7 +162,11 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 
 改动文件：`app_bar_main.xml`（移除 FAB，加入 `BottomNavigationView`）、`content_main.xml`（留出底部栏空间）、`MainActivity.java`（接入切换监听，移除旧的 `initCircularActionMenu`）、`res/menu/bottom_nav_menu.xml`（新增）。左侧抽屉菜单保持不变，设置、屏蔽设置、关于等入口仍在其中。
 
-底栏做成了通用组件 `res/layout/bottom_nav_bar.xml`，并在 `SMTHBaseActivity` 中提供统一的 `setupBottomNavigation()`。因此版面、帖子、用户资料、邮件内容、登录、发帖、屏蔽设置、儿童安全等页面也都常驻这一栏。在子页面点击标签会回主页（`FLAG_ACTIVITY_CLEAR_TOP`）并切到对应 fragment，高亮状态同步。全屏图片查看器是全屏手势场景，未加底栏以免遮挡图片。
+底栏做成了通用组件 `res/layout/bottom_nav_bar.xml`，并在 `SMTHBaseActivity` 中提供统一的 `setupBottomNavigation()`。因此版面、帖子、用户资料、邮件内容、登录、发帖、屏蔽设置、儿童安全等页面也都常驻这一栏。在子页面点击标签会回主页（`FLAG_ACTIVITY_CLEAR_TOP`）并切到对应 fragment。
+
+当前标签 id 记录在 `SMTHApplication.currentTabId`，子页面进入时会恢复这个高亮，所以从「收藏」点进版面、帖子后底栏仍停留在「收藏」，不会跳回最左边。帖子页底部的翻页栏与右侧上下翻页按钮都单独抬高了 `bottom_nav_height`，不会被底栏遮住。
+
+全屏图片查看器是全屏手势场景，未加底栏以免遮挡图片。
 
 ## 构建
 
@@ -182,7 +186,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1033；`versionName` 手动递增，当前为 26.11.19，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1034；`versionName` 手动递增，当前为 26.11.20，不再随构建日期自动变化。
 
 调试版本：
 
