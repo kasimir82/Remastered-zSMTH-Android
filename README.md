@@ -156,7 +156,7 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 | 首页 | 十大导读 |
 | 版面 | 所有版面 |
 | 收藏 | 收藏夹 |
-| 邮箱 | 邮箱 |
+| 我的 | 个人信息、屏蔽设置与常用设置（站内信入口也在这里） |
 
 四个入口与悬浮菜单原本的功能完全一致，只是换成了更直观的呈现方式。选中项带圆角高亮背景，对应颜色资源在 `res/color/bottom_nav_item_color.xml` 和 `res/drawable/bottom_nav_item_background.xml`。
 
@@ -167,6 +167,29 @@ app/src/main/res/drawable/ic_block_white_48dp.xml
 当前标签 id 记录在 `SMTHApplication.currentTabId`，子页面进入时会恢复这个高亮，所以从「收藏」点进版面、帖子后底栏仍停留在「收藏」，不会跳回最左边。帖子页底部的翻页栏与右侧上下翻页按钮都单独抬高了 `bottom_nav_height`，不会被底栏遮住。
 
 全屏图片查看器是全屏手势场景，未加底栏以免遮挡图片。
+
+### 6. 新增「我的」页面
+
+底栏第四项由「邮箱」改为「我的」，用一个可滚动的分组列表把个人信息、常用入口和大部分设置聚合到一起，不必再翻抽屉菜单：
+
+| 分组 | 内容 |
+|---|---|
+| 用户卡片 | 圆形头像、用户名、在线状态、发帖数 / 积分 / 登录次数 / 身份，右侧「登录 / 注销」按钮 |
+| 我的内容 | 收藏夹、站内信、发帖草稿（显示是否有未发送内容，可清空） |
+| 屏蔽与外观 | 本机屏蔽（显示已屏蔽的用户数与关键词数）、夜间模式、字体大小 |
+| 阅读 | 首页默认内容（十大导读 / 收藏夹）、帖子快速导航栏、音量键翻页、版主专用功能 |
+| 图片 | 总是加载原图、从 CDN 加载图片、图片网格模式 |
+| 提醒 | 邮件、@我、回复、Like 四类提醒 |
+| 发帖 | 设备签名开关、设备型号（点击弹窗编辑） |
+| 存储与关于 | 清除图片缓存 / 帖子缓存（显示当前占用，清除后自动刷新）、关于 RzSMTH |
+
+这些开关直接读写 `Settings`，与设置页完全同源，改任意一处另一处同步。夜间模式与字体大小会重建 Activity，重建后会停留在原标签而不是跳回首页。
+
+用户卡片的数据来自 `/nForum/user/ajax_session.json`，为此在 `UserStatus` 中补充了解析 `post_count`、`score_user`、`login_count`、`level`、`is_online` 等字段（仅用于展示，不参与 Parcelable 序列化）。
+
+改动文件：`MineFragment.java`、`MineAdapter.java`、`MineItem.java`、`res/layout/fragment_mine.xml`、`res/layout/item_mine_*.xml`、`res/drawable/ic_mine_*.xml`（均为矢量图标）、`res/values/styles.xml`（统计数值样式）、`res/values{,-night}/colors.xml`（深浅色配色）。
+
+> 列表底部单独留出了 `bottom_nav_height` 的内边距：`content_main` 挂着 `CustomScrollingViewBehavior`，它会在滚动时按 AppBar 折叠量重写 child 的 `paddingBottom`，只靠布局里的固定 padding 会被覆盖掉，最后一条会被底栏压住。
 
 ## 构建
 
@@ -186,7 +209,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1034；`versionName` 手动递增，当前为 26.11.20，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1035；`versionName` 手动递增，当前为 26.11.21，不再随构建日期自动变化。
 
 调试版本：
 

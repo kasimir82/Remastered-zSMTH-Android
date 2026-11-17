@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「我的」页面：用户信息卡片 + 分组设置列表 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/body_background_night">
+
+  <!-- ContentScrollingViewBehavior 会覆盖 content_main 的 paddingBottom，
+       这里给列表自身留出底栏高度，避免最后一条被底部导航栏压住 -->
+  <androidx.recyclerview.widget.RecyclerView
+      android:id="@+id/mine_recycler_view"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:clipToPadding="false"
+      android:paddingBottom="@dimen/bottom_nav_height"
+      android:scrollbars="none" />
+
+</FrameLayout>

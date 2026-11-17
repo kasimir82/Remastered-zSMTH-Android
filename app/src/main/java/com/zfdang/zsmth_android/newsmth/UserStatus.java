@@ -139,6 +139,80 @@ public class UserStatus implements Parcelable {
   private String new_at;
   //    private int new_msg;
 
+  // 以下字段仅在「我的」页面展示用，不参与 Parcelable 序列化
+  private int post_count;
+  private int score_user;
+  private int login_count;
+  private String level;
+  private String life;
+  private int lifelevel;
+  private boolean is_online;
+  private boolean is_activated;
+
+  public int getPost_count() {
+    return post_count;
+  }
+
+  public void setPost_count(int post_count) {
+    this.post_count = post_count;
+  }
+
+  public int getScore_user() {
+    return score_user;
+  }
+
+  public void setScore_user(int score_user) {
+    this.score_user = score_user;
+  }
+
+  public int getLogin_count() {
+    return login_count;
+  }
+
+  public void setLogin_count(int login_count) {
+    this.login_count = login_count;
+  }
+
+  public String getLevel() {
+    return level;
+  }
+
+  public void setLevel(String level) {
+    this.level = level;
+  }
+
+  public String getLife() {
+    return life;
+  }
+
+  public void setLife(String life) {
+    this.life = life;
+  }
+
+  public int getLifelevel() {
+    return lifelevel;
+  }
+
+  public void setLifelevel(int lifelevel) {
+    this.lifelevel = lifelevel;
+  }
+
+  public boolean is_online() {
+    return is_online;
+  }
+
+  public void setIs_online(boolean is_online) {
+    this.is_online = is_online;
+  }
+
+  public boolean is_activated() {
+    return is_activated;
+  }
+
+  public void setIs_activated(boolean is_activated) {
+    this.is_activated = is_activated;
+  }
+
   private int ajax_st;
   private String ajax_code;
   private String ajax_msg;

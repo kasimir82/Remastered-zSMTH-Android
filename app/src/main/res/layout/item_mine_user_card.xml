@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「我的」页顶部用户卡片 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:fresco="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="10dp"
+    android:layout_marginTop="10dp"
+    android:layout_marginEnd="10dp"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/mine_card_bg"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="12dp">
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+    <com.facebook.drawee.view.SimpleDraweeView
+        android:id="@+id/mine_avatar"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        fresco:placeholderImage="@drawable/ic_person_black_48dp"
+        fresco:placeholderImageScaleType="fitCenter"
+        fresco:roundAsCircle="true" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/mine_user_name"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:ellipsize="end"
+          android:maxLines="1"
+          android:text="点击登录"
+          android:textColor="@color/mine_row_title"
+          android:textSize="18sp"
+          android:textStyle="bold" />
+
+      <TextView
+          android:id="@+id/mine_user_hint"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="2dp"
+          android:text="登录后可管理收藏与站内信"
+          android:textColor="@color/mine_row_summary"
+          android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/mine_login_action"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="12dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp"
+        android:text="登录"
+        android:textColor="@color/mine_section_text"
+        android:textSize="13sp" />
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/mine_stats_layout"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="14dp"
+      android:orientation="horizontal">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/mine_stat_post_value"
+          style="@style/MineStatValue"
+          android:text="-" />
+
+      <TextView
+          style="@style/MineStatLabel"
+          android:text="发帖" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/mine_stat_score_value"
+          style="@style/MineStatValue"
+          android:text="-" />
+
+      <TextView
+          style="@style/MineStatLabel"
+          android:text="积分" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/mine_stat_login_value"
+          style="@style/MineStatValue"
+          android:text="-" />
+
+      <TextView
+          style="@style/MineStatLabel"
+          android:text="登录次数" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/mine_stat_level_value"
+          style="@style/MineStatValue"
+          android:text="-" />
+
+      <TextView
+          style="@style/MineStatLabel"
+          android:text="身份" />
+    </LinearLayout>
+  </LinearLayout>
+
+</LinearLayout>

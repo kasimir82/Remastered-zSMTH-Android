@@ -84,6 +84,7 @@ public class MainActivity extends SMTHBaseActivity
   FavoriteBoardFragment favoriteBoardFragment = null;
   AllBoardFragment allBoardFragment = null;
   MailListFragment mailListFragment = null;
+  MineFragment mineFragment = null;
   MyPreferenceFragment preferenceFragment = null;
   Fragment aboutFragment = null;
   private WrapContentDraweeView mAvatar = null;
@@ -152,7 +153,11 @@ public class MainActivity extends SMTHBaseActivity
     initFragments();
 
     FragmentManager fm = getSupportFragmentManager();
-    if (Settings.getInstance().isLaunchHotTopic()) {
+    // 字体大小调节等操作会 recreate 当前 Activity，这里恢复上次停留的标签，避免总是跳回首页
+    int initialTab = SMTHApplication.currentTabId;
+    if (initialTab == R.id.nav_mine || initialTab == R.id.nav_all_boards) {
+      onNavigationItemID(initialTab);
+    } else if (Settings.getInstance().isLaunchHotTopic()) {
       fm.beginTransaction().replace(R.id.content_frame, hotTopicFragment).commit();
     } else {
       fm.beginTransaction().replace(R.id.content_frame, favoriteBoardFragment).commit();
@@ -412,6 +417,7 @@ public class MainActivity extends SMTHBaseActivity
     favoriteBoardFragment = new FavoriteBoardFragment();
     allBoardFragment = new AllBoardFragment();
     mailListFragment = new MailListFragment();
+    mineFragment = new MineFragment();
 
     preferenceFragment = new MyPreferenceFragment();
     aboutFragment = new LibsBuilder().supportFragment();
@@ -460,6 +466,11 @@ public class MainActivity extends SMTHBaseActivity
       SMTHApplication.displayedUserId = "guest";
       KeepAliveService.stop(this);
     }
+
+    // 「我的」页面也在展示用户信息，同步刷新
+    if (mineFragment != null) {
+      mineFragment.refreshUserInfo();
+    }
   }
 
   private void handleBackAction() {
@@ -479,10 +490,23 @@ public class MainActivity extends SMTHBaseActivity
     }
 
     if (fragment != hotTopicFragment) {
-      // return to hottopic if we are not there yet
+      // 优先回到当前底栏标签对应的页面（例如从「我的」进入站内信/关于后返回，应回到「我的」）
+      Fragment target = hotTopicFragment;
       String title = "首页导读";
+      int tab = SMTHApplication.currentTabId;
+      if (tab == R.id.nav_mine && fragment != mineFragment) {
+        target = mineFragment;
+        title = "我的";
+      } else if (tab == R.id.nav_all_boards && fragment != allBoardFragment) {
+        target = allBoardFragment;
+        title = "所有版面";
+      } else if (tab == R.id.nav_favorite && fragment != favoriteBoardFragment) {
+        target = favoriteBoardFragment;
+        title = "收藏夹";
+      }
+
       FragmentManager fm = getSupportFragmentManager();
-      fm.beginTransaction().replace(R.id.content_frame, hotTopicFragment).commit();
+      fm.beginTransaction().replace(R.id.content_frame, target).commit();
       setTitle(SMTHApplication.App_Title_Prefix + title);
       return;
     }
@@ -652,6 +676,9 @@ public class MainActivity extends SMTHBaseActivity
     } else if (menuID == R.id.nav_mail) {
       fragment = mailListFragment;
       title = "邮件";
+    } else if (menuID == R.id.nav_mine) {
+      fragment = mineFragment;
+      title = "我的";
     } else if (menuID == R.id.nav_setting) {
       //            fragment = settingFragment;
       fragment = preferenceFragment;
@@ -679,14 +706,14 @@ public class MainActivity extends SMTHBaseActivity
       }
     }
 
-    // 四个主标签在底栏也有入口，切换时同步高亮，避免抽屉和底栏状态不一致
-    if (menuID == R.id.nav_guidance || menuID == R.id.nav_all_boards
-        || menuID == R.id.nav_favorite || menuID == R.id.nav_mail) {
+    // 底栏上的四个主标签，切换时同步高亮，避免抽屉和底栏状态不一致
+    // 注意：站内信(nav_mail)已经从底栏移到「我的」页面里，不再作为底栏标签
+    boolean isBottomTab = menuID == R.id.nav_guidance || menuID == R.id.nav_all_boards
+        || menuID == R.id.nav_favorite || menuID == R.id.nav_mine;
+    if (isBottomTab) {
       SMTHApplication.currentTabId = menuID;
     }
-    if (mBottomNav != null
-        && (menuID == R.id.nav_guidance || menuID == R.id.nav_all_boards
-        || menuID == R.id.nav_favorite || menuID == R.id.nav_mail)) {
+    if (mBottomNav != null && isBottomTab) {
       Menu bottomMenu = mBottomNav.getMenu();
       MenuItem target = bottomMenu.findItem(menuID);
       if (target != null && !target.isChecked()) {

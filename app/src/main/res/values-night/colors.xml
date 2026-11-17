@@ -69,4 +69,15 @@
   <color name="board_topic_author">#CC7832</color>
   <color name="board_topic_date">#A9B7C6</color>
   <color name="board_topic_status">#727272</color>
+
+  <!-- 「我的」页面 -->
+  <color name="mine_section_background">#1A1C1F</color>
+  <color name="mine_section_text">#8AA9C9</color>
+  <color name="mine_row_background">#000000</color>
+  <color name="mine_row_title">#D5D9DE</color>
+  <color name="mine_row_summary">#8B9199</color>
+  <color name="mine_icon_tint">#8AA9C9</color>
+  <color name="mine_divider">#26292D</color>
+  <color name="mine_card_background">#17191C</color>
+  <color name="mine_card_stat">#D5D9DE</color>
 </resources>

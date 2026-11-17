@@ -122,4 +122,25 @@
     <item name="android:activityCloseExitAnimation">@anim/activity_fade_out</item>
   </style>
 
+  <!-- 「我的」页用户卡片统计数值/标签 -->
+  <style name="MineStatValue">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:gravity">center_horizontal</item>
+    <item name="android:singleLine">true</item>
+    <item name="android:ellipsize">end</item>
+    <item name="android:textColor">@color/mine_card_stat</item>
+    <item name="android:textSize">17sp</item>
+    <item name="android:textStyle">bold</item>
+  </style>
+
+  <style name="MineStatLabel">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:gravity">center_horizontal</item>
+    <item name="android:layout_marginTop">2dp</item>
+    <item name="android:textColor">@color/mine_row_summary</item>
+    <item name="android:textSize">11sp</item>
+  </style>
+
 </resources>

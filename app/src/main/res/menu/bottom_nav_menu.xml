@@ -17,8 +17,8 @@
       android:title="收藏" />
 
   <item
-      android:id="@+id/nav_mail"
-      android:icon="@drawable/ic_email_white_48dp"
-      android:title="邮箱" />
+      android:id="@+id/nav_mine"
+      android:icon="@drawable/ic_mine_person"
+      android:title="我的" />
 
 </menu>
