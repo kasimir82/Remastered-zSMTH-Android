@@ -427,9 +427,9 @@ public class Settings {
     } else if (iFontIndex == 3) {
       return 0.65f;
     } else if (iFontIndex == 4) {
-      return 1.35f;
+      return 1.20f;
     } else if (iFontIndex == 5) {
-      return 1.55f;
+      return 1.35f;
     }
     return 1.0f;
   }

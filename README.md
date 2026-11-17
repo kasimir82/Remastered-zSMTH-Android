@@ -67,6 +67,30 @@ Observable<UserStatus> queryActiveUserStatus();
 
 经实测：只带 `X-Requested-With` → 403；只带 `Referer` → 404；两者都带 → 200。
 
+### 2.1 修正图片 CDN 域名
+
+上游把帖子附件等图片地址补成 `https://static.newsmth.net/...`（`SMTHHelper.java` 的 `SMTH_IMAGE_PREFIX_CDN`），但该域名已不再解析，导致帖子里的图片全部显示失败：
+
+```
+static.newsmth.net    → Could not resolve host / ping: unknown host
+www.newsmth.net       → 200 image/jpeg
+att.newsmth.net       → 200 image/jpeg
+static.mysmth.net     → 200 image/jpeg
+```
+
+改为 `https://static.mysmth.net`。该域名是当前站点实际使用的 CDN，帖子附件图片恢复正常。
+
+### 2.2 调整字体档位
+
+字体设置里两档过大的倍率调低，避免长文排版溢出：
+
+| 档位 | 原值 | 新值 |
+|---|---|---|
+| 特大字体 | 135% | 120% |
+| 超大字体 | 155% | 135% |
+
+映射在 `Settings.getFontSizeFloatValue()`，显示文字在 `res/values/arrays.xml`，两处已同步。
+
 ### 3. 新增「屏蔽设置」
 
 侧边栏「设置」下方新增入口，进入独立页面管理两类规则：

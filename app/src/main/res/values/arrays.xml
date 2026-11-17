@@ -5,8 +5,8 @@
     <item>正常字体(100%)</item>
     <item>小字体(85%)</item>
     <item>特小字体(65%)</item>
-    <item>特大字体(135%)</item>
-    <item>超大字体(155%)</item>
+    <item>特大字体(120%)</item>
+    <item>超大字体(135%)</item>
   </string-array>
   <string-array name="font_size_values">
     <item>0</item>
