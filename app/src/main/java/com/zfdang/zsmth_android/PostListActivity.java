@@ -92,11 +92,14 @@ public class PostListActivity extends SMTHBaseActivity
 
   private static final String TAG = "PostListActivity";
   public RecyclerView mRecyclerView = null;
+  private PostRecyclerViewAdapter mAdapter = null;
   private TextView mTitle = null;
   private EditText mPageNo = null;
 
   public int mCurrentPageNo = 1;
   private String mFilterUser = null;
+  /** 自动加载下一页时防止重复触发 */
+  private boolean mLoadingMore = false;
 
   private Topic mTopic = null;
 
@@ -199,8 +202,16 @@ public class PostListActivity extends SMTHBaseActivity
     mRefreshLayout.setOnLoadMoreListener(new OnLoadMoreListener() {
       @Override
       public void onLoadMore(RefreshLayout refreshLayout) {
-        // load next page if available
-        goToNextPage();
+        // 上拉加载更多与自动加载一样，采用追加模式
+        if (mLoadingMore) {
+          mRefreshLayout.finishLoadMore(100);
+          return;
+        }
+        if (mTopic != null && mCurrentPageNo >= mTopic.getTotalPageNo()) {
+          mRefreshLayout.finishLoadMore(100);
+          return;
+        }
+        loadNextPageAppend();
       }
     });
 
@@ -210,7 +221,24 @@ public class PostListActivity extends SMTHBaseActivity
         new DividerItemDecoration(this, LinearLayoutManager.VERTICAL, R.drawable.recyclerview_divider));
     linearLayoutManager = new WrapContentLinearLayoutManager(this);
     mRecyclerView.setLayoutManager(linearLayoutManager);
-    mRecyclerView.setAdapter(new PostRecyclerViewAdapter(PostListContent.POSTS, this));
+    mAdapter = new PostRecyclerViewAdapter(PostListContent.POSTS, this);
+    mRecyclerView.setAdapter(mAdapter);
+
+    // 滚动到距末尾约 5 帖时，自动追加下一页（末页则不处理）
+    mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+      @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
+        if (dy <= 0 || mLoadingMore || mTopic == null || PostListContent.POSTS.isEmpty()) {
+          return;
+        }
+        // 用真实帖子数算剩余，不含末尾的「本贴结束」标记
+        int postCount = PostListContent.POSTS.size();
+        int last = linearLayoutManager.findLastVisibleItemPosition();
+        int remaining = postCount - 1 - last;
+        if (remaining <= 5 && mCurrentPageNo < mTopic.getTotalPageNo()) {
+          loadNextPageAppend();
+        }
+      }
+    });
 
     // holder.mView.setOnTouchListener(this); so the event will be sent from
     // holder.mView
@@ -229,8 +257,6 @@ public class PostListActivity extends SMTHBaseActivity
 
     // set onClick Lisetner for page navigator buttons
     findViewById(R.id.post_list_first_page).setOnClickListener(this);
-    findViewById(R.id.post_list_pre_page).setOnClickListener(this);
-    findViewById(R.id.post_list_next_page).setOnClickListener(this);
     findViewById(R.id.post_list_last_page).setOnClickListener(this);
     findViewById(R.id.post_list_go_page).setOnClickListener(this);
 
@@ -286,8 +312,22 @@ public class PostListActivity extends SMTHBaseActivity
 
   public void reloadPostListWithoutAlert() {
     PostListContent.clear();
+    mLoadingMore = false;
+    if (mAdapter != null) {
+      mAdapter.setShowEndMarker(false);
+    }
     mRecyclerView.getAdapter().notifyDataSetChanged();
 
+    loadPostListByPages();
+  }
+
+  /** 自动加载下一页：直接追加，不清空已有帖子 */
+  private void loadNextPageAppend() {
+    if (mLoadingMore || mTopic == null || mCurrentPageNo >= mTopic.getTotalPageNo()) {
+      return;
+    }
+    mLoadingMore = true;
+    mCurrentPageNo += 1;
     loadPostListByPages();
   }
 
@@ -326,6 +366,7 @@ public class PostListActivity extends SMTHBaseActivity
 
           @Override
           public void onError(@NonNull Throwable e) {
+            mLoadingMore = false;
             clearLoadingHints();
             if (e instanceof com.zfdang.zsmth_android.newsmth.GuestReadVerificationException) {
               new androidx.appcompat.app.AlertDialog.Builder(PostListActivity.this)
@@ -342,10 +383,15 @@ public class PostListActivity extends SMTHBaseActivity
 
           @Override
           public void onComplete() {
+            mLoadingMore = false;
             String title = String.format("[%d/%d] %s", mCurrentPageNo, mTopic.getTotalPageNo(), mTopic.getTitle());
             mTitle.setText(title);
             mPageNo.setText(String.format("%d", mCurrentPageNo));
 
+            // 已加载到最后一页 → 列表末尾显示「本贴结束」
+            if (mAdapter != null) {
+              mAdapter.setShowEndMarker(mCurrentPageNo >= mTopic.getTotalPageNo());
+            }
             clearLoadingHints();
           }
         });
@@ -404,17 +450,6 @@ public class PostListActivity extends SMTHBaseActivity
           reloadPostList();
         }
         break;
-      case R.id.post_list_pre_page:
-        if (mCurrentPageNo == 1) {
-          Toast.makeText(PostListActivity.this, "已在首页！", Toast.LENGTH_SHORT).show();
-        } else {
-          mCurrentPageNo -= 1;
-          reloadPostList();
-        }
-        break;
-      case R.id.post_list_next_page:
-        goToNextPage();
-        break;
       case R.id.post_list_last_page:
         if (mCurrentPageNo == mTopic.getTotalPageNo()) {
           Toast.makeText(PostListActivity.this, "已在末页！", Toast.LENGTH_SHORT).show();
@@ -466,12 +501,11 @@ public class PostListActivity extends SMTHBaseActivity
   }
 
   public void goToNextPage() {
-    if (mCurrentPageNo == mTopic.getTotalPageNo()) {
+    if (mTopic != null && mCurrentPageNo >= mTopic.getTotalPageNo()) {
       Toast.makeText(PostListActivity.this, "已在末页！", Toast.LENGTH_SHORT).show();
       clearLoadingHints();
     } else {
-      mCurrentPageNo += 1;
-      reloadPostList();
+      loadNextPageAppend();
     }
   }
 

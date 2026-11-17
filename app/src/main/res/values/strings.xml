@@ -158,4 +158,5 @@
   <string name="child_safety_report_subject">儿童安全问题举报（来自 zSMTH）</string>
   <string name="child_safety_report_hint">请填写举报原因、帖子链接、版面和作者 ID；勿附违法图片或视频</string>
   <string name="child_safety_report_success">举报站内信已提交给 sysop，请在发件箱核对。</string>
+  <string name="post_list_end">本贴结束</string>
 </resources>

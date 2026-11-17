@@ -78,10 +78,15 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     if (next) {
       int target = first + 1;
       if (target >= itemCount) {
+        // 已经在最后一项，强制把它对齐到视口上沿
+        snapToTop(first);
         return;
       }
       View nextView = lm.findViewByPosition(target);
-      if (nextView != null && nextView.getTop() < viewportHeight) {
+      if (nextView != null && isEndMarker(nextView)) {
+        // 下一项是「本贴结束」标记：把最后一楼顶到视口上沿，红字标记自然露在下方留白处
+        snapToTop(first);
+      } else if (nextView != null && nextView.getTop() < viewportHeight) {
         // 下一楼已经露头 → 对齐它的顶部到视口上沿
         snapToTop(target);
       } else {
@@ -107,6 +112,12 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         }
       }
     }
+  }
+
+  /** 判断一个 item view 是否为「本贴结束」标记 */
+  private boolean isEndMarker(View view) {
+    return view != null
+        && view.findViewById(com.zfdang.zsmth_android.R.id.post_list_end_text) != null;
   }
 
   /** 带动画滚到目标楼层，SNAP_TO_START 让它的顶部精确对齐 RecyclerView 顶部（标题栏下沿） */

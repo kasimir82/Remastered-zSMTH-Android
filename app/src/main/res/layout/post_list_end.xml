@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 帖子末尾标记：上方留白，把最后一楼顶到视口上沿后，红字「本贴结束」落在下方 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:paddingTop="80dp"
+    android:paddingBottom="120dp">
+
+  <TextView
+      android:id="@+id/post_list_end_text"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:gravity="center"
+      android:text="@string/post_list_end"
+      android:textColor="@color/post_list_end_text"
+      android:textSize="@dimen/zsmth_font_size_large" />
+</LinearLayout>

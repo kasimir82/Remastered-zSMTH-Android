@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1045；`versionName` 手动递增，当前为 26.11.31，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1046；`versionName` 手动递增，当前为 26.11.32，不再随构建日期自动变化。
 
 调试版本：
 
@@ -316,6 +316,12 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
   - 下一楼**还没露头**（当前楼很长/带大图）→ 正常滚一屏（0.8×视口高），反复点直到下一楼露头，再点就精确对齐；
   - 点上半屏对称处理（回到本楼顶部或上一楼）。
 - **帖子图片短按翻页、长按出菜单**：图片不再设置任何点击/长按监听（`PostRecyclerViewAdapter.bindImageClicks()` 只打 `image_tag`），短按事件冒泡到楼层手势层正常翻页；长按由 `RecyclerViewGestureListener.onLongPress()` 识别触点落在带 `image_tag` 的图片上，回调 `PostListActivity.onImageLongClicked()` 弹「查看大图 / 分享图片 / 取消」。网格模式和混排模式都走这套。全屏看图器里原有的分享按钮不受影响。
+
+## 13. 自动翻页与本贴结束标记（v26.11.32）
+
+- **翻页栏精简**：`post_list_page_navigator.xml` 去掉「上页 / 下页」两个按钮，保留「首页 / 末页 / 页码 / GO」四个并均分权重（`layout_weight=1`）。`PostListActivity` 里对应的 findViewById 和 onClick 分支一并清理。
+- **自动加载下一页**：滚到距末尾约 5 帖时（`RecyclerView.OnScrollListener` 里 `postCount-1-lastVisible <= 5`），自动把 `mCurrentPageNo+1` 并用 `loadNextPageAppend()` **追加**加载，不清空已显示的帖子；`mLoadingMore` 防重复。上拉加载更多和 `goToNextPage()` 也统一走追加模式。手动 GO 跳页仍走清空重载。
+- **本贴结束**：加载到最后一页时，`PostRecyclerViewAdapter` 在列表末尾插入一个 `TYPE_END` 项（`post_list_end.xml`，上方留白 + 红字「本贴结束」，日/夜配色分别为 `post_list_end_text`）。`RecyclerViewGestureListener` 翻到最后一楼时识别到下一项是结束标记，就把最后一楼 `SNAP_TO_START` 顶到视口上沿，红字自然露在下方留白处。
 
 ## 已知问题
 

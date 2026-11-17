@@ -30,10 +30,15 @@ import com.bumptech.glide.Glide;
 /**
  * used by HotPostFragment & BoardPostFragment
  */
-public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerViewAdapter.ViewHolder> {
+public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+
+  private static final int TYPE_POST = 0;
+  private static final int TYPE_END = 1;
 
   private final List<Post> mPosts;
   private final Activity mListener;
+  /** 已加载到最后一页时，在列表末尾显示「本贴结束」标记 */
+  private boolean mShowEndMarker = false;
 
   private GridLayout gridLayout;
   private List<ImageView> imgList;
@@ -43,7 +48,31 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
     mListener = listener;
   }
 
-  @Override public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+  public void setShowEndMarker(boolean show) {
+    if (mShowEndMarker == show) {
+      return;
+    }
+    mShowEndMarker = show;
+    if (show) {
+      notifyItemInserted(mPosts.size());
+    } else {
+      notifyItemRemoved(mPosts.size());
+    }
+  }
+
+  public boolean isShowingEndMarker() {
+    return mShowEndMarker;
+  }
+
+  @Override public int getItemViewType(int position) {
+    return (position == mPosts.size() && mShowEndMarker) ? TYPE_END : TYPE_POST;
+  }
+
+  @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+    if (viewType == TYPE_END) {
+      View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_list_end, parent, false);
+      return new EndViewHolder(view);
+    }
     View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_item, parent, false);
     return new ViewHolder(view);
   }
@@ -164,7 +193,11 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
     }
   }
 
-  @Override public void onBindViewHolder(final ViewHolder holder, final int position) {
+  @Override public void onBindViewHolder(final RecyclerView.ViewHolder baseHolder, final int position) {
+    if (baseHolder instanceof EndViewHolder) {
+      return; // 结束标记没有需要绑定的数据
+    }
+    final ViewHolder holder = (ViewHolder) baseHolder;
     holder.mPost = mPosts.get(position);
     Post post = holder.mPost;
 
@@ -191,7 +224,13 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<PostRecyclerVi
   }
 
   @Override public int getItemCount() {
-    return mPosts.size();
+    return mPosts.size() + (mShowEndMarker ? 1 : 0);
+  }
+
+  public static class EndViewHolder extends RecyclerView.ViewHolder {
+    public EndViewHolder(View view) {
+      super(view);
+    }
   }
 
   public class ViewHolder extends RecyclerView.ViewHolder {

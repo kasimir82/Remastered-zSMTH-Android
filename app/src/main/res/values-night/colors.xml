@@ -80,4 +80,5 @@
   <color name="mine_divider">#26292D</color>
   <color name="mine_card_background">#17191C</color>
   <color name="mine_card_stat">#D5D9DE</color>
+  <color name="post_list_end_text">#EF5350</color>
 </resources>

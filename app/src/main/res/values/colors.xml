@@ -80,4 +80,6 @@
   <color name="mine_divider">#ECEDEF</color>
   <color name="mine_card_background">#F2F4F7</color>
   <color name="mine_card_stat">#1A1A1A</color>
+  <!-- 帖子结束标记的红字 -->
+  <color name="post_list_end_text">#D32F2F</color>
 </resources>
