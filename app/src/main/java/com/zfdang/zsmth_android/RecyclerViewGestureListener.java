@@ -76,17 +76,27 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
 
     int viewportHeight = recyclerView.getHeight();
     if (next) {
+      // 先看视口里是否已经露出「本贴结束」标记：任何位置看到它，都收敛到「最后一楼顶对齐」，
+      // 不做这个判断的话，倒数第二楼露着尾巴时 first 会指到它，把错的楼顶到上面。
+      int lastVisible = lm.findLastVisibleItemPosition();
+      for (int p = first; p <= lastVisible && p < itemCount; p++) {
+        View v = lm.findViewByPosition(p);
+        if (v != null && isEndMarker(v)) {
+          int lastPost = p - 1; // 结束标记的前一项 = 真正的最后一楼
+          if (lastPost >= 0) {
+            snapToTop(lastPost);
+          }
+          return;
+        }
+      }
+
       int target = first + 1;
       if (target >= itemCount) {
-        // 已经在最后一项，强制把它对齐到视口上沿
         snapToTop(first);
         return;
       }
       View nextView = lm.findViewByPosition(target);
-      if (nextView != null && isEndMarker(nextView)) {
-        // 下一项是「本贴结束」标记：把最后一楼顶到视口上沿，红字标记自然露在下方留白处
-        snapToTop(first);
-      } else if (nextView != null && nextView.getTop() < viewportHeight) {
+      if (nextView != null && nextView.getTop() < viewportHeight) {
         // 下一楼已经露头 → 对齐它的顶部到视口上沿
         snapToTop(target);
       } else {

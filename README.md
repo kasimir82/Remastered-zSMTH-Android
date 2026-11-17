@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1046；`versionName` 手动递增，当前为 26.11.32，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1047；`versionName` 手动递增，当前为 26.11.33，不再随构建日期自动变化。
 
 调试版本：
 
@@ -321,7 +321,7 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 
 - **翻页栏精简**：`post_list_page_navigator.xml` 去掉「上页 / 下页」两个按钮，保留「首页 / 末页 / 页码 / GO」四个并均分权重（`layout_weight=1`）。`PostListActivity` 里对应的 findViewById 和 onClick 分支一并清理。
 - **自动加载下一页**：滚到距末尾约 5 帖时（`RecyclerView.OnScrollListener` 里 `postCount-1-lastVisible <= 5`），自动把 `mCurrentPageNo+1` 并用 `loadNextPageAppend()` **追加**加载，不清空已显示的帖子；`mLoadingMore` 防重复。上拉加载更多和 `goToNextPage()` 也统一走追加模式。手动 GO 跳页仍走清空重载。
-- **本贴结束**：加载到最后一页时，`PostRecyclerViewAdapter` 在列表末尾插入一个 `TYPE_END` 项（`post_list_end.xml`，上方留白 + 红字「本贴结束」，日/夜配色分别为 `post_list_end_text`）。`RecyclerViewGestureListener` 翻到最后一楼时识别到下一项是结束标记，就把最后一楼 `SNAP_TO_START` 顶到视口上沿，红字自然露在下方留白处。
+- **本贴结束**：加载到最后一页时，`PostRecyclerViewAdapter` 在列表末尾插入一个 `TYPE_END` 项（`post_list_end.xml`，上方留白 + 红字「本贴结束」，日/夜配色分别为 `post_list_end_text`）。`RecyclerViewGestureListener` 翻页时只要视口内露出结束标记，就把**结束标记的前一项**（真正的最后一楼）`SNAP_TO_START` 顶到视口上沿，红字自然露在下方留白处（v26.11.33 修正：早先用 `first` 定位，倒数第二楼露尾巴时会把错误的楼顶上去）。
 
 ## 已知问题
 
