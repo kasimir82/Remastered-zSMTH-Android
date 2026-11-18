@@ -59,7 +59,7 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
    *
    * 上半屏往上翻是对称逻辑。
    */
-  private void scrollToAdjacentPost(boolean next) {
+  public void scrollToAdjacentPost(boolean next) {
     if (recyclerView == null || !(recyclerView.getLayoutManager() instanceof LinearLayoutManager)) {
       return;
     }

@@ -22,14 +22,6 @@
     <CheckBoxPreference
         app:iconSpaceReserved="false"
         android:defaultValue="on"
-        android:key="setting_post_navigation_control"
-        android:summaryOff="快速导航栏已关闭"
-        android:summaryOn="快速导航栏已打开"
-        android:title="帖子快速导航栏"/>
-
-    <CheckBoxPreference
-        app:iconSpaceReserved="false"
-        android:defaultValue="on"
         android:key="setting_volume_key_scroll"
         android:summaryOff="禁用音量键翻页"
         android:summaryOn="启用音量键翻页"

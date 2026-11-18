@@ -413,21 +413,6 @@ public class Settings {
     }
   }
 
-  private static final String SHOW_POST_NAVITATION_BAR = "SHOW_POST_NAVITATION_BAR";
-  private boolean bPostNavBar;
-
-  public boolean hasPostNavBar() {
-    return bPostNavBar;
-  }
-
-  public void setPostNavBar(boolean bPostNavBar) {
-    if (this.bPostNavBar != bPostNavBar) {
-      this.bPostNavBar = bPostNavBar;
-      mEditor.putBoolean(SHOW_POST_NAVITATION_BAR, this.bPostNavBar);
-      mEditor.commit();
-    }
-  }
-
   private static final String VOLUME_KEY_SCROLL = "VOLUME_KEY_SCROLL";
   private boolean bVolumeKeyScroll;
 
@@ -589,7 +574,6 @@ public class Settings {
 
     bLaunchHotTopic = mPreference.getBoolean(LAUNCH_HOTTOPIC_AS_ENTRY, true);
 
-    bPostNavBar = mPreference.getBoolean(SHOW_POST_NAVITATION_BAR, true);
     bVolumeKeyScroll = mPreference.getBoolean(VOLUME_KEY_SCROLL, true);
     iFontIndex = mPreference.getInt(ZSMTH_FONT_INDEX, 1);
     iTopicSortMode = mPreference.getInt(TOPIC_SORT_MODE, SORT_BY_LAST_REPLY);

@@ -41,7 +41,6 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
   Preference signature_content;
 
   CheckBoxPreference launch_hottopic_as_entry;
-  CheckBoxPreference setting_post_navigation_control;
   CheckBoxPreference setting_volume_key_scroll;
   ListPreference setting_fontsize_control;
   CheckBoxPreference image_quality_control;
@@ -101,20 +100,6 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
           bValue = boolVal;
         }
         Settings.getInstance().setLaunchHotTopic(bValue);
-        return true;
-      }
-    });
-
-    setting_post_navigation_control = (CheckBoxPreference) findPreference("setting_post_navigation_control");
-    setting_post_navigation_control.setChecked(Settings.getInstance().hasPostNavBar());
-    setting_post_navigation_control.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-      @Override public boolean onPreferenceChange(Preference preference, Object newValue) {
-        boolean bValue = Settings.getInstance().hasPostNavBar();
-        if (newValue instanceof Boolean) {
-          Boolean boolVal = (Boolean) newValue;
-          bValue = boolVal;
-        }
-        Settings.getInstance().setPostNavBar(bValue);
         return true;
       }
     });

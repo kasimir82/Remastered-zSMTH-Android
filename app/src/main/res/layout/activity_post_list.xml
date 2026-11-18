@@ -90,55 +90,6 @@
             />
       </com.scwang.smart.refresh.layout.SmartRefreshLayout>
 
-      <LinearLayout
-          android:id="@+id/post_list_action_layout"
-          android:layout_width="wrap_content"
-          android:layout_height="match_parent"
-          android:layout_gravity="right"
-          android:gravity="center_vertical"
-          android:orientation="vertical"
-          >
-
-        <ImageButton
-            android:id="@+id/post_list_action_top"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:background="@null"
-            android:clickable="true"
-            android:src="@drawable/ic_arrow_upward_36dp"
-            />
-
-        <ImageButton
-            android:id="@+id/post_list_action_up"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:background="@null"
-            android:clickable="true"
-            android:src="@drawable/ic_expand_less_36dp"
-            />
-
-        <ImageButton
-            android:id="@+id/post_list_action_down"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:background="@null"
-            android:clickable="true"
-            android:src="@drawable/ic_expand_more_36dp"
-            />
-
-        <ImageButton
-            android:id="@+id/post_list_action_bottom"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@null"
-            android:clickable="true"
-            android:src="@drawable/ic_arrow_downward_36dp"
-            />
-      </LinearLayout>
-
     </FrameLayout>
 
     <!-- footer：marginBottom 在代码里按底栏实际高度动态设置，避免 vivo 上固定 56dp 不够导致被遮挡 -->

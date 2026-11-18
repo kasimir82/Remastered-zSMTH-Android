@@ -91,7 +91,6 @@ public class MineFragment extends Fragment {
     items.add(MineItem.section("阅读"));
     items.add(MineItem.toggle("entry_hot", R.drawable.ic_mine_home, "启动页面",
         settings.isLaunchHotTopic() ? "信息流" : "收藏夹", settings.isLaunchHotTopic()));
-    items.add(MineItem.toggle("post_nav", R.drawable.ic_mine_nav, "帖子快速导航栏", null, settings.hasPostNavBar()));
     items.add(MineItem.toggle("volume", R.drawable.ic_mine_volume, "音量键翻页", null, settings.isVolumeKeyScroll()));
     items.add(MineItem.toggle("board_master", R.drawable.ic_mine_shield, "版主专用功能", null, settings.isBoardMasterOnly()));
 
@@ -287,9 +286,6 @@ public class MineFragment extends Fragment {
     switch (item.key) {
       case "entry_hot":
         settings.setLaunchHotTopic(value);
-        break;
-      case "post_nav":
-        settings.setPostNavBar(value);
         break;
       case "volume":
         settings.setVolumeKeyScroll(value);

@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1050；`versionName` 手动递增，当前为 26.11.36，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1051；`versionName` 手动递增，当前为 26.11.37，不再随构建日期自动变化。
 
 调试版本：
 
@@ -342,6 +342,12 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 ## 16. 帖子页翻页栏防遮挡（v26.11.36）
 
 底栏 `BottomNavigationView` 改为 `wrap_content` 后，vivo 上实测高度大于 56dp，而帖子页翻页栏与右侧箭头栏的 `layout_marginBottom` 还写死 `@dimen/bottom_nav_height`(56dp)，导致翻页栏被底栏压住、只露上半截。`PostListActivity.applyBottomNavSpacing()` 改为在布局完成后实测底栏高度，动态设置这两处底边距；真机验证按钮完整显示、与底栏有正常间距。
+
+## 17. 精简导航与音量键对齐（v26.11.37）
+
+- **删除帖子快速导航栏**：移除右侧 4 个上下箭头（首页/上一楼/下一楼/末楼）及其设置开关——`MineFragment` 与 `MyPreferenceFragment` 的入口、`Settings.hasPostNavBar/setPostNavBar`、`preferences.xml` 选项、`activity_post_list.xml` 的箭头栏、Activity 里的绑定与 onClick 分支全部清理。底部翻页栏（首页/末页/页码/GO）保留。
+- **音量键翻页对齐**：`onKeyDown` 不再用 `RecyclerViewUtil.ScrollRecyclerViewByKey`（固定像素），改为调用 `RecyclerViewGestureListener.scrollToAdjacentPost()`（已改为 public），与点击翻页统一为"短帖对齐下一楼、长帖滚一屏"的楼层对齐逻辑。
+- **重新登录提示**：`PostListActivity.launchLoginPage()` 触发自动登录时显示底部 Toast「正在重新登录...」（约数秒后消失）。
 
 ## 已知问题
 

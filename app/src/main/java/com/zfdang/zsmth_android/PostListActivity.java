@@ -48,7 +48,6 @@ import com.scwang.smart.refresh.layout.api.RefreshLayout;
 import com.scwang.smart.refresh.layout.listener.OnLoadMoreListener;
 import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
 import com.zfdang.SMTHApplication;
-import com.zfdang.zsmth_android.helpers.RecyclerViewUtil;
 import com.zfdang.zsmth_android.helpers.ShareImageHelper;
 import com.zfdang.zsmth_android.models.Attachment;
 import com.zfdang.zsmth_android.models.Board;
@@ -125,6 +124,7 @@ public class PostListActivity extends SMTHBaseActivity
   private String mFrom;
 
   private GestureDetector mGestureDetector;
+  private RecyclerViewGestureListener mGestureListener;
   private LinearLayoutManager linearLayoutManager;
 
   // used for captureViewInternal
@@ -242,8 +242,8 @@ public class PostListActivity extends SMTHBaseActivity
 
     // holder.mView.setOnTouchListener(this); so the event will be sent from
     // holder.mView
-    mGestureDetector = new GestureDetector(SMTHApplication.getAppContext(),
-        new RecyclerViewGestureListener(this, mRecyclerView));
+    mGestureListener = new RecyclerViewGestureListener(this, mRecyclerView);
+    mGestureDetector = new GestureDetector(SMTHApplication.getAppContext(), mGestureListener);
 
     // get Board information from launcher
     Intent intent = getIntent();
@@ -260,13 +260,8 @@ public class PostListActivity extends SMTHBaseActivity
     findViewById(R.id.post_list_last_page).setOnClickListener(this);
     findViewById(R.id.post_list_go_page).setOnClickListener(this);
 
-    LinearLayout navLayout = (LinearLayout) findViewById(R.id.post_list_action_layout);
-    if (Settings.getInstance().hasPostNavBar()) {
-      navLayout.setVisibility(View.VISIBLE);
-    } else {
-      navLayout.setVisibility(View.GONE);
-    }
-    initPostNavigationButtons();
+    // 翻页栏按底栏实测高度留边距（右侧快速导航箭头已移除）
+    applyBottomNavSpacing();
 
     if (mTopic == null || !mTopic.getTopicID().equals(topic.getTopicID()) || PostListContent.POSTS.size() == 0) {
       // new topic, different topic, or no post loaded
@@ -278,36 +273,10 @@ public class PostListActivity extends SMTHBaseActivity
     }
   }
 
-  public void initPostNavigationButtons() {
-    int alphaValue = 50;
-
-    ImageButton imageButton;
-    imageButton = (ImageButton) findViewById(R.id.post_list_action_top);
-    imageButton.setAlpha(alphaValue);
-    imageButton.setOnClickListener(this);
-
-    imageButton = (ImageButton) findViewById(R.id.post_list_action_up);
-    imageButton.setAlpha(alphaValue);
-    imageButton.setOnClickListener(this);
-
-    imageButton = (ImageButton) findViewById(R.id.post_list_action_down);
-    imageButton.setAlpha(alphaValue);
-    imageButton.setOnClickListener(this);
-
-    imageButton = (ImageButton) findViewById(R.id.post_list_action_bottom);
-    imageButton.setAlpha(alphaValue);
-    imageButton.setOnClickListener(this);
-
-    // 底栏改成 wrap_content 后 vivo 上实际高度 != 56dp，写死的 marginBottom 会让
-    // 翻页栏被底栏压住（只露上半截）。这里按底栏实测高度动态设置间距。
-    applyBottomNavSpacing();
-  }
-
-  /** 让翻页栏、右侧箭头栏的底边距等于底栏实测高度，兼容各厂商字体度量 */
+  /** 让翻页栏底边距等于底栏实测高度，兼容各厂商字体度量 */
   private void applyBottomNavSpacing() {
     final View bottomNav = findViewById(R.id.bottom_nav);
     final View pageNav = findViewById(R.id.post_list_page_nav);
-    final View actionLayout = findViewById(R.id.post_list_action_layout);
     if (bottomNav == null) {
       return;
     }
@@ -320,11 +289,6 @@ public class PostListActivity extends SMTHBaseActivity
         ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) pageNav.getLayoutParams();
         lp.bottomMargin = navHeight;
         pageNav.setLayoutParams(lp);
-      }
-      if (actionLayout != null && actionLayout.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
-        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) actionLayout.getLayoutParams();
-        lp.bottomMargin = navHeight;
-        actionLayout.setLayoutParams(lp);
       }
     });
   }
@@ -507,24 +471,6 @@ public class PostListActivity extends SMTHBaseActivity
           Toast.makeText(PostListActivity.this, "非法输入！", Toast.LENGTH_SHORT).show();
         }
         break;
-      case R.id.post_list_action_top:
-        mRecyclerView.scrollToPosition(0);
-        break;
-      case R.id.post_list_action_up:
-        int prevPos = linearLayoutManager.findFirstVisibleItemPosition() - 1;
-        if (prevPos >= 0) {
-          mRecyclerView.smoothScrollToPosition(prevPos);
-        }
-        break;
-      case R.id.post_list_action_down:
-        int nextPos = linearLayoutManager.findLastVisibleItemPosition() + 1;
-        if (nextPos < mRecyclerView.getAdapter().getItemCount()) {
-          mRecyclerView.smoothScrollToPosition(nextPos);
-        }
-        break;
-      case R.id.post_list_action_bottom:
-        mRecyclerView.scrollToPosition(mRecyclerView.getAdapter().getItemCount() - 1);
-        break;
     }
   }
 
@@ -541,7 +487,10 @@ public class PostListActivity extends SMTHBaseActivity
   public boolean onKeyDown(int keyCode, KeyEvent event) {
     if (Settings.getInstance().isVolumeKeyScroll()
         && (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
-      RecyclerViewUtil.ScrollRecyclerViewByKey(mRecyclerView, keyCode);
+      // 音量键翻页与点击翻页统一走楼层对齐逻辑（短帖对齐下一楼，长帖滚一屏）
+      if (mGestureListener != null) {
+        mGestureListener.scrollToAdjacentPost(keyCode == KeyEvent.KEYCODE_VOLUME_DOWN);
+      }
       return true;
     }
     return super.onKeyDown(keyCode, event);
@@ -563,6 +512,9 @@ public class PostListActivity extends SMTHBaseActivity
    * 登录成功 setResult(OK)，onActivityResult 收到后会自动重载本页。
    */
   private void launchLoginPage() {
+    // 底部短暂提示：正在自动重新登录（Toast 用 app context，跳到登录页后仍会显示）
+    Toast.makeText(getApplicationContext(), "正在重新登录...", Toast.LENGTH_LONG).show();
+
     String username = Settings.getInstance().getUsername();
     String password = Settings.getInstance().getPassword();
     Intent intent = new Intent(this, WebviewLoginActivity.class);
