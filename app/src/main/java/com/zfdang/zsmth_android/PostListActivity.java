@@ -297,6 +297,36 @@ public class PostListActivity extends SMTHBaseActivity
     imageButton = (ImageButton) findViewById(R.id.post_list_action_bottom);
     imageButton.setAlpha(alphaValue);
     imageButton.setOnClickListener(this);
+
+    // 底栏改成 wrap_content 后 vivo 上实际高度 != 56dp，写死的 marginBottom 会让
+    // 翻页栏被底栏压住（只露上半截）。这里按底栏实测高度动态设置间距。
+    applyBottomNavSpacing();
+  }
+
+  /** 让翻页栏、右侧箭头栏的底边距等于底栏实测高度，兼容各厂商字体度量 */
+  private void applyBottomNavSpacing() {
+    final View bottomNav = findViewById(R.id.bottom_nav);
+    final View pageNav = findViewById(R.id.post_list_page_nav);
+    final View actionLayout = findViewById(R.id.post_list_action_layout);
+    if (bottomNav == null) {
+      return;
+    }
+    bottomNav.post(() -> {
+      int navHeight = bottomNav.getHeight();
+      if (navHeight <= 0) {
+        return;
+      }
+      if (pageNav != null && pageNav.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) pageNav.getLayoutParams();
+        lp.bottomMargin = navHeight;
+        pageNav.setLayoutParams(lp);
+      }
+      if (actionLayout != null && actionLayout.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) actionLayout.getLayoutParams();
+        lp.bottomMargin = navHeight;
+        actionLayout.setLayoutParams(lp);
+      }
+    });
   }
 
   public void clearLoadingHints() {
