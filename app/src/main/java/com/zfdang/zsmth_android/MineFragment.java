@@ -102,12 +102,6 @@ public class MineFragment extends Fragment {
     items.add(MineItem.toggle("img_cdn", R.drawable.ic_mine_image, "从 CDN 加载图片", null, settings.isImageSourceCDN()));
     items.add(MineItem.toggle("img_grid", R.drawable.ic_mine_image, "图片网格模式", null, settings.isImageGridMode()));
 
-    items.add(MineItem.section("提醒"));
-    items.add(MineItem.toggle("notif_mail", R.drawable.ic_mine_bell, "邮件提醒", null, settings.isNotificationMail()));
-    items.add(MineItem.toggle("notif_at", R.drawable.ic_mine_bell, "@我提醒", null, settings.isNotificationAt()));
-    items.add(MineItem.toggle("notif_reply", R.drawable.ic_mine_bell, "回复提醒", null, settings.isNotificationReply()));
-    items.add(MineItem.toggle("notif_like", R.drawable.ic_mine_bell, "Like 提醒", null, settings.isNotificationLike()));
-
     items.add(MineItem.section("发帖"));
     items.add(MineItem.toggle("signature", R.drawable.ic_mine_signature, "添加设备签名", null, settings.bUseSignature()));
     items.add(MineItem.row("signature_content", R.drawable.ic_mine_signature, "设备型号", settings.getSignature()));
@@ -314,18 +308,6 @@ public class MineFragment extends Fragment {
         break;
       case "img_grid":
         settings.setImageGridMode(value);
-        break;
-      case "notif_mail":
-        settings.setNotificationMail(value);
-        break;
-      case "notif_at":
-        settings.setNotificationAt(value);
-        break;
-      case "notif_reply":
-        settings.setNotificationReply(value);
-        break;
-      case "notif_like":
-        settings.setNotificationLike(value);
         break;
       case "signature":
         settings.setUseSignature(value);
