@@ -18,8 +18,12 @@ import com.zfdang.zsmth_android.newsmth.AjaxResponse;
 public class LoginThrottle {
   private static final String TAG = "LoginThrottle";
 
-  /** 正常两次自动登录之间的最小间隔：6 小时。cookie 一般能活过这个时间。 */
-  public static final long NORMAL_INTERVAL_MS = 6L * 60 * 60 * 1000;
+  /**
+   * 后台 Worker 两次自动登录之间的最小间隔：30 分钟。
+   * 太长（如 6 小时）会让 cookie 失效后迟迟不重登；配合下面的"频繁登录"12 小时冷却，
+   * 30 分钟间隔不会触发水木的账号过多限制。
+   */
+  public static final long NORMAL_INTERVAL_MS = 30L * 60 * 1000;
   /** 被判频繁登录后的冷却：12 小时 */
   public static final long PENALTY_COOLDOWN_MS = 12L * 60 * 60 * 1000;
 

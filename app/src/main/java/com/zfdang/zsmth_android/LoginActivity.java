@@ -8,7 +8,6 @@ import androidx.appcompat.app.ActionBar;
 
 import android.os.Handler;
 import android.text.method.LinkMovementMethod;
-import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -20,13 +19,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.LoginThrottle;
-import com.zfdang.zsmth_android.newsmth.AjaxResponse;
-import com.zfdang.zsmth_android.newsmth.SMTHHelper;
-import io.reactivex.Observer;
-import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.annotations.NonNull;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
 
 /**
  * A login screen that offers login to newsmth forum
@@ -41,8 +33,6 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
   static final int LOGIN_ACTIVITY_REQUEST_CODE = 9528;  // The request code
   static final String USERNAME = "USERNAME";
   static final String PASSWORD = "PASSWORD";
-
-  private final String TAG = "LoginActivity";
 
   @Override protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -119,34 +109,24 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
         focusView.requestFocus();
         Toast.makeText(SMTHApplication.getAppContext(), "请输入用户名/密码！", Toast.LENGTH_SHORT).show();
       } else {
-        // use two methods for login: with verification, or simple login
-        if(Settings.getInstance().isLoginWithVerification()) {
-          // login with gesture verification
-          // save info if selected
-          boolean saveinfo = mSaveInfo.isChecked();
-          Settings.getInstance().setSaveInfo(saveinfo);
-
-          if(saveinfo) {
-            // save
-            Settings.getInstance().setUsername(username);
-            Settings.getInstance().setPassword(password);
-          } else {
-            // clean existed
-            Settings.getInstance().setUsername("");
-            Settings.getInstance().setPassword("");
-          }
-
-          // continue to login with nforum web
-          Intent intent = new Intent(this, WebviewLoginActivity.class);
-          intent.putExtra(USERNAME, username);
-          intent.putExtra(PASSWORD, password);
-          startActivityForResult(intent, LOGIN_ACTIVITY_REQUEST_CODE);
+        // 统一走 WebView 登录：https://www.newsmth.net/index.html 填表提交。
+        // 水木对 nForum API 的纯密码登录要求验证码（实测返回"验证码错误"），
+        // 已不再使用 attemptLoginFromWWW / wService.login()。
+        boolean saveinfo = mSaveInfo.isChecked();
+        Settings.getInstance().setSaveInfo(saveinfo);
+        if (saveinfo) {
+          Settings.getInstance().setUsername(username);
+          Settings.getInstance().setPassword(password);
         } else {
-          // simple login
-          Settings.getInstance().setSaveInfo(mSaveInfo.isChecked());
-          Settings.getInstance().setLastLoginSuccess(false);
-          attemptLoginFromWWW(username, password);
+          Settings.getInstance().setUsername("");
+          Settings.getInstance().setPassword("");
         }
+        Settings.getInstance().setUserOnline(true);
+
+        Intent intent = new Intent(this, WebviewLoginActivity.class);
+        intent.putExtra(USERNAME, username);
+        intent.putExtra(PASSWORD, password);
+        startActivityForResult(intent, LOGIN_ACTIVITY_REQUEST_CODE);
       }
     }
   }
@@ -166,72 +146,6 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
         finish();
       }
     }
-  }
-
-  // login from WWW, then nforum / www / m are all logined
-  private void attemptLoginFromWWW(final String username, final String password) {
-    // perform the user login attempt.
-    showProgress("登录中...");
-
-    Log.d(TAG, "start login now...");
-    // use attempt to login, so set userOnline = true
-    Settings.getInstance().setUserOnline(true);
-
-    // RxJava & Retrofit: VERY VERY good article
-    // http://gank.io/post/560e15be2dca930e00da1083
-    SMTHHelper helper = SMTHHelper.getInstance();
-    // clear cookies upon login
-    final String cookieDays = "2";
-    helper.wService.login(username, password, cookieDays)
-            .subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(new Observer<AjaxResponse>() {
-              @Override public void onSubscribe(@NonNull Disposable disposable) {
-
-              }
-
-              @Override public void onNext(@NonNull AjaxResponse ajaxResponse) {
-                dismissProgress();
-                // {"ajax_st":0,"ajax_code":"0101","ajax_msg":"您的用户名并不存在，或者您的密码错误"}
-                // {"ajax_st":0,"ajax_code":"0105","ajax_msg":"请勿频繁登录"}
-                // {"ajax_st":1,"ajax_code":"0005","ajax_msg":"操作成功"}
-                Log.d(TAG, ajaxResponse.toString());
-                switch (ajaxResponse.getAjax_st()) {
-                  case AjaxResponse.AJAX_RESULT_OK:
-                    Toast.makeText(getApplicationContext(), "登录成功!", Toast.LENGTH_SHORT).show();
-
-                    // save username & password
-                    Settings.getInstance().setUsername(username);
-                    Settings.getInstance().setPassword(password);
-                    Settings.getInstance().setLastLoginSuccess(true);
-                    LoginThrottle.onLoginSuccess();
-
-                    Intent resultIntent = new Intent();
-                    setResult(Activity.RESULT_OK, resultIntent);
-                    finish();
-                    break;
-                  default:
-                    // 频繁登录/账号过多：冷却一段时间，并给出明确提示
-                    if (LoginThrottle.isTooFrequent(ajaxResponse)) {
-                      LoginThrottle.onTooFrequent(ajaxResponse.toString());
-                      Toast.makeText(getApplicationContext(),
-                          "登录过于频繁，已暂停自动登录 12 小时，请稍后再试", Toast.LENGTH_LONG).show();
-                    } else {
-                      Toast.makeText(SMTHApplication.getAppContext(), ajaxResponse.toString(), Toast.LENGTH_LONG).show();
-                    }
-                    break;
-                }
-              }
-
-              @Override public void onError(@NonNull Throwable e) {
-                dismissProgress();
-                Toast.makeText(SMTHApplication.getAppContext(), "登录失败!\n" + e.toString(), Toast.LENGTH_LONG).show();
-              }
-
-              @Override public void onComplete() {
-
-              }
-            });
   }
 
   // check input value

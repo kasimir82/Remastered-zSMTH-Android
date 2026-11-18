@@ -18,20 +18,14 @@ import androidx.work.WorkerParameters;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.Settings;
 import com.zfdang.zsmth_android.helpers.LoginThrottle;
-import com.zfdang.zsmth_android.helpers.MakeList;
-import com.zfdang.zsmth_android.newsmth.AjaxResponse;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
 import com.zfdang.zsmth_android.newsmth.UserInfo;
 import com.zfdang.zsmth_android.newsmth.UserStatus;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import io.reactivex.Observer;
-import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Function;
 import io.reactivex.observers.DisposableObserver;
-import io.reactivex.schedulers.Schedulers;
 
 public class MaintainUserStatusWorker extends Worker {
 
@@ -93,87 +87,14 @@ public class MaintainUserStatusWorker extends Worker {
                     userStatus.setId("guest");
                 }
 
-                //Log.d(TAG, "call: " + "2.2 user not logined, try to login now...");
-                if (Settings.getInstance().isLoginWithVerification()) {
-                    // if login with gesture verification, skip the login attempt
-                    return userStatus;
-                }
-
-                // check it's logined user, or guest
+                // 后台只检测登录状态，不再用 nForum API 自动登录：
+                // 水木对纯密码登录要求验证码（实测返回验证码错误），后台无法过验证码。
+                // cookie 失效时由页面层（PostListActivity 等）拉起 WebView 登录页让用户过验证。
                 if (!TextUtils.equals(userStatus.getId(), "guest")) {
-                    // logined user: cookie 还有效，刷新一下登录时间并直接返回，绝不重复登录
-                    // Log.d(TAG, "call: 2.1 valid logined user: " + userStatus.getId());
+                    // 已登录：cookie 有效，刷新登录时间
                     LoginThrottle.onLoginSuccess();
-                    return userStatus;
                 }
-
-                // guest：先做节流判断。cookie 有效期内 / 登录冷却期内都不要再次登录，
-                // 否则每隔 2 分钟一次自动登录会很快触发水木的"账号过多"限制。
-                if (!LoginThrottle.canAutoLogin()) {
-                    return userStatus;
-                }
-
-                // now try to login
-                final Settings setting = Settings.getInstance();
-                String username = setting.getUsername();
-                String password = setting.getPassword();
-                boolean bSaveInfo = setting.isSaveInfo();
-                boolean bLastSuccess = setting.isLastLoginSuccess();
-                boolean bUserOnline = setting.isUserOnline();
-                boolean bLoginSuccess = false;
-//                Log.d(TAG, "call: 2.2.1 " + String.format("Autologin: %b, LastSuccess: %b, Online: %b", bAutoLogin, bLastSuccess, bUserOnline));
-                if (bSaveInfo && bLastSuccess && bUserOnline) {
-                    Iterable<Integer> its = helper.wService.login(username, password, "7").map(new Function<AjaxResponse, Integer>() {
-                        @Override
-                        public Integer apply(@NonNull AjaxResponse response) throws Exception {
-                            if (response.getAjax_st() == 1) {
-                                // {"ajax_st":1,"ajax_code":"0005","ajax_msg":"操作成功"}
-                                return AjaxResponse.AJAX_RESULT_OK;
-                            }
-                            // 0105/账号过多/频繁登录：进入冷却，避免继续登录被封
-                            if (LoginThrottle.isTooFrequent(response)) {
-                                LoginThrottle.onTooFrequent(response.toString());
-                                Log.w(TAG, "login blocked: too frequent, enter cooldown");
-                                return AjaxResponse.AJAX_RESULT_FAILED;
-                            }
-                            // {"ajax_st":0,"ajax_code":"0101","ajax_msg":"您的用户名并不存在，或者您的密码错误"}
-                            return AjaxResponse.AJAX_RESULT_FAILED;
-                        }
-                    }).blockingIterable();
-
-                    List<Integer> results = MakeList.makeList(its);
-
-                    //Log.d(TAG, "call: 2.2.2 " + results.size());
-                    if (results != null && results.size() == 1) {
-                        int result = results.get(0);
-                        if (result == AjaxResponse.AJAX_RESULT_OK) {
-                            // set flag, so that we will query user status again
-                            //Log.d(TAG, "call: 2.2.3. Login success");
-                            LoginThrottle.onLoginSuccess();
-                            bLoginSuccess = true;
-                        } else if (result == AjaxResponse.AJAX_RESULT_FAILED) {
-                            // set flag, so that we will not login again next time
-                            //Log.d(TAG, "call: 2.2.4. Login failed");
-                            setting.setLastLoginSuccess(false);
-                        }
-                    }
-                } // if (bAutoLogin && bLastSuccess)
-
-                // try to find new UserStatus only when login success
-                if (bLoginSuccess) {
-                    //Log.d(TAG, "call: " + "2.2.5.1 try to get userstatus again after login action");
-                    UserStatus stat = SMTHHelper.queryActiveUserStatus().blockingFirst();
-                    //Log.d(TAG, "call: " + stats.size());
-                    if (stat == null) {
-                        stat = new UserStatus();
-                    }
-                    if (stat.getId() == null) {
-                        stat.setId("guest");
-                    }
-                    return stat;
-                } else {
-                    return userStatus;
-                }
+                return userStatus;
             }
         }).map(new Function<UserStatus, UserStatus>() {
             @Override

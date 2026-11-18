@@ -369,13 +369,11 @@ public class PostListActivity extends SMTHBaseActivity
             mLoadingMore = false;
             clearLoadingHints();
             if (e instanceof com.zfdang.zsmth_android.newsmth.GuestReadVerificationException) {
-              new androidx.appcompat.app.AlertDialog.Builder(PostListActivity.this)
-                  .setTitle("需要登录或阅读验证")
-                  .setMessage(e.getMessage())
-                  .setPositiveButton("登录", (dialog, which) ->
-                      startActivityForResult(new Intent(PostListActivity.this, LoginActivity.class), LOGIN_REQUEST_CODE))
-                  .setNegativeButton("取消", null)
-                  .show();
+              // 水木要求阅读验证：日志确认此时 cookie 其实还在(UTMPKEY/UTMPNUM/UTMPUSERID)，
+              // 是服务端要求过一次验证码，纯密码登录会被"验证码错误"拒绝、清 cookie 反而有害。
+              // 因此直接拉起 WebView 登录页（自动填账号密码，用户只需过验证码），
+              // 登录成功回到本页后 onActivityResult 会自动 reloadPostList()。
+              launchLoginPage();
               return;
             }
             Toast.makeText(SMTHApplication.getAppContext(), "加载失败！\n" + e.toString(), Toast.LENGTH_LONG).show();
@@ -528,6 +526,35 @@ public class PostListActivity extends SMTHBaseActivity
       return true;
     }
     return super.onKeyUp(keyCode, event);
+  }
+
+  /**
+   * 直接拉起 WebView 登录页（自动填已保存的账号密码，用户只需处理验证码）。
+   * 登录成功 setResult(OK)，onActivityResult 收到后会自动重载本页。
+   */
+  private void launchLoginPage() {
+    String username = Settings.getInstance().getUsername();
+    String password = Settings.getInstance().getPassword();
+    Intent intent = new Intent(this, WebviewLoginActivity.class);
+    intent.putExtra(LoginActivity.USERNAME, username);
+    intent.putExtra(LoginActivity.PASSWORD, password);
+    try {
+      startActivityForResult(intent, LOGIN_REQUEST_CODE);
+    } catch (Throwable t) {
+      // 万一登录页起不来，退回手动登录弹窗
+      showLoginRequiredDialog("请登录水木账号后重试");
+    }
+  }
+
+  /** 静默重登也救不回来时，回退到手动登录弹窗 */
+  private void showLoginRequiredDialog(String message) {
+    new androidx.appcompat.app.AlertDialog.Builder(PostListActivity.this)
+        .setTitle("需要登录或阅读验证")
+        .setMessage(message)
+        .setPositiveButton("登录", (dialog, which) ->
+            startActivityForResult(new Intent(PostListActivity.this, LoginActivity.class), LOGIN_REQUEST_CODE))
+        .setNegativeButton("取消", null)
+        .show();
   }
 
   /**

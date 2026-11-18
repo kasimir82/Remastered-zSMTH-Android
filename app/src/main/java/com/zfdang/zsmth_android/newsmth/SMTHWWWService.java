@@ -22,12 +22,8 @@ import io.reactivex.Observable;
 
 public interface SMTHWWWService {
 
-    @FormUrlEncoded
-    @Headers("X-Requested-With:XMLHttpRequest")
-    @POST("/nForum/user/ajax_login.json")
-    Observable<AjaxResponse> login(
-            @Field("id") String username, @Field("passwd") String password, @Field("CookieDate") String CookieDate);
-
+    // 登录统一走 WebView(https://www.newsmth.net/index.html 填表)，
+    // 不再用 nForum ajax_login.json：水木对纯密码登录要求验证码，实测被拒。
     // {"ajax_st":1,"ajax_code":"0005","ajax_msg":"操作成功"}
     @Headers("X-Requested-With:XMLHttpRequest")
     @GET("/nForum/user/ajax_logout.json")

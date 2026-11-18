@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1047；`versionName` 手动递增，当前为 26.11.33，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1049；`versionName` 手动递增，当前为 26.11.35，不再随构建日期自动变化。
 
 调试版本：
 
@@ -322,6 +322,22 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 - **翻页栏精简**：`post_list_page_navigator.xml` 去掉「上页 / 下页」两个按钮，保留「首页 / 末页 / 页码 / GO」四个并均分权重（`layout_weight=1`）。`PostListActivity` 里对应的 findViewById 和 onClick 分支一并清理。
 - **自动加载下一页**：滚到距末尾约 5 帖时（`RecyclerView.OnScrollListener` 里 `postCount-1-lastVisible <= 5`），自动把 `mCurrentPageNo+1` 并用 `loadNextPageAppend()` **追加**加载，不清空已显示的帖子；`mLoadingMore` 防重复。上拉加载更多和 `goToNextPage()` 也统一走追加模式。手动 GO 跳页仍走清空重载。
 - **本贴结束**：加载到最后一页时，`PostRecyclerViewAdapter` 在列表末尾插入一个 `TYPE_END` 项（`post_list_end.xml`，上方留白 + 红字「本贴结束」，日/夜配色分别为 `post_list_end_text`）。`RecyclerViewGestureListener` 翻页时只要视口内露出结束标记，就把**结束标记的前一项**（真正的最后一楼）`SNAP_TO_START` 顶到视口上沿，红字自然露在下方留白处（v26.11.33 修正：早先用 `first` 定位，倒数第二楼露尾巴时会把错误的楼顶上去）。
+
+## 14. 登录失效静默重登（v26.11.34）
+
+- **场景**：打开帖子时若水木返回"需要登录或阅读验证"（`GuestReadVerificationException`），说明 cookie 过期或没写成功。
+- **处理**：新增 `helpers/AutoLoginHelper.java`——用 App 已保存的用户名/密码，先清掉失效 cookie（`CookieManager.removeAllCookies`+`flush`），静默调 `wService.login()` 重登；成功则记录登录时间、自动重载本页，全程不弹登录界面。没有保存账号、手势验证登录模式、频繁登录冷却期内、或 30 秒防抖内，则不静默重登，回退到手动登录弹窗。
+- **后台间隔**：`LoginThrottle.NORMAL_INTERVAL_MS` 从 6 小时改为 30 分钟，让 Worker 在 cookie 失效后能较快重登（仍受"账号过多"12 小时冷却约束）。
+- 静默重登失败时会清掉 cookie，用户需手动登录一次重建会话。
+
+## 15. 登录统一走 WebView（v26.11.35）
+
+- **排查结论**：项目原有两套登录路径。实测日志确认，水木对 nForum API 的纯密码登录返回「验证码错误」——是它要求验证码，而非本地 cookie 丢失（日志显示请求其实带着 UTMPKEY/UTMPNUM/UTMPUSERID）。
+- **统一**：删除所有 `wService.login()`（nForum ajax_login.json）调用与接口声明：
+  - `LoginActivity`：不论「登录方式」开关，一律打开 `WebviewLoginActivity`（`https://www.newsmth.net/index.html` 自动填表提交），删除 `attemptLoginFromWWW()`；
+  - `MaintainUserStatusWorker`：后台只检测登录状态，不再用 API 登录；cookie 失效时由页面层（帖子页验证失效）拉起 WebView 登录页，登录成功自动刷新本页；
+  - 保留 WebView 登录页的「账号过多/踢掉多余窗口」弹窗识别与登录节流。
+- **诊断日志**：`WebviewCookieHandler` 增加只打 cookie 名（不含值）的日志，便于定位后续登录问题，仅对 ajax_session/ajax_login/article 路径输出，不刷屏。
 
 ## 已知问题
 
