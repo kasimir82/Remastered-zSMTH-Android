@@ -2,10 +2,12 @@ package com.zfdang.zsmth_android.helpers;
 
 import android.app.Activity;
 import android.graphics.drawable.Drawable;
+import android.text.Layout;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.ImageSpan;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
@@ -32,6 +34,8 @@ public class QuoteTextHelper {
       tv.setTag(R.id.quote_full_text, full);
       tv.setTag(R.id.quote_line_count, lineCount);
       tv.setText(hint(tv, lineCount));
+      // 三角点击由父容器统一处理(帖子页 RecyclerViewGestureListener / 邮件页 MailContentActivity)，
+      // 共用 handleTapQuote：因为父容器的 OnTouchListener 会吞掉子 TextView 的点击事件。
     } else {
       tv.setTag(R.id.quote_expanded, null);
       tv.setTag(R.id.quote_full_text, null);
@@ -42,9 +46,16 @@ public class QuoteTextHelper {
     }
   }
 
+  private static long sLastToggleTime = 0;
+
   /** 切换引文展开/折叠。返回 true 表示这次点击被处理了 */
   public static boolean toggleQuote(TextView tv) {
     if (tv == null) return false;
+    // 防抖：帖子页 TextView 自身 OnTouch 与 RecyclerView 手势可能都识别到同一次点击，
+    // 300ms 内只处理一次，避免展开后立刻又被收起。
+    long now = System.currentTimeMillis();
+    if (now - sLastToggleTime < 300) return true;
+    sLastToggleTime = now;
     Object expandedTag = tv.getTag(R.id.quote_expanded);
     if (!(expandedTag instanceof Boolean)) return false; // 不是引文 TextView
     Object full = tv.getTag(R.id.quote_full_text);
@@ -65,6 +76,49 @@ public class QuoteTextHelper {
   /** 判断这个 TextView 当前是不是折叠状态 */
   public static boolean isQuoteCollapsed(TextView tv) {
     return tv != null && Boolean.FALSE.equals(tv.getTag(R.id.quote_expanded));
+  }
+
+  /**
+   * 通用：判断一次点击(rawX/rawY 为屏幕坐标)是否落在 root 下某个引文的三角上，命中则展开/收起。
+   * 供父容器(RecyclerView/ScrollView)因自身 OnTouchListener 吞掉子 View 事件时调用。
+   * @return 命中并处理返回 true，否则 false。
+   */
+  public static boolean handleTapQuote(View root, float rawX, float rawY) {
+    if (root == null) return false;
+    java.util.List<TextView> quotes = new java.util.ArrayList<>();
+    findQuoteTextViews(root, quotes);
+    for (TextView tv : quotes) {
+      int[] loc = new int[2];
+      tv.getLocationOnScreen(loc);
+      float localX = rawX - loc[0] - tv.getPaddingLeft();
+      float localY = rawY - loc[1] - tv.getPaddingTop();
+      if (localY < 0 || localY > tv.getHeight()) continue;
+      android.text.Layout layout = tv.getLayout();
+      if (layout == null || localY >= layout.getHeight()) continue;
+      try {
+        int line = layout.getLineForVertical((int) localY);
+        int charIndex = layout.getOffsetForHorizontal(line, Math.max(0, localX));
+        if (charIndex <= 0) {
+          return toggleQuote(tv);
+        }
+      } catch (IndexOutOfBoundsException e) {
+        continue;
+      }
+    }
+    return false;
+  }
+
+  /** 递归查找 view 树里所有引文 TextView（带 quote_expanded tag） */
+  private static void findQuoteTextViews(View view, java.util.List<TextView> out) {
+    if (view instanceof TextView && view.getTag(R.id.quote_expanded) instanceof Boolean) {
+      out.add((TextView) view);
+    }
+    if (view instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        findQuoteTextViews(group.getChildAt(i), out);
+      }
+    }
   }
 
   /** 折叠提示：三角 ImageSpan + 灰色文字 */

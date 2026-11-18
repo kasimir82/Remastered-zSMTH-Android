@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -77,6 +78,15 @@ public class MailContentActivity extends SMTHBaseActivity {
     mPostPublishDate = (TextView) findViewById(R.id.post_publish_date);
     mViewGroup = (LinearLayout) findViewById(R.id.post_content_holder);
     mPostContent = (LinkConsumableTextView) findViewById(R.id.post_content);
+
+    // 引文三角点击：内容区用 ScrollView，子 TextView 的单点事件会被吞，
+    // 在容器层统一判断点击是否落在三角上（与帖子页共用 QuoteTextHelper 的逻辑）。
+    mViewGroup.setOnTouchListener(new View.OnTouchListener() {
+      @Override public boolean onTouch(View v, MotionEvent event) {
+        if (event.getAction() != MotionEvent.ACTION_UP) return false;
+        return QuoteTextHelper.handleTapQuote(mViewGroup, event.getRawX(), event.getRawY());
+      }
+    });
 
     Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
