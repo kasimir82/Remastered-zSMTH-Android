@@ -215,6 +215,10 @@ public class FeedFragment extends Fragment {
       }
       mDisplayedSignature = signature;
       mAdapter.notifyDataSetChanged();
+      // 缓存分支若排序方式变了也会重排，滚动位置归零，避免顶部内容被顶出屏幕
+      if (mRecyclerView != null) {
+        mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
+      }
       hideEmpty();
       finishRefresh();
       return;
@@ -262,6 +266,11 @@ public class FeedFragment extends Fragment {
 
             if (mAdapter != null) {
               mAdapter.notifyDataSetChanged();
+            }
+            // 刷新后数据重新排序，滚动位置归零，避免新排到顶部的帖子超出窗口上边缘。
+            // post 到下一帧，等 notifyDataSetChanged 的布局完成后再滚，确保位置生效。
+            if (mRecyclerView != null) {
+              mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
             }
             if (merged.isEmpty()) {
               showEmpty("所选版面暂时没有取到内容，下拉可以重试");
