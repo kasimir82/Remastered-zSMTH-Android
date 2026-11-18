@@ -3,6 +3,9 @@
   <item name="image_tag" type="id"/>
   <!-- 引文 TextView 的展开状态 (Boolean) -->
   <item name="quote_expanded" type="id"/>
+  <!-- 引文原文 (Spanned) 与行数 (Integer)，供展开/收起使用 -->
+  <item name="quote_full_text" type="id"/>
+  <item name="quote_line_count" type="id"/>
 
   <!--drawee-->
   <item name="uriPath" type="id"/>

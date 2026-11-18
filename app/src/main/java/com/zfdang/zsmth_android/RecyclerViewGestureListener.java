@@ -39,6 +39,11 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
   }
 
   @Override public boolean onSingleTapUp(MotionEvent e) {
+    // 先判断是否点在引文的三角上：点是则展开/收起引文，不再翻页。
+    // 引文 TextView 的触摸被 RecyclerView 拦截，所以统一在这里按坐标判断。
+    if (handleQuoteTriangleTap(e)) {
+      return true;
+    }
     int touchY = (int) e.getRawY();
     //        Log.d("Gesture", "onSingleTapUp: " + String.format("%d / %d = %f", touchY, mScreenHeight, touchY * 1.0 / mScreenHeight));
     if (touchY < mScreenHeight * 0.40) {
@@ -120,6 +125,60 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         } else {
           recyclerView.smoothScrollBy(0, -(int) (viewportHeight * 0.8));
         }
+      }
+    }
+  }
+
+  /**
+   * 点击是否落在引文行的三角上。遍历可见的引文 TextView，把点击坐标转成 view 局部坐标，
+   * 判断 x 是否落在开头三角字符范围内、y 是否落在该行。命中则触发展开/收起并返回 true。
+   */
+  private boolean handleQuoteTriangleTap(MotionEvent e) {
+    if (recyclerView == null) return false;
+    float rawX = e.getRawX();
+    float rawY = e.getRawY();
+    int childCount = recyclerView.getChildCount();
+    for (int i = 0; i < childCount; i++) {
+      View child = recyclerView.getChildAt(i);
+      if (child == null) continue;
+      // 在 item view 里找所有带 quote_expanded tag 的 TextView（引文段）
+      java.util.List<android.widget.TextView> quotes = new java.util.ArrayList<>();
+      findQuoteTextViews(child, quotes);
+      for (android.widget.TextView tv : quotes) {
+        int[] loc = new int[2];
+        tv.getLocationOnScreen(loc);
+        float localX = rawX - loc[0] - tv.getPaddingLeft();
+        float localY = rawY - loc[1] - tv.getPaddingTop();
+        if (localY < 0 || localY > tv.getHeight()) continue;
+        android.text.Layout layout = tv.getLayout();
+        if (layout == null || localY >= layout.getHeight()) continue;
+        int line;
+        int charIndex;
+        try {
+          line = layout.getLineForVertical((int) localY);
+          charIndex = layout.getOffsetForHorizontal(line, Math.max(0, localX));
+        } catch (IndexOutOfBoundsException ex) {
+          continue;
+        }
+        // 三角是第 0 个字符，点中它才算（给 1 字符容错）
+        if (charIndex <= 0) {
+          return com.zfdang.zsmth_android.helpers.QuoteTextHelper.toggleQuote(tv);
+        }
+      }
+    }
+    return false;
+  }
+
+  /** 递归查找 view 树里所有引文 TextView（带 quote_expanded tag） */
+  private void findQuoteTextViews(View view, java.util.List<android.widget.TextView> out) {
+    if (view instanceof android.widget.TextView
+        && view.getTag(com.zfdang.zsmth_android.R.id.quote_expanded) instanceof Boolean) {
+      out.add((android.widget.TextView) view);
+    }
+    if (view instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        findQuoteTextViews(group.getChildAt(i), out);
       }
     }
   }

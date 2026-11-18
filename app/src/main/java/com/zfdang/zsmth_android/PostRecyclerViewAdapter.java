@@ -234,6 +234,9 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
       @Override public void onClick(View v) {
       }
     });
+    // item view 也要挂 onTouch：引文 TextView 的三角点击需要子 View 先收到事件。
+    // 同时 RecyclerView 本身也挂了 onTouch(见 PostListActivity) 覆盖 item 之间的分割线：
+    // 子 View 消费(如点引文三角)则不会传给 RecyclerView；未消费(如点分割线)则由 RecyclerView 处理翻页。
     holder.mView.setOnTouchListener(new View.OnTouchListener() {
       @Override public boolean onTouch(View v, MotionEvent event) {
         if (mListener != null && mListener instanceof View.OnTouchListener) {

@@ -273,10 +273,14 @@ public class PostListActivity extends SMTHBaseActivity
       }
     });
 
-    // holder.mView.setOnTouchListener(this); so the event will be sent from
-    // holder.mView
+    // 手势监听挂在 RecyclerView 本身，覆盖 item 之间的灰色分割线区域：
+    // 之前挂在单个 item view 上，点在分割线上不会触发翻页。
+    // 长按定位仍由 RecyclerViewGestureListener 用 findChildViewUnder 完成，不受影响。
     mGestureListener = new RecyclerViewGestureListener(this, mRecyclerView);
     mGestureDetector = new GestureDetector(SMTHApplication.getAppContext(), mGestureListener);
+    if (mRecyclerView != null) {
+      mRecyclerView.setOnTouchListener(this);
+    }
 
     // get Board information from launcher
     Intent intent = getIntent();
