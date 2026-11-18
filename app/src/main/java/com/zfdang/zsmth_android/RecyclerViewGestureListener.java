@@ -130,16 +130,18 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         && view.findViewById(com.zfdang.zsmth_android.R.id.post_list_end_text) != null;
   }
 
-  /** 带动画滚到目标楼层，SNAP_TO_START 让它的顶部精确对齐 RecyclerView 顶部（标题栏下沿） */
+  /**
+   * 滚到目标楼层并让它的顶部精确对齐视口上沿（标题栏下沿）。
+   *
+   * 用 scrollToPositionWithOffset 直接定位，不用 LinearSmoothScroller 的 SNAP_TO_START：
+   * 当目标楼层是超高楼层(如单楼长帖，高度好几屏)、且当前已滚到列表底部时，
+   * smooth scroller 计算的大跨度滚动会被列表边界限制而失效，点屏幕没反应。
+   * scrollToPositionWithOffset 精确定位到「该 item 顶部 = 视口顶部」，不受边界影响。
+   */
   private void snapToTop(int position) {
-    RecyclerView.SmoothScroller scroller =
-        new androidx.recyclerview.widget.LinearSmoothScroller(recyclerView.getContext()) {
-          @Override public int getVerticalSnapPreference() {
-            return androidx.recyclerview.widget.LinearSmoothScroller.SNAP_TO_START;
-          }
-        };
-    scroller.setTargetPosition(position);
-    recyclerView.getLayoutManager().startSmoothScroll(scroller);
+    if (recyclerView.getLayoutManager() instanceof LinearLayoutManager) {
+      ((LinearLayoutManager) recyclerView.getLayoutManager()).scrollToPositionWithOffset(position, 0);
+    }
   }
 
   @Override public void onLongPress(MotionEvent e) {
