@@ -52,6 +52,8 @@ public class SMTHApplication extends Application {
   public static final String NOTIFICATION_NEW_REPLY = "你有新回复!";
   public static final String NOTIFICATION_NEW_LIKE = "你有新Like!";
   public static final String NOTIFICATION_LOGIN_LOST = "登录已过期！请重新登录...";
+  // 后台静默登录遇到验证码：页面层收到后弹可见 WebView 让用户处理
+  public static final String NOTIFICATION_LOGIN_CAPTCHA = "需要验证码，请完成验证...";
 
   public static final int INTERVAL_TO_CHECK_MESSAGE = 2; // 2 minutes for interval to check messages
   public static UserStatusReceiver mUserStatusReceiver = null;

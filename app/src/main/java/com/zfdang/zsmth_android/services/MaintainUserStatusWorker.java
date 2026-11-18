@@ -18,6 +18,7 @@ import androidx.work.WorkerParameters;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.Settings;
 import com.zfdang.zsmth_android.helpers.LoginThrottle;
+import com.zfdang.zsmth_android.helpers.SilentLoginHelper;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
 import com.zfdang.zsmth_android.newsmth.UserInfo;
 import com.zfdang.zsmth_android.newsmth.UserStatus;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import io.reactivex.functions.Function;
 import io.reactivex.observers.DisposableObserver;
+import io.reactivex.schedulers.Schedulers;
 
 public class MaintainUserStatusWorker extends Worker {
 
@@ -136,9 +138,12 @@ public class MaintainUserStatusWorker extends Worker {
                 if (SMTHApplication.isValidUser()) {
                     // get message if user is valid user
                     message = getNotificationMessage(SMTHApplication.activeUser);
-                } else if (updateUserIcon == true) {
-                    // not a valid user, but updateUserIcon is true, means login status has lost
-                    message = SMTHApplication.NOTIFICATION_LOGIN_LOST;
+                } else {
+                    // 未登录：先尝试后台静默登录，不立即弹登录页打扰用户。
+                    // 成功→静默恢复；需要验证码→通知页面层弹可见 WebView；失败→才提示重新登录。
+                    trySilentLogin();
+                    // 仍更新头像为游客态（UI 一致性），但去掉自动弹登录的提示
+                    // message 留空，由静默登录回调决定后续提示
                 }
 
                 UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
@@ -161,6 +166,63 @@ public class MaintainUserStatusWorker extends Worker {
 
             @Override
             public void onComplete() {
+            }
+        });
+    }
+
+    /**
+     * 后台静默登录：用离屏 WebView 自动填表提交，成功则无感恢复登录态。
+     * 只有水木要求验证码时才发通知让页面层弹可见 WebView 给用户处理。
+     * 用 canAutoLogin() 节流，避免 2 分钟一轮的 Worker 频繁提交登录。
+     */
+    private void trySilentLogin() {
+        if (!LoginThrottle.canAutoLogin()) {
+            Log.d(TAG, "skip silent login: throttled");
+            return;
+        }
+        UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
+        SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
+            @Override public void onSuccess(String userId) {
+                Log.i(TAG, "silent login success: " + userId + ", refresh status");
+                // 重新拉一次登录态，更新全局 activeUser 与 UI
+                // 注意：本回调在主线程，网络请求必须切到 IO 线程
+                SMTHHelper.getInstance().wService.queryActiveUserStatus()
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+                        .subscribe(status -> {
+                            if (status != null && status.getId() != null
+                                    && !"guest".equals(status.getId())) {
+                                SMTHApplication.activeUser = status;
+                                SMTHApplication.displayedUserId = status.getId();
+                                if (receiver != null) {
+                                    receiver.send(Activity.RESULT_OK, new Bundle());
+                                }
+                            }
+                        }, e -> Log.e(TAG, "refresh status after silent login failed", e));
+            }
+
+            @Override public void onCaptchaRequired() {
+                Log.w(TAG, "silent login needs captcha, notify page to show WebView");
+                if (receiver != null) {
+                    Bundle bundle = new Bundle();
+                    bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,
+                        SMTHApplication.NOTIFICATION_LOGIN_CAPTCHA);
+                    receiver.send(Activity.RESULT_OK, bundle);
+                }
+            }
+
+            @Override public void onFailed(String reason) {
+                // 静默失败（密码错/网络/超时）：通知用户重新登录。
+                // 受 canAutoLogin 30 分钟节流保护，不会频繁打扰。
+                // "cooldown"/"no_credentials" 属于预期内跳过，不必提示。
+                Log.w(TAG, "silent login failed: " + reason);
+                if ("cooldown".equals(reason) || "no_credentials".equals(reason)) return;
+                if (receiver != null) {
+                    Bundle bundle = new Bundle();
+                    bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,
+                        SMTHApplication.NOTIFICATION_LOGIN_LOST);
+                    receiver.send(Activity.RESULT_OK, bundle);
+                }
             }
         });
     }

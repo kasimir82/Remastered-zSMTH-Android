@@ -266,7 +266,10 @@ public class MainActivity extends SMTHBaseActivity
           // show notification if necessary
           String message = resultData.getString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE);
           //Log.d(TAG, "OnReceiveResult" + message);
-          if (message != null) {
+          if (message != null && message.contains(SMTHApplication.NOTIFICATION_LOGIN_CAPTCHA)) {
+            // 后台静默登录遇到验证码：直接弹可见 WebView 让用户处理，不走通知栏
+            launchCaptchaLoginPage();
+          } else if (message != null) {
             showNotification(message);
           }
         }
@@ -411,7 +414,10 @@ public class MainActivity extends SMTHBaseActivity
       // java.lang.IllegalStateException: Can not perform this action after onSaveInstanceState
       String message = bundle.getString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE);
       if (message != null) {
-        if (message.contains(SMTHApplication.NOTIFICATION_LOGIN_LOST)) {
+        if (message.contains(SMTHApplication.NOTIFICATION_LOGIN_CAPTCHA)) {
+          // 验证码场景：点通知栏进来时也直接拉可见 WebView
+          launchCaptchaLoginPage();
+        } else if (message.contains(SMTHApplication.NOTIFICATION_LOGIN_LOST)) {
           // login status lost, show login menu
           onLogin();
         } else {
@@ -454,13 +460,20 @@ public class MainActivity extends SMTHBaseActivity
     boolean hasUnread = SMTHApplication.isValidUser()
         && SMTHApplication.activeUser != null
         && SMTHApplication.activeUser.hasNewReply();
-    if (hasUnread) {
-      BadgeDrawable badge = mBottomNav.getOrCreateBadge(R.id.nav_mine);
-      badge.clearNumber(); // 不显示数字，只显示纯红点
-      badge.setVisible(true);
-    } else {
-      BadgeDrawable badge = mBottomNav.getBadge(R.id.nav_mine);
-      if (badge != null) badge.setVisible(false);
+    // getOrCreateBadge 要求 MaterialComponents 主题，本项目是 AppCompat 主题，
+    // 调用会抛 IllegalArgumentException。这里兜底捕获：主题不兼容时跳过红点，
+    // 绝不能让它崩掉主流程（登录成功后刷新 UI 会走到这里）。
+    try {
+      if (hasUnread) {
+        BadgeDrawable badge = mBottomNav.getOrCreateBadge(R.id.nav_mine);
+        badge.clearNumber(); // 不显示数字，只显示纯红点
+        badge.setVisible(true);
+      } else {
+        BadgeDrawable badge = mBottomNav.getBadge(R.id.nav_mine);
+        if (badge != null) badge.setVisible(false);
+      }
+    } catch (Throwable t) {
+      android.util.Log.w(TAG, "updateReplyBadge skipped (theme incompatible): " + t.getMessage());
     }
   }
 
@@ -735,6 +748,29 @@ public class MainActivity extends SMTHBaseActivity
     // still use the previous login method
     Intent intent = new Intent(this, LoginActivity.class);
     startActivityForResult(intent, LOGIN_ACTIVITY_REQUEST_CODE);
+  }
+
+  /**
+   * 后台静默登录遇到验证码时调用：直接用已保存的账号密码拉起可见的 WebView 登录页，
+   * 页面会自动填表，用户只需过验证码。登录成功后回到本页刷新状态。
+   */
+  private void launchCaptchaLoginPage() {
+    String username = Settings.getInstance().getUsername();
+    String password = Settings.getInstance().getPassword();
+    if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
+      // 没有保存的账号，退回普通登录页让用户输入
+      onLogin();
+      return;
+    }
+    try {
+      Intent intent = new Intent(this, WebviewLoginActivity.class);
+      intent.putExtra(LoginActivity.USERNAME, username);
+      intent.putExtra(LoginActivity.PASSWORD, password);
+      startActivityForResult(intent, LOGIN_ACTIVITY_REQUEST_CODE);
+    } catch (Throwable t) {
+      android.util.Log.e(TAG, "launch captcha login page failed", t);
+      onLogin();
+    }
   }
 
   public void onLogout() {
