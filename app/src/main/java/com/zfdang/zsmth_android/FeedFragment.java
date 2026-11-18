@@ -215,10 +215,8 @@ public class FeedFragment extends Fragment {
       }
       mDisplayedSignature = signature;
       mAdapter.notifyDataSetChanged();
-      // 缓存分支若排序方式变了也会重排，滚动位置归零，避免顶部内容被顶出屏幕
-      if (mRecyclerView != null) {
-        mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
-      }
+      // 缓存分支主要是从帖子返回时的 onResume 自动加载：
+      // 这里不能滚到顶，要保留用户之前的浏览位置（只有双击刷新才归零）。
       hideEmpty();
       finishRefresh();
       return;
@@ -267,9 +265,10 @@ public class FeedFragment extends Fragment {
             if (mAdapter != null) {
               mAdapter.notifyDataSetChanged();
             }
-            // 刷新后数据重新排序，滚动位置归零，避免新排到顶部的帖子超出窗口上边缘。
+            // 只有主动刷新(双击信息流/下拉/刷新按钮)才滚到顶，避免新排到顶部的帖子超出窗口上边缘。
+            // 首次进入(force=false)不滚，保留浏览位置。
             // post 到下一帧，等 notifyDataSetChanged 的布局完成后再滚，确保位置生效。
-            if (mRecyclerView != null) {
+            if (force && mRecyclerView != null) {
               mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
             }
             if (merged.isEmpty()) {
