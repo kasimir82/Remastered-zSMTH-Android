@@ -417,6 +417,8 @@ public class Post {
       }
 
       if (line.trim().length() == 0) {
+        // 签名区内的空行一并跳过，避免残留空白
+        if (signatureMode == 1) continue;
         linebreak++;
         if (linebreak >= 2) {
           // continuous linebreak, skip extra linebreak
@@ -433,16 +435,9 @@ public class Post {
       // handle signature
       // we have to make sure "--" is the last one, it might appear in post content body
       if (i == signatureStartLine) {
-        // entering signature mode
+        // 进入签名模式：隐藏整个签名档（含 "--" 分隔符），只保留后面的来源/修改行
         signatureMode = 1;
-        sb.append(line).append("<br />");
         continue;
-      }
-
-      // ※ 修改:·wpd419 于 Mar 29 09:43:17 2016 修改本文·[FROM: 111.203.75.*]
-      // 签名分隔符 "--" 后面原本会留一个空行，去掉它，让来源行紧跟 "--"
-      if (signatureMode == 1 && i > signatureStartLine && sb.toString().endsWith("--<br /><br />")) {
-        sb.setLength(sb.length() - "<br />".length());
       }
 
       // ※ 来源:·水木社区 http://www.newsmth.net·[FROM: 111.203.75.*]
@@ -477,10 +472,8 @@ public class Post {
         continue;
       }
 
-      // after handle last part of post content, if it's still in signature mode, add signature
+      // 签名档内的正文行：全部隐藏，不 append
       if (signatureMode == 1) {
-        line = "<small><font color=#727272>" + line + "</font></small>";
-        sb.append(line).append("<br />");
         continue;
       }
 
