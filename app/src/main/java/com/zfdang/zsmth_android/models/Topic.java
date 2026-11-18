@@ -182,9 +182,15 @@ public class Topic implements Parcelable {
 
     java.util.regex.Matcher full = DATE_FULL.matcher(date);
     if (full.find()) {
-      return (Long.parseLong(full.group(1)) * 10000L
+      long key = (Long.parseLong(full.group(1)) * 10000L
           + Long.parseLong(full.group(2)) * 100L
           + Long.parseLong(full.group(3))) * SORT_KEY_SCALE;
+      // 若后面还跟着时刻(如拼出来的 "yyyy-MM-dd HH:mm:ss")，加上当天秒数以区分同日帖子
+      java.util.regex.Matcher tail = TIME_ONLY.matcher(date.substring(full.end()));
+      if (tail.find()) {
+        key += secondsOf(tail, 1, 2, 3);
+      }
+      return key;
     }
 
     java.util.regex.Matcher shortDateTime = DATE_TIME_SHORT.matcher(date);
@@ -223,9 +229,37 @@ public class Topic implements Parcelable {
     return parseSortKey(publishDate, 0L);
   }
 
-  /** 「按最后回复排序」用的排序键，拿不到回复时间时退回发布时间 */
+  /**
+   * 「按最后回复排序」用的排序键，拿不到回复时间时退回发布时间。
+   *
+   * 水木列表里回复时间常只给纯时刻(如 21:38:58)，省略日期。此时若直接当成"今天"，
+   * 17 号的 01:02 会因为时刻数值大于 18 号的 00:01 而排到前面（只比了时分秒）。
+   * 纯时刻回复与发帖在同一行，省略日期意味着和发帖同一天，所以用发帖日期拼上回复时刻，
+   * 让排序键带上正确的年月日。
+   */
   public long getReplySortKey() {
+    String reply = replyDate == null ? "" : replyDate.trim();
+    java.util.regex.Matcher timeOnly = TIME_ONLY.matcher(reply);
+    if (timeOnly.matches()) {
+      String publishDay = extractFullDate(publishDate);
+      if (publishDay != null) {
+        // 拼成 "yyyy-MM-dd HH:mm:ss" 再走完整解析
+        return parseSortKey(publishDay + " " + reply, getPublishSortKey());
+      }
+    }
     return parseSortKey(replyDate, getPublishSortKey());
+  }
+
+  /** 从字符串里提取 yyyy-MM-dd；没有完整年月日则返回 null */
+  private static String extractFullDate(String raw) {
+    if (raw == null) {
+      return null;
+    }
+    java.util.regex.Matcher m = DATE_FULL.matcher(raw);
+    if (m.find()) {
+      return m.group(1) + "-" + m.group(2) + "-" + m.group(3);
+    }
+    return null;
   }
 
   public String getReplier() {
