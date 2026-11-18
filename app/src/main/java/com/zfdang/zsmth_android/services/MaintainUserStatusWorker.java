@@ -89,13 +89,9 @@ public class MaintainUserStatusWorker extends Worker {
                     userStatus.setId("guest");
                 }
 
-                // 后台只检测登录状态，不再用 nForum API 自动登录：
-                // 水木对纯密码登录要求验证码（实测返回验证码错误），后台无法过验证码。
-                // cookie 失效时由页面层（PostListActivity 等）拉起 WebView 登录页让用户过验证。
-                if (!TextUtils.equals(userStatus.getId(), "guest")) {
-                    // 已登录：cookie 有效，刷新登录时间
-                    LoginThrottle.onLoginSuccess();
-                }
+                // cookie 有效时不刷新 lastLoginTime：该字段只记录「真实登录时刻」，
+                // 供 cookie 失效后判断能否静默重登。若在这里刷新，会导致失效后
+                // 被 30 分钟节流挡住，用户长时间卡在「未登录」。
                 return userStatus;
             }
         }).map(new Function<UserStatus, UserStatus>() {
@@ -173,11 +169,13 @@ public class MaintainUserStatusWorker extends Worker {
     /**
      * 后台静默登录：用离屏 WebView 自动填表提交，成功则无感恢复登录态。
      * 只有水木要求验证码时才发通知让页面层弹可见 WebView 给用户处理。
-     * 用 canAutoLogin() 节流，避免 2 分钟一轮的 Worker 频繁提交登录。
+     * 用 canRetryAfterCookieLost() 判断，cookie 失效后能及时重登，又受冷却期保护。
      */
     private void trySilentLogin() {
-        if (!LoginThrottle.canAutoLogin()) {
-            Log.d(TAG, "skip silent login: throttled");
+        // 用「cookie 失效」的专用判断：只受冷却期和 1 分钟保护，
+        // 不再被「30 分钟内登录过」挡住（那是防止主动频繁登录的节流，不适用失效重登）。
+        if (!LoginThrottle.canRetryAfterCookieLost()) {
+            Log.d(TAG, "skip silent login: throttled (cookie lost retry)");
             return;
         }
         UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
@@ -213,7 +211,7 @@ public class MaintainUserStatusWorker extends Worker {
 
             @Override public void onFailed(String reason) {
                 // 静默失败（密码错/网络/超时）：通知用户重新登录。
-                // 受 canAutoLogin 30 分钟节流保护，不会频繁打扰。
+                // 受登录冷却期保护，不会频繁打扰。
                 // "cooldown"/"no_credentials" 属于预期内跳过，不必提示。
                 Log.w(TAG, "silent login failed: " + reason);
                 if ("cooldown".equals(reason) || "no_credentials".equals(reason)) return;

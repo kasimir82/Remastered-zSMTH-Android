@@ -47,6 +47,26 @@ public class LoginThrottle {
     return true;
   }
 
+  /**
+   * cookie 已失效时的重登判断。与 canAutoLogin 不同：
+   * 这里只受「冷却期」和「距上次真实登录至少 1 分钟」限制，
+   * 不用 30 分钟节流——因为 cookie 失效说明必须重新登录了，
+   * 不能被「最近登录过」挡住，否则用户会长时间卡在未登录状态。
+   */
+  public static boolean canRetryAfterCookieLost() {
+    Settings s = Settings.getInstance();
+    if (inCooldown()) {
+      Log.w(TAG, "canRetryAfterCookieLost=false: in cooldown");
+      return false;
+    }
+    long last = s.getLastLoginTime();
+    if (last > 0 && System.currentTimeMillis() - last < 60L * 1000) {
+      Log.i(TAG, "canRetryAfterCookieLost=false: logged in <1min ago");
+      return false;
+    }
+    return true;
+  }
+
   /** 登录成功：记录时间并清除冷却 */
   public static void onLoginSuccess() {
     Settings s = Settings.getInstance();

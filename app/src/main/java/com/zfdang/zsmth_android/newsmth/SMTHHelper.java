@@ -700,6 +700,8 @@ public class SMTHHelper {
     }
 
     Document doc = Jsoup.parse(content);
+    // 未登录时服务端可能返回「您未登录」提示页而非版面列表，及早抛出避免把它当正文显示
+    GuestReadVerificationException.check(doc);
 
     // <li class="page-select"><a title="当前页">2</a></li>
     String currentPage = null;

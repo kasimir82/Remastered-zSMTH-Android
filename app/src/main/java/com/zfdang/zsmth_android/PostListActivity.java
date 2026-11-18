@@ -51,6 +51,7 @@ import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.helpers.ShareImageHelper;
+import com.zfdang.zsmth_android.helpers.SilentLoginHelper;
 import com.zfdang.zsmth_android.helpers.TextBombDialog;
 import com.zfdang.zsmth_android.models.Attachment;
 import com.zfdang.zsmth_android.models.Board;
@@ -406,11 +407,9 @@ public class PostListActivity extends SMTHBaseActivity
             mLoadingMore = false;
             clearLoadingHints();
             if (e instanceof com.zfdang.zsmth_android.newsmth.GuestReadVerificationException) {
-              // 水木要求阅读验证：日志确认此时 cookie 其实还在(UTMPKEY/UTMPNUM/UTMPUSERID)，
-              // 是服务端要求过一次验证码，纯密码登录会被"验证码错误"拒绝、清 cookie 反而有害。
-              // 因此直接拉起 WebView 登录页（自动填账号密码，用户只需过验证码），
-              // 登录成功回到本页后 onActivityResult 会自动 reloadPostList()。
-              launchLoginPage();
+              // 服务端返回「您未登录」或要求阅读验证：先在后台静默重登，
+              // 成功则自动重载本页（用户无感）；需要验证码才弹可见 WebView 让用户处理。
+              trySilentLoginThenReload();
               return;
             }
             Toast.makeText(SMTHApplication.getAppContext(), "加载失败！\n" + e.toString(), Toast.LENGTH_LONG).show();
@@ -579,6 +578,41 @@ public class PostListActivity extends SMTHBaseActivity
    * 直接拉起 WebView 登录页（自动填已保存的账号密码，用户只需处理验证码）。
    * 登录成功 setResult(OK)，onActivityResult 收到后会自动重载本页。
    */
+  /**
+   * 服务端返回「您未登录」时：先在后台静默重登，成功就自动重载本页，用户无感。
+   * 只有需要验证码或失败时才弹可见登录页/提示。
+   */
+  private void trySilentLoginThenReload() {
+    Toast.makeText(getApplicationContext(), "正在重新登录...", Toast.LENGTH_SHORT).show();
+    SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
+      @Override public void onSuccess(String userId) {
+        runOnUiThread(() -> {
+          // 同步登录态到全局，避免其它页面仍认为未登录
+          SMTHApplication.displayedUserId = userId;
+          if (SMTHApplication.activeUser == null) {
+            SMTHApplication.activeUser = new com.zfdang.zsmth_android.newsmth.UserStatus();
+          }
+          SMTHApplication.activeUser.setId(userId);
+          SMTHApplication.activeUser.setIs_login(true);
+          reloadPostList();
+        });
+      }
+      @Override public void onCaptchaRequired() {
+        runOnUiThread(() -> launchLoginPage()); // 需要验证码：弹可见 WebView
+      }
+      @Override public void onFailed(String reason) {
+        runOnUiThread(() -> {
+          if ("cooldown".equals(reason)) {
+            // 冷却期说明近期登录过但 cookie 又失效，直接弹登录页让用户处理
+            showLoginRequiredDialog("登录已过期，请重新登录");
+          } else {
+            showLoginRequiredDialog("加载失败，请重新登录后再试");
+          }
+        });
+      }
+    });
+  }
+
   private void launchLoginPage() {
     // 底部短暂提示：正在自动重新登录（Toast 用 app context，跳到登录页后仍会显示）
     Toast.makeText(getApplicationContext(), "正在重新登录...", Toast.LENGTH_LONG).show();
