@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1051；`versionName` 手动递增，当前为 26.11.37，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1052；`versionName` 手动递增，当前为 26.11.38，不再随构建日期自动变化。
 
 调试版本：
 
@@ -348,6 +348,10 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 - **删除帖子快速导航栏**：移除右侧 4 个上下箭头（首页/上一楼/下一楼/末楼）及其设置开关——`MineFragment` 与 `MyPreferenceFragment` 的入口、`Settings.hasPostNavBar/setPostNavBar`、`preferences.xml` 选项、`activity_post_list.xml` 的箭头栏、Activity 里的绑定与 onClick 分支全部清理。底部翻页栏（首页/末页/页码/GO）保留。
 - **音量键翻页对齐**：`onKeyDown` 不再用 `RecyclerViewUtil.ScrollRecyclerViewByKey`（固定像素），改为调用 `RecyclerViewGestureListener.scrollToAdjacentPost()`（已改为 public），与点击翻页统一为"短帖对齐下一楼、长帖滚一屏"的楼层对齐逻辑。
 - **重新登录提示**：`PostListActivity.launchLoginPage()` 触发自动登录时显示底部 Toast「正在重新登录...」（约数秒后消失）。
+
+## 18. 隐藏终止版面（v26.11.38）
+
+「所有版面」列表里大量「终止版面 / 已关闭版面」条目不再显示。`Board.isTerminated()` 检查 `categoryName`/`boardChsName`/`boardEngName` 是否含「终止」或「已关闭」，`AllBoardFragment` 在加入列表时过滤（缓存与网络两条路径都经过此处，搜索也基于过滤后的列表）。
 
 ## 已知问题
 

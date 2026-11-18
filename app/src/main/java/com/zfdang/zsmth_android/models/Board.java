@@ -99,6 +99,20 @@ public class Board implements Externalizable, Parcelable {
     return boardType == BoardType.INVALID;
   }
 
+  /** 终止/已关闭版面不再显示（分类名或版名里带这些关键词） */
+  public boolean isTerminated() {
+    String[] fields = {categoryName, boardChsName, boardEngName};
+    for (String field : fields) {
+      if (field == null) {
+        continue;
+      }
+      if (field.contains("终止") || field.contains("已关闭")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public String getBoardID() {
     return boardID;
   }

@@ -157,6 +157,10 @@ public class AllBoardFragment extends Fragment implements OnVolumeUpDownListener
 
       @Override public void onNext(@NonNull Board board) {
         // Log.d(TAG, board.toString());
+        // 隐藏终止/已关闭版面，避免列表里有大量无效版面
+        if (board.isTerminated()) {
+          return;
+        }
         BoardListContent.addAllBoardItem(board);
         int size = BoardListContent.ALL_BOARDS.size();
         mRecyclerView.getAdapter().notifyItemInserted(size - 1);
