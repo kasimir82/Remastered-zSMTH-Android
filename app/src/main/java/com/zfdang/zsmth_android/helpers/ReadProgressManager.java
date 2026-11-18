@@ -114,8 +114,13 @@ public class ReadProgressManager {
    */
   public static int replyCountOf(Topic topic) {
     if (topic == null) return 0;
-    int reply = firstNumber(topic.getReplyCounts());
-    if (reply > 0) return reply;
+    String replyCounts = topic.getReplyCounts();
+    // replyCounts 是列表页显示的「回复 N」，0 也是合法值，必须信任它，
+    // 否则 0 会被回退到 totalPostNo(详情页贴数，至少含楼主=1)，导致回复0的帖子存成1、显示蓝色。
+    if (replyCounts != null && replyCounts.trim().length() > 0) {
+      return firstNumber(replyCounts);
+    }
+    // 只有 replyCounts 为空(如热门列表只解析了 totalPostNo)才回退
     return firstNumber(topic.getTotalPostNoAsStr());
   }
 
