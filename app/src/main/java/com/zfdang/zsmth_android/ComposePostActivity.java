@@ -471,7 +471,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     // publish post
     String postContent = mContent.getText().toString();
     if (!isChildSafetyReport() && Settings.getInstance().bUseSignature()) {
-      postContent += "\n" + String.format("#发自zSMTH@%s", Settings.getInstance().getSignature());
+      postContent += "\n" + String.format("#发自%s", Settings.getInstance().getSignature());
     }
     Observable<AjaxResponse> resp2 = null;
     if (isChildSafetyReport() || mPostContext.getComposingMode() == ComposePostContext.MODE_NEW_MAIL
@@ -486,7 +486,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     } else if (mPostContext.getComposingMode() == ComposePostContext.MODE_EDIT_POST) {
       postContent = mContent.getText().toString();
       if (Settings.getInstance().bUseSignature()) {
-        postContent += "\n" + String.format("#修改自zSMTH@%s", Settings.getInstance().getSignature());
+        postContent += "\n" + String.format("#修改自%s", Settings.getInstance().getSignature());
       }
       resp2 = SMTHHelper.editPost(mPostContext.getBoardEngName(), mPostContext.getPostId(), mTitle.getText().toString(), postContent);
     }
