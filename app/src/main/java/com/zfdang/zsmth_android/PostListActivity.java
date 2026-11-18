@@ -260,7 +260,10 @@ public class PostListActivity extends SMTHBaseActivity
     // 滚动到距末尾约 5 帖时，自动追加下一页（末页则不处理）
     mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
       @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
-        if (dy <= 0 || mLoadingMore || mTopic == null || PostListContent.POSTS.isEmpty()) {
+        // 点按翻页用 scrollToPositionWithOffset 瞬间跳转，产生的 onScrolled dy=0；
+        // 若只认 dy>0 会导致翻到页尾不自动加载下一页。这里只排除真正的向上滚动(dy<0)，
+        // 允许 dy==0：向上滚时 last 变小、remaining 变大，不会误触发。
+        if (dy < 0 || mLoadingMore || mTopic == null || PostListContent.POSTS.isEmpty()) {
           return;
         }
         // 用真实帖子数算剩余，不含末尾的「本贴结束」标记
