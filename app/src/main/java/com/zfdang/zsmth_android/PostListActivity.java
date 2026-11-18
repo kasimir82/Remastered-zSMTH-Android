@@ -449,6 +449,9 @@ public class PostListActivity extends SMTHBaseActivity
               }
             }
 
+            // 点进帖子即算看过：第一次加载完成就落一条进度，列表 reply 数随之变蓝
+            markAsReadOnEnter();
+
             clearLoadingHints();
           }
         });
@@ -856,11 +859,26 @@ public class PostListActivity extends SMTHBaseActivity
     return ReadProgressManager.firstNumber(PostListContent.POSTS.get(first).getPosition());
   }
 
+  /**
+   * 首次加载完成时调用：只要点进帖子就算"看过"。
+   * 若该帖还没有进度记录，立即记一条（楼层兜底 1=楼主层，快照=当前回帖数），
+   * 这样即使只看楼主层就返回，列表里也会变蓝。已有记录（恢复场景）不覆盖。
+   */
+  private void markAsReadOnEnter() {
+    if (mTopic == null) return;
+    ReadProgressManager manager = ReadProgressManager.getInstance();
+    if (manager.get(mTopic.getBoardEngName(), mTopic.getTopicID()) != null) {
+      return; // 已看过/有恢复进度，不动
+    }
+    int replyCount = ReadProgressManager.replyCountOf(mTopic);
+    manager.save(mTopic.getBoardEngName(), mTopic.getTopicID(), 1, replyCount, 1);
+  }
+
   /** 退出时保存阅读进度：楼层 + 当前回帖数快照 + 所在页 */
   private void saveReadingProgress() {
     if (mTopic == null || mCurrentPageNo <= 0) return;
     int floor = currentVisibleFloor();
-    if (floor <= 0) return;
+    if (floor <= 0) floor = 1; // 停在楼主层或取不到时按第1楼记，保证退出也算看过
     int replyCount = ReadProgressManager.replyCountOf(mTopic);
     ReadProgressManager.getInstance().save(mTopic.getBoardEngName(), mTopic.getTopicID(),
         floor, replyCount, mCurrentPageNo);
