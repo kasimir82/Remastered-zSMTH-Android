@@ -477,6 +477,27 @@ public class MainActivity extends SMTHBaseActivity
     }
   }
 
+  /**
+   * 逐条看完回复后调用：本地把未读回复数减 1，减到 0 就清掉红点。
+   * 这样看完所有消息后红点立即消失，不必等 2 分钟轮询或点「全部已读」。
+   * 服务端 new_reply 可能是数字或 "true"：数字则递减，"true" 等非数字直接清 0。
+   */
+  public void onOneReplyMarkedRead() {
+    if (!SMTHApplication.isValidUser() || SMTHApplication.activeUser == null) return;
+    String raw = SMTHApplication.activeUser.getNew_reply();
+    int count = 0;
+    if (raw != null) {
+      try {
+        count = Integer.parseInt(raw.trim());
+      } catch (NumberFormatException e) {
+        count = 1; // "true" 等非数字：视为有 1 条，减后清 0
+      }
+    }
+    int left = Math.max(0, count - 1);
+    SMTHApplication.activeUser.setNew_reply(String.valueOf(left));
+    updateReplyBadge();
+  }
+
   /** 全部已读后本地清掉未读标记并隐藏红点（不必等服务端的 2 分钟轮询） */
   public void clearReplyBadge() {
     if (SMTHApplication.isValidUser() && SMTHApplication.activeUser != null) {

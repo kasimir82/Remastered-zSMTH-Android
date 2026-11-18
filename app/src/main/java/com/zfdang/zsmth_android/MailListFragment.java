@@ -418,6 +418,11 @@ public class MailListFragment extends Fragment implements View.OnClickListener {
                 // succeed to mark the post as read in remote
                 mail.isNew = false;
                 recyclerView.getAdapter().notifyItemChanged(position);
+                // 看完一条回复就同步递减未读数，减到 0 自动清红点
+                if (TextUtils.equals(currentFolder, REPLY_LABEL)
+                    && getActivity() instanceof MainActivity) {
+                  ((MainActivity) getActivity()).onOneReplyMarkedRead();
+                }
               } else {
                 // mark remote failed, show the response message
                 Toast.makeText(getActivity(), ajaxResponse.getAjax_msg(), Toast.LENGTH_SHORT).show();
