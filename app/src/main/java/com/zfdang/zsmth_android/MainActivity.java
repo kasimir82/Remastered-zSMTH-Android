@@ -42,6 +42,7 @@ import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkManager;
 import androidx.work.WorkRequest;
 
+import com.google.android.material.badge.BadgeDrawable;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.navigation.NavigationView;
 import com.mikepenz.aboutlibraries.LibsBuilder;
@@ -430,6 +431,8 @@ public class MainActivity extends SMTHBaseActivity
           fm.beginTransaction().replace(R.id.content_frame, mailListFragment).commitAllowingStateLoss();
           // switch title of mainActivity
           setTitle(SMTHApplication.App_Title_Prefix + "邮件");
+          // 收到新消息通知，同步刷新「我的」tab 红点
+          updateReplyBadge();
         }
       }
     }
@@ -439,6 +442,34 @@ public class MainActivity extends SMTHBaseActivity
     super.onResume();
     AnalyticsPrivacy.onResume(this);
     syncGuidanceFragment();
+    updateReplyBadge();
+  }
+
+  /**
+   * 底部「我的」tab 红点：服务端 new_reply 有未读回复时显示纯红点（不显示数字）。
+   * 用户点了「回复我的」里的「全部已读」后会调 clearReplyBadge() 立即清掉。
+   */
+  public void updateReplyBadge() {
+    if (mBottomNav == null) return;
+    boolean hasUnread = SMTHApplication.isValidUser()
+        && SMTHApplication.activeUser != null
+        && SMTHApplication.activeUser.hasNewReply();
+    if (hasUnread) {
+      BadgeDrawable badge = mBottomNav.getOrCreateBadge(R.id.nav_mine);
+      badge.clearNumber(); // 不显示数字，只显示纯红点
+      badge.setVisible(true);
+    } else {
+      BadgeDrawable badge = mBottomNav.getBadge(R.id.nav_mine);
+      if (badge != null) badge.setVisible(false);
+    }
+  }
+
+  /** 全部已读后本地清掉未读标记并隐藏红点（不必等服务端的 2 分钟轮询） */
+  public void clearReplyBadge() {
+    if (SMTHApplication.isValidUser() && SMTHApplication.activeUser != null) {
+      SMTHApplication.activeUser.setNew_reply("0");
+    }
+    updateReplyBadge();
   }
 
   /** 信息流开关可能刚从设置页改过，回到该标签时切到对应的页面 */
@@ -527,6 +558,7 @@ public class MainActivity extends SMTHBaseActivity
     if (mineFragment != null) {
       mineFragment.refreshUserInfo();
     }
+    updateReplyBadge();
   }
 
   private void handleBackAction() {

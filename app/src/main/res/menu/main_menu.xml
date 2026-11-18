@@ -15,6 +15,13 @@
       android:visible="false"
       app:showAsAction="always"/>
   <item
+      android:id="@+id/mail_list_mark_all_read"
+      android:icon="@drawable/ic_check_white_24dp"
+      android:orderInCategory="1"
+      android:title="全部已读"
+      android:visible="false"
+      app:showAsAction="always"/>
+  <item
       android:id="@+id/main_action_login"
       android:orderInCategory="3"
       android:title="@string/action_login"

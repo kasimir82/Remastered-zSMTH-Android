@@ -200,6 +200,8 @@ public class MailListFragment extends Fragment implements View.OnClickListener {
     } else if (TextUtils.equals(folder, LIKE_LABEL)) {
       currentFolder = LIKE_LABEL;
     }
+    // 外部(如「我的」页面入口/通知)设置 folder 后同步菜单显示状态
+    if (getActivity() != null) getActivity().invalidateOptionsMenu();
     //        Log.d(TAG, "setCurrentFolder: " + folder);
   }
 
@@ -450,7 +452,19 @@ public class MailListFragment extends Fragment implements View.OnClickListener {
   @Override public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
     MenuItem item = menu.findItem(R.id.mail_list_fragment_newmail);
     item.setVisible(true);
+    // 「全部已读」只对 refer 类(reply/at/like)生效，普通邮件夹隐藏
+    MenuItem markAllRead = menu.findItem(R.id.mail_list_mark_all_read);
+    if (markAllRead != null) {
+      markAllRead.setVisible(isReferFolder());
+    }
     super.onCreateOptionsMenu(menu, inflater);
+  }
+
+  /** 当前是否为 refer 类文件夹（回复我的/@我/Like） */
+  private boolean isReferFolder() {
+    return TextUtils.equals(currentFolder, AT_LABEL)
+        || TextUtils.equals(currentFolder, REPLY_LABEL)
+        || TextUtils.equals(currentFolder, LIKE_LABEL);
   }
 
   @Override public boolean onOptionsItemSelected(MenuItem item) {
@@ -463,11 +477,46 @@ public class MailListFragment extends Fragment implements View.OnClickListener {
       intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
       startActivity(intent);
       return true;
+    } else if (id == R.id.mail_list_mark_all_read) {
+      markAllAsRead();
+      return true;
     } else if (id == R.id.main_action_refresh) {
       LoadMailsFromBeginning();
     }
 
     return super.onOptionsItemSelected(item);
+  }
+
+  /** 全部已读：refer/reply/ajax_read.json 传 index=all 一次请求即可 */
+  private void markAllAsRead() {
+    if (!isReferFolder()) return;
+    final String folder = currentFolder;
+    SMTHHelper.getInstance().wService.readReferPosts(folder, "all")
+        .subscribeOn(Schedulers.io())
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribe(new Observer<AjaxResponse>() {
+          @Override public void onSubscribe(@NonNull Disposable disposable) {}
+          @Override public void onError(@NonNull Throwable e) {
+            Toast.makeText(getActivity(), "全部已读失败!\n" + e.toString(), Toast.LENGTH_LONG).show();
+          }
+          @Override public void onNext(@NonNull AjaxResponse ajaxResponse) {
+            if (ajaxResponse.getAjax_st() == AjaxResponse.AJAX_RESULT_OK) {
+              // 本地把所有未读标记清掉并刷新列表
+              for (Mail mail : MailListContent.MAILS) {
+                mail.isNew = false;
+              }
+              if (recyclerView.getAdapter() != null) recyclerView.getAdapter().notifyDataSetChanged();
+              Toast.makeText(getActivity(), "已全部标记为已读", Toast.LENGTH_SHORT).show();
+              // 清掉底部「我的」tab 的红点
+              if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).clearReplyBadge();
+              }
+            } else {
+              Toast.makeText(getActivity(), ajaxResponse.getAjax_msg(), Toast.LENGTH_SHORT).show();
+            }
+          }
+          @Override public void onComplete() {}
+        });
   }
 
   @Override public void onClick(View v) {
@@ -493,5 +542,7 @@ public class MailListFragment extends Fragment implements View.OnClickListener {
 
     highlightCurrentFolder();
     LoadMailsFromBeginning();
+    // 切换文件夹后刷新菜单，「全部已读」只在 refer 类文件夹显示
+    if (getActivity() != null) getActivity().invalidateOptionsMenu();
   }
 }
