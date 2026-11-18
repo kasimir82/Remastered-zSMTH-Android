@@ -91,6 +91,9 @@ public class PostListActivity extends SMTHBaseActivity
     PopupLikeWindow.OnLikeInterface,
     PopupForwardWindow.OnForwardInterface, PopupBanWindow.OnBanIDInterface {
   private static final int LOGIN_REQUEST_CODE = 130;
+  // 被踢下线时，加载失败会反复回调；用防抖避免重复弹「正在重新登录」和重复触发登录
+  private static long sLastSilentLoginAttempt = 0;
+  private static final long SILENT_LOGIN_DEBOUNCE_MS = 30 * 1000;
 
   // 长按菜单操作标识（代替脆弱的下标）
   private static final int ACT_REPLY_POST = 1;
@@ -583,6 +586,14 @@ public class PostListActivity extends SMTHBaseActivity
    * 只有需要验证码或失败时才弹可见登录页/提示。
    */
   private void trySilentLoginThenReload() {
+    // 防抖：被踢下线时多个请求/多个页面可能同时失败，30 秒内只走一次登录流程，
+    // 避免「正在重新登录」提示排队弹出很多次、以及重复提交登录。
+    long now = System.currentTimeMillis();
+    if (now - sLastSilentLoginAttempt < SILENT_LOGIN_DEBOUNCE_MS) {
+      return;
+    }
+    sLastSilentLoginAttempt = now;
+
     Toast.makeText(getApplicationContext(), "正在重新登录...", Toast.LENGTH_SHORT).show();
     SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
       @Override public void onSuccess(String userId) {
