@@ -611,7 +611,10 @@ public class MainActivity extends SMTHBaseActivity
       }
     }
 
-    if (fragment != hotTopicFragment) {
+    // 信息流 tab 的根页面有两个：新版 feedFragment 和旧版 hotTopicFragment，
+    // 由设置开关决定显示哪个。当前停在任一根页面时按返回键应直接双击退出，
+    // 不能硬编码跳回 hotTopicFragment（否则从新版信息流返回会冒出旧版十大页面）。
+    if (fragment != hotTopicFragment && fragment != feedFragment) {
       // 优先回到当前底栏标签对应的页面（例如从「我的」进入站内信/关于后返回，应回到「我的」）
       Fragment target = hotTopicFragment;
       String title = "首页导读";
