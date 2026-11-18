@@ -71,10 +71,31 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
   @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
     if (viewType == TYPE_END) {
       View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_list_end, parent, false);
+      // 让结束标记至少有「一屏」高，保证最后一楼能滚到屏幕顶端。
+      // 否则最后一楼下方空白不足，RecyclerView 到底后它就卡在屏幕中间上不去。
+      applyEndMarkerMinHeight(view, parent);
       return new EndViewHolder(view);
     }
     View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_item, parent, false);
     return new ViewHolder(view);
+  }
+
+  /**
+   * 结束标记至少占满一屏，保证最后一楼能滚到顶端。
+   * 首次 inflate 时 RecyclerView 可能还没测完，用 post 延迟再设一次确保生效。
+   */
+  private void applyEndMarkerMinHeight(View view, ViewGroup parent) {
+    int h = parent.getMeasuredHeight();
+    if (h <= 0) h = parent.getHeight();
+    if (h > 0) {
+      view.setMinimumHeight(h);
+      return;
+    }
+    view.post(() -> {
+      int ph = parent.getMeasuredHeight();
+      if (ph <= 0) ph = parent.getHeight();
+      if (ph > 0) view.setMinimumHeight(ph);
+    });
   }
 
   private void bindTextSegment(TextView tv, ContentSegment content, boolean addLinks) {
