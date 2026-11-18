@@ -226,7 +226,16 @@ public class MainActivity extends SMTHBaseActivity
       final Handler handler = new Handler();
       handler.postDelayed(new Runnable() {
         @Override public void run() {
-          showInfoDialog();
+          // 延迟1秒后 Activity 可能已 finish/销毁(或正在切换)，此时弹 Dialog
+          // 会抛 BadTokenException 导致崩溃。加状态检查并兜底捕获。
+          if (isFinishing() || isDestroyed()) {
+            return;
+          }
+          try {
+            showInfoDialog();
+          } catch (android.view.WindowManager.BadTokenException e) {
+            // Activity 窗口令牌失效，忽略即可，不影响主体功能
+          }
         }
       }, 1000);
     }
