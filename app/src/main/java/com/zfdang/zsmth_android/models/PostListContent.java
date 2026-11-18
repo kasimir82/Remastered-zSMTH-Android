@@ -21,7 +21,9 @@ public class PostListContent {
    */
   public static boolean addItem(Post item) {
     if (item == null) return false;
-    if (BlockListManager.getInstance().isBlocked(item.getAuthor(), item.getTitle())) {
+    // 用 getRawAuthor()（纯用户ID）匹配黑名单：getAuthor() 在有昵称时返回 "ID(昵称)"，
+    // 会导致黑名单里存的纯ID匹配不上，回帖列表里仍显示被屏蔽用户。
+    if (BlockListManager.getInstance().isBlocked(item.getRawAuthor(), item.getTitle())) {
       return false;
     }
     POSTS.add(item);
