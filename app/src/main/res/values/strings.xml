@@ -159,4 +159,10 @@
   <string name="child_safety_report_hint">请填写举报原因、帖子链接、版面和作者 ID；勿附违法图片或视频</string>
   <string name="child_safety_report_success">举报站内信已提交给 sysop，请在发件箱核对。</string>
   <string name="post_list_end">本贴结束</string>
+  <string name="post_block_author">把发帖人加入黑名单</string>
+  <string name="text_bomb_title">选择要复制的文字</string>
+  <string name="text_bomb_hint">点选词条，可多次选择；选好后点「复制选中」</string>
+  <string name="text_bomb_select_all">全选</string>
+  <string name="text_bomb_copy_selected">复制选中</string>
+  <string name="text_bomb_clear">清空选择</string>
 </resources>

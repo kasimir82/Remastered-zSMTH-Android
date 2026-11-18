@@ -158,4 +158,10 @@
   <string name="child_safety_report_subject">Child safety report from zSMTH</string>
   <string name="child_safety_report_hint">Describe the concern, post URL, board and author ID. Do not attach illegal images or videos.</string>
   <string name="child_safety_report_success">Report submitted to sysop. Check your sent messages.</string>
+  <string name="post_block_author">Block this author</string>
+  <string name="text_bomb_title">Select text to copy</string>
+  <string name="text_bomb_hint">Tap words to select; then tap Copy selected</string>
+  <string name="text_bomb_select_all">Select all</string>
+  <string name="text_bomb_copy_selected">Copy selected</string>
+  <string name="text_bomb_clear">Clear</string>
 </resources>

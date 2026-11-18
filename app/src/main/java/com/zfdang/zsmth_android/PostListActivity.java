@@ -48,7 +48,9 @@ import com.scwang.smart.refresh.layout.api.RefreshLayout;
 import com.scwang.smart.refresh.layout.listener.OnLoadMoreListener;
 import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
 import com.zfdang.SMTHApplication;
+import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.ShareImageHelper;
+import com.zfdang.zsmth_android.helpers.TextBombDialog;
 import com.zfdang.zsmth_android.models.Attachment;
 import com.zfdang.zsmth_android.models.Board;
 import com.zfdang.zsmth_android.models.ComposePostContext;
@@ -88,6 +90,22 @@ public class PostListActivity extends SMTHBaseActivity
     PopupForwardWindow.OnForwardInterface, PopupBanWindow.OnBanIDInterface {
   private static final int LOGIN_REQUEST_CODE = 130;
 
+  // 长按菜单操作标识（代替脆弱的下标）
+  private static final int ACT_REPLY_POST = 1;
+  private static final int ACT_LIKE = 2;
+  private static final int ACT_QUERY_AUTHOR = 3;
+  private static final int ACT_FILTER_AUTHOR = 4;
+  private static final int ACT_COPY_CONTENT = 5;
+  private static final int ACT_FORWARD = 6;
+  private static final int ACT_VIEW_IN_BROWSER = 7;
+  private static final int ACT_SHARE = 8;
+  private static final int ACT_DELETE_POST = 9;
+  private static final int ACT_EDIT_POST = 10;
+  private static final int ACT_BLOCK_AUTHOR = 11;
+  private static final int ACT_TOPIC_DELETE = 12;
+  private static final int ACT_BAN_ID = 13;
+  private static final int ACT_MARK_M = 14;
+  private static final int ACT_TOPIC_READONLY = 15;
 
   private static final String TAG = "PostListActivity";
   public RecyclerView mRecyclerView = null;
@@ -588,37 +606,39 @@ public class PostListActivity extends SMTHBaseActivity
     // Log.d(TAG, String.format("Post by %s is long clicked",
     // PostListContent.POSTS.get(position).getAuthor()));
     List<PostActionAlertDialogItem> menuItemsArray = new ArrayList<PostActionAlertDialogItem>();
-    menuItemsArray
-        .add(new PostActionAlertDialogItem(getString(R.string.post_reply_post), R.drawable.ic_reply_black_48dp)); // 0
-    menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_like_post), R.drawable.like_black)); // 1
-    menuItemsArray
-        .add(new PostActionAlertDialogItem(getString(R.string.post_reply_mail), R.drawable.ic_email_black_48dp)); // 2
-    menuItemsArray
-        .add(new PostActionAlertDialogItem(getString(R.string.post_query_author), R.drawable.ic_person_black_48dp)); // 3
-    menuItemsArray.add(
-        new PostActionAlertDialogItem(getString(R.string.post_filter_author), R.drawable.ic_find_in_page_black_48dp)); // 4
-    menuItemsArray.add(
-        new PostActionAlertDialogItem(getString(R.string.post_copy_content), R.drawable.ic_content_copy_black_48dp)); // 5
-    menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_foward), R.drawable.ic_send_black_48dp)); // 6
-    menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_view_in_browser),
-        R.drawable.ic_open_in_browser_black_48dp)); // 7
-    menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_share), R.drawable.ic_share_black_48dp)); // 8
-    menuItemsArray
-        .add(new PostActionAlertDialogItem(getString(R.string.post_delete_post), R.drawable.ic_delete_black_48dp)); // 9
-    menuItemsArray
-        .add(new PostActionAlertDialogItem(getString(R.string.post_edit_post), R.drawable.ic_edit_black_48dp)); // 10
-    menuItemsArray
-        .add(new PostActionAlertDialogItem(getString(R.string.post_convert_image), R.drawable.ic_photo_black_48dp)); // 11
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_reply_post), R.drawable.ic_reply_black_48dp, ACT_REPLY_POST));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_like_post), R.drawable.like_black, ACT_LIKE));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_query_author), R.drawable.ic_person_black_48dp, ACT_QUERY_AUTHOR));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_filter_author), R.drawable.ic_find_in_page_black_48dp, ACT_FILTER_AUTHOR));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_copy_content), R.drawable.ic_content_copy_black_48dp, ACT_COPY_CONTENT));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_foward), R.drawable.ic_send_black_48dp, ACT_FORWARD));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_view_in_browser), R.drawable.ic_open_in_browser_black_48dp, ACT_VIEW_IN_BROWSER));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_share), R.drawable.ic_share_black_48dp, ACT_SHARE));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_delete_post), R.drawable.ic_delete_black_48dp, ACT_DELETE_POST));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_edit_post), R.drawable.ic_edit_black_48dp, ACT_EDIT_POST));
+    // 把发帖人加入黑名单（图标复用白色 block，用 tint 染成主题色）
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_block_author), R.drawable.ic_mine_block, ACT_BLOCK_AUTHOR));
 
     if (Settings.getInstance().isBoardMasterOnly()) {
       menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_topic_delete),
-          R.drawable.baseline_admin_panel_settings_black_48)); // 12
+          R.drawable.baseline_admin_panel_settings_black_48, ACT_TOPIC_DELETE));
       menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_ban_id),
-          R.drawable.baseline_admin_panel_settings_black_48)); // 13
+          R.drawable.baseline_admin_panel_settings_black_48, ACT_BAN_ID));
       menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_mark_m),
-          R.drawable.baseline_admin_panel_settings_black_48)); // 14
+          R.drawable.baseline_admin_panel_settings_black_48, ACT_MARK_M));
       menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_topic_readonly),
-          R.drawable.baseline_admin_panel_settings_black_48)); // 15
+          R.drawable.baseline_admin_panel_settings_black_48, ACT_TOPIC_READONLY));
     }
 
     PostActionAlertDialogItem[] menuItems = new PostActionAlertDialogItem[menuItemsArray.size()];
@@ -658,7 +678,7 @@ public class PostListActivity extends SMTHBaseActivity
     AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.post_alert_title))
         .setAdapter(adapter, new DialogInterface.OnClickListener() {
           public void onClick(DialogInterface dialog, int which) {
-            onPostPopupMenuItem(position, which);
+            onPostPopupMenuItem(position, menuItems[which].action);
           }
         })
         .create();
@@ -669,16 +689,14 @@ public class PostListActivity extends SMTHBaseActivity
     return true;
   }
 
-  private void onPostPopupMenuItem(int position, int which) {
-    // Log.d(TAG, String.format("MenuItem %d was clicked", which));
+  private void onPostPopupMenuItem(int position, int action) {
     if (position >= PostListContent.POSTS.size()) {
       Log.e(TAG, "onPostPopupMenuItem: " + "Invalid Post index" + position);
       return;
     }
 
     Post post = PostListContent.POSTS.get(position);
-    if (which == 0) {
-      // post_reply_post
+    if (action == ACT_REPLY_POST) {
       ComposePostContext postContext = new ComposePostContext();
       postContext.setBoardEngName(mTopic.getBoardEngName());
       postContext.setPostId(post.getPostID());
@@ -686,38 +704,18 @@ public class PostListActivity extends SMTHBaseActivity
       postContext.setPostAuthor(post.getRawAuthor());
       postContext.setPostContent(post.getRawContent());
       postContext.setComposingMode(ComposePostContext.MODE_REPLY_POST);
-
       Intent intent = new Intent(this, ComposePostActivity.class);
       intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
       startActivityForResult(intent, ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE);
-    } else if (which == 1) {
-      // like
-      // Toast.makeText(PostListActivity.this, "Like:TBD", Toast.LENGTH_SHORT).show();
+    } else if (action == ACT_LIKE) {
       PopupLikeWindow popup = new PopupLikeWindow();
       popup.initPopupWindow(this);
       popup.showAtLocation(mRecyclerView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 100);
-    } else if (which == 2) {
-      // post_reply_mail
-      // Toast.makeText(PostListActivity.this, "回复到作者信箱:TBD",
-      // Toast.LENGTH_SHORT).show();
-      ComposePostContext postContext = new ComposePostContext();
-      postContext.setBoardEngName(mTopic.getBoardEngName());
-      postContext.setPostId(post.getPostID());
-      postContext.setPostTitle(mTopic.getTitle());
-      postContext.setPostAuthor(post.getRawAuthor());
-      postContext.setPostContent(post.getRawContent());
-      postContext.setComposingMode(ComposePostContext.MODE_REPLY_MAIL);
-
-      Intent intent = new Intent(this, ComposePostActivity.class);
-      intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
-      startActivity(intent);
-    } else if (which == 3) {
-      // post_query_author
+    } else if (action == ACT_QUERY_AUTHOR) {
       Intent intent = new Intent(this, QueryUserActivity.class);
       intent.putExtra(SMTHApplication.QUERY_USER_INFO, post.getRawAuthor());
       startActivity(intent);
-    } else if (which == 4) {
-      // read posts from current users only
+    } else if (action == ACT_FILTER_AUTHOR) {
       if (mFilterUser == null) {
         Toast.makeText(PostListActivity.this, "只看此ID! 再次选择将查看所有文章.", Toast.LENGTH_SHORT).show();
         mFilterUser = post.getRawAuthor();
@@ -727,47 +725,32 @@ public class PostListActivity extends SMTHBaseActivity
       }
       mCurrentPageNo = 1;
       reloadPostList();
-    } else if (which == 5) {
-      // copy post content
-      // http://stackoverflow.com/questions/8056838/dealing-with-deprecated-android-text-clipboardmanager
-      String content;
-      if (post != null) {
-        content = post.getRawContent();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-          final android.content.ClipboardManager clipboardManager = (android.content.ClipboardManager) getSystemService(
-              Context.CLIPBOARD_SERVICE);
-          final android.content.ClipData clipData = android.content.ClipData.newPlainText("PostContent", content);
-          clipboardManager.setPrimaryClip(clipData);
-        } else {
-          final android.text.ClipboardManager clipboardManager = (android.text.ClipboardManager) getSystemService(
-              Context.CLIPBOARD_SERVICE);
-          clipboardManager.setText(content);
-        }
-        Toast.makeText(PostListActivity.this, "帖子内容已复制到剪贴板", Toast.LENGTH_SHORT).show();
-      } else {
+    } else if (action == ACT_COPY_CONTENT) {
+      // 大爆炸式选择：把正文切成词条，点选后复制到剪贴板
+      if (post == null || TextUtils.isEmpty(post.getRawContent())) {
         Toast.makeText(PostListActivity.this, "复制失败！", Toast.LENGTH_SHORT).show();
+        return;
       }
-    } else if (which == 6) {
-      // post_foward_self
-      // Toast.makeText(PostListActivity.this, "转寄信箱:TBD", Toast.LENGTH_SHORT).show();
+      try {
+        new TextBombDialog(PostListActivity.this, post.getRawContent()).show();
+      } catch (Throwable t) {
+        // 兜底：选择框起不来就整段复制
+        copyTextToClipboard(post.getRawContent());
+        Toast.makeText(PostListActivity.this, "帖子内容已复制到剪贴板", Toast.LENGTH_SHORT).show();
+      }
+    } else if (action == ACT_FORWARD) {
       PopupForwardWindow popup = new PopupForwardWindow();
       popup.initPopupWindow(this, post);
       popup.showAtLocation(mRecyclerView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 100);
-    } else if (which == 7) {
-      // open post in browser
+    } else if (action == ACT_VIEW_IN_BROWSER) {
       String url = String.format(SMTHHelper.SMTH_MOBILE_URL + "/article/%s/%s?p=%d", mTopic.getBoardEngName(),
           mTopic.getTopicID(), mCurrentPageNo);
       startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-    } else if (which == 8) {
-      // post_share
-      // Toast.makeText(PostListActivity.this, "分享:TBD", Toast.LENGTH_SHORT).show();
+    } else if (action == ACT_SHARE) {
       sharePost(post);
-    } else if (which == 9) {
-      // delete post
+    } else if (action == ACT_DELETE_POST) {
       deletePost(post);
-    } else if (which == 10) {
-      // edit post
+    } else if (action == ACT_EDIT_POST) {
       ComposePostContext postContext = new ComposePostContext();
       postContext.setBoardEngName(mTopic.getBoardEngName());
       postContext.setPostId(post.getPostID());
@@ -775,26 +758,45 @@ public class PostListActivity extends SMTHBaseActivity
       postContext.setPostAuthor(post.getRawAuthor());
       postContext.setPostContent(post.getRawContent());
       postContext.setComposingMode(ComposePostContext.MODE_EDIT_POST);
-
       Intent intent = new Intent(this, ComposePostActivity.class);
       intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
       startActivity(intent);
-    } else if (which == 11) {
-      // generate screenshot of current post
-      View v = mRecyclerView.getLayoutManager().findViewByPosition(position);
-
-      // convert title + post to image
-      captureView(mTitle, v, post.getPostID());
-    } else if (which == 12) {
+    } else if (action == ACT_BLOCK_AUTHOR) {
+      String author = post.getRawAuthor();
+      if (TextUtils.isEmpty(author)) {
+        Toast.makeText(this, "无法获取发帖人", Toast.LENGTH_SHORT).show();
+        return;
+      }
+      BlockListManager block = BlockListManager.getInstance();
+      boolean added = block.add(BlockListManager.TYPE_USER, author);
+      if (added) {
+        Toast.makeText(this, "已把 " + author + " 加入黑名单", Toast.LENGTH_SHORT).show();
+      } else {
+        Toast.makeText(this, author + " 已在黑名单中", Toast.LENGTH_SHORT).show();
+      }
+    } else if (action == ACT_TOPIC_DELETE) {
       deleteTopic(post);
-    } else if (which == 13) {
+    } else if (action == ACT_BAN_ID) {
       PopupBanWindow popup = new PopupBanWindow();
       popup.initPopupWindow(this, post);
       popup.showAtLocation(mRecyclerView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 100);
-    } else if (which == 14) {
+    } else if (action == ACT_MARK_M) {
       markPost(post);
-    } else if (which == 15) {
+    } else if (action == ACT_TOPIC_READONLY) {
       readonlyTopic(post);
+    }
+  }
+
+  /** 整段文字复制到剪贴板（大爆炸选择框的兜底路径） */
+  private void copyTextToClipboard(String content) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+      android.content.ClipboardManager cm =
+          (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+      cm.setPrimaryClip(android.content.ClipData.newPlainText("PostContent", content));
+    } else {
+      android.text.ClipboardManager cm =
+          (android.text.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+      cm.setText(content);
     }
   }
 

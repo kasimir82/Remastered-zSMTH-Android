@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1054；`versionName` 手动递增，当前为 26.11.40，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1055；`versionName` 手动递增，当前为 26.11.41，不再随构建日期自动变化。
 
 调试版本：
 
@@ -360,6 +360,11 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 ## 20. 顶部标题精简（v26.11.40）
 
 `SMTHApplication.App_Title_Prefix` 从 `"RzSMTH - "` 改为空串，顶部标题栏只显示页面名（信息流 / 收藏夹 / 邮件等），不再带应用名前缀。所有使用此常量的页面自动生效。
+
+## 21. 帖子长按菜单调整与大爆炸复制（v26.11.41）
+
+- **菜单调整**：删除「回信给作者」「生成图片」；新增「把发帖人加入黑名单」（调用 `BlockListManager.add(TYPE_USER, author)`）。菜单项改用 `PostActionAlertDialogItem.action` 常量标识操作，不再依赖易错的下标。
+- **大爆炸复制**：「复制帖子内容」改为弹出 `TextBombDialog`——正文切成词条用自写 `FlowLayout` 流式铺开，点选/全选/清空后「复制选中」把所选词条拼接写入剪贴板并 Toast 提示；保留整段复制作兜底。
 
 ## 已知问题
 
