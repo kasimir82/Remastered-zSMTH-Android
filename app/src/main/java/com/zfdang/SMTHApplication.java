@@ -23,7 +23,8 @@ public class SMTHApplication extends Application {
   // http://blog.csdn.net/lieren666/article/details/7598288
   // Android Application的作用
   private static Context context;
-  public static String App_Title_Prefix = "RzSMTH - ";
+  // 顶部标题只显示页面名（信息流/收藏夹/邮件等），不再加 "RzSMTH - " 前缀
+  public static String App_Title_Prefix = "";
 
   /** 当前主页标签 id，供子页面底栏保持同一个高亮项 */
   public static int currentTabId = R.id.nav_guidance;

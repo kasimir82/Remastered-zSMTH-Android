@@ -284,7 +284,7 @@ echo 'sdk.dir=/path/to/android-sdk' > local.properties
 
 产物位于 `app/build/outputs/apk/release/RzSMTH-release.apk`（文件名不带版本号），已使用仓库内 `app/zsmth.release.jks` 签名，可直接安装。
 
-版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1053；`versionName` 手动递增，当前为 26.11.39，不再随构建日期自动变化。
+版本号规则（`app/build.gradle`）：每次改版 `versionCode` 加一，当前为 1054；`versionName` 手动递增，当前为 26.11.40，不再随构建日期自动变化。
 
 调试版本：
 
@@ -356,6 +356,10 @@ adb install -r app/build/outputs/apk/debug/RzSMTH-debug-v*.apk
 ## 19. 修复跨天排序 bug（v26.11.39）
 
 版面主题按「最后回复」排序时，水木常把回复时间只写成纯时刻（如 `21:38:58`）。旧 `parseSortKey` 把所有纯时刻一律当成"今天"，只比时分秒——导致 17 号 `01:02` 的回复排在 18 号 `00:01` 前面。修复：`Topic.getReplySortKey()` 对纯时刻回复，用同一行主题的发帖日期（`yyyy-MM-dd`）拼上回复时刻再算排序键，恢复正确的年月日；`DATE_FULL` 分支也兼容后面带时刻的情况。发帖时间排序本来用完整日期、不受影响。已用脚本复现 bug 并验证修复后顺序正确。
+
+## 20. 顶部标题精简（v26.11.40）
+
+`SMTHApplication.App_Title_Prefix` 从 `"RzSMTH - "` 改为空串，顶部标题栏只显示页面名（信息流 / 收藏夹 / 邮件等），不再带应用名前缀。所有使用此常量的页面自动生效。
 
 ## 已知问题
 
