@@ -25,6 +25,7 @@ import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.FileLess;
 import com.zfdang.zsmth_android.helpers.FileSizeUtil;
+import com.zfdang.zsmth_android.models.MailListContent;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -80,6 +81,7 @@ public class MineFragment extends Fragment {
     items.add(MineItem.section("我的内容"));
     items.add(MineItem.row("favorite", R.drawable.ic_mine_star, "收藏夹", null));
     items.add(MineItem.row("mail", R.drawable.ic_mine_mail, "站内信", null));
+    items.add(MineItem.row("reply_to_me", R.drawable.ic_mine_bell, "回复我的", null));
     items.add(MineItem.row("draft", R.drawable.ic_mine_draft, "发帖草稿", draftSummary()));
     items.add(MineItem.row("feed_settings", R.drawable.ic_mine_nav, "信息流设置", feedSummary()));
 
@@ -226,6 +228,17 @@ public class MineFragment extends Fragment {
         break;
 
       case "mail":
+        activity.onNavigationItemID(R.id.nav_mail);
+        break;
+
+      case "reply_to_me":
+        // 直达站内信的「回复」tab（复用已有的 refer/reply 接口与列表）
+        if (!SMTHApplication.isValidUser()) {
+          activity.onLogin();
+          break;
+        }
+        activity.mailListFragment.setCurrentFolder(MailListFragment.REPLY_LABEL);
+        MailListContent.clear();
         activity.onNavigationItemID(R.id.nav_mail);
         break;
 
