@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.helpers.StringUtils;
 import com.zfdang.zsmth_android.listeners.OnTopicFragmentInteractionListener;
 import com.zfdang.zsmth_android.models.Topic;
@@ -52,7 +53,12 @@ public class BoardTopicRecyclerViewAdapter extends RecyclerView.Adapter<BoardTop
       holder.mReplier.setText(topic.getReplier());
       holder.mPublishDate.setText(StringUtils.formatTopicDate(topic.getPublishDate()));
       holder.mReplyDate.setText(StringUtils.formatTopicDate(topic.getReplyDate()));
-      holder.mStatusSummary.setText(topic.getStatusSummary());
+      // 回复数带阅读进度：看过且新增显示 回复 AA+BB；其余部分(Likes/评分)保持原样
+      String status = ReadProgressManager.formatReplyLabel(topic).replace("回复 ", "回复: ");
+      if (topic.getLikes() != null && topic.getLikes().length() > 0) {
+        status += String.format("    Likes: %-4s    评分: %-4s", topic.getLikes(), topic.getScore());
+      }
+      holder.mStatusSummary.setText(status);
 
       if (topic.hasAttach()) {
         holder.mAttach.setVisibility(View.VISIBLE);

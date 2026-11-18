@@ -49,6 +49,7 @@ import com.scwang.smart.refresh.layout.listener.OnLoadMoreListener;
 import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
+import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.helpers.ShareImageHelper;
 import com.zfdang.zsmth_android.helpers.TextBombDialog;
 import com.zfdang.zsmth_android.models.Attachment;
@@ -120,6 +121,10 @@ public class PostListActivity extends SMTHBaseActivity
 
   private Topic mTopic = null;
 
+  // 阅读进度恢复：目标楼层 > 1 时，加载完对应页后滚动过去
+  private int mRestoreFloor = 0;
+  private boolean mRestoreDone = false;  // 本次进帖是否已处理过恢复，避免翻页重复滚动
+
   static {
     ClassicsHeader.REFRESH_HEADER_PULLING = "下拉可以刷新";
     ClassicsHeader.REFRESH_HEADER_REFRESHING = "正在刷新...";
@@ -150,6 +155,12 @@ public class PostListActivity extends SMTHBaseActivity
   View capView2;
   String capPostID;
   private final static int RC_READ_WRITE_STORAGE = 1245;
+
+  @Override
+  protected void onPause() {
+    super.onPause();
+    saveReadingProgress();
+  }
 
   @Override
   protected void onDestroy() {
@@ -285,6 +296,20 @@ public class PostListActivity extends SMTHBaseActivity
       // new topic, different topic, or no post loaded
       mTopic = topic;
       mFilterUser = null;
+
+      // 读取上次阅读进度：若有记录，直接从目标楼层所在页开始加载，加载完滚动过去
+      mRestoreFloor = 0;
+      mRestoreDone = false;
+      ReadProgressManager.Progress progress = ReadProgressManager.getInstance()
+          .get(mTopic.getBoardEngName(), mTopic.getTopicID());
+      // 注意：此时 totalPageNo 还没从帖子内容解析出来（为0），不能拿它校验 page，
+      // page 是否越界放到加载完成后的 onComplete 里判断。
+      if (progress != null && progress.floor > 1 && progress.page > 0) {
+        mRestoreFloor = progress.floor;
+        mCurrentPageNo = progress.page;
+      } else {
+        mCurrentPageNo = 1;
+      }
       reloadPostList();
 
       setTitle(mTopic.getBoardChsName() + " - 阅读文章");
@@ -394,6 +419,13 @@ public class PostListActivity extends SMTHBaseActivity
           @Override
           public void onComplete() {
             mLoadingMore = false;
+            // 恢复时若记录的页码已超出实际页数导致本页为空，回退到第 1 页重新加载
+            if (mRestoreFloor > 0 && !mRestoreDone && PostListContent.POSTS.isEmpty() && mCurrentPageNo > 1) {
+              mCurrentPageNo = 1;
+              mRestoreFloor = 0; // 放弃恢复，正常从头加载
+              reloadPostListWithoutAlert();
+              return;
+            }
             String title = String.format("[%d/%d] %s", mCurrentPageNo, mTopic.getTotalPageNo(), mTopic.getTitle());
             mTitle.setText(title);
             mPageNo.setText(String.format("%d", mCurrentPageNo));
@@ -402,6 +434,21 @@ public class PostListActivity extends SMTHBaseActivity
             if (mAdapter != null) {
               mAdapter.setShowEndMarker(mCurrentPageNo >= mTopic.getTotalPageNo());
             }
+
+            // 阅读进度恢复：目标页加载完成后滚动到上次离开的楼层
+            if (mRestoreFloor > 0 && !mRestoreDone && !PostListContent.POSTS.isEmpty()) {
+              int targetIndex = findFloorIndex(mRestoreFloor);
+              if (targetIndex >= 0) {
+                linearLayoutManager.scrollToPositionWithOffset(targetIndex, 0);
+                mRestoreDone = true;
+              } else if (mCurrentPageNo < mTopic.getTotalPageNo()) {
+                // 楼层不在本页（分页边界浮点误差），继续加载下一页再找
+                loadNextPageAppend();
+              } else {
+                mRestoreDone = true; // 找不到就放弃，保持当前位置
+              }
+            }
+
             clearLoadingHints();
           }
         });
@@ -785,6 +832,38 @@ public class PostListActivity extends SMTHBaseActivity
     } else if (action == ACT_TOPIC_READONLY) {
       readonlyTopic(post);
     }
+  }
+
+  /**
+   * 根据楼层号找它在 POSTS 里的 index。
+   * 用 Post.position("第N楼")精确匹配，避免黑名单过滤导致列表 index 与楼层号错位。
+   */
+  private int findFloorIndex(int floor) {
+    for (int i = 0; i < PostListContent.POSTS.size(); i++) {
+      Post p = PostListContent.POSTS.get(i);
+      if (p != null && ReadProgressManager.firstNumber(p.getPosition()) == floor) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /** 当前屏幕顶部可见的楼层号（0 表示取不到） */
+  private int currentVisibleFloor() {
+    if (linearLayoutManager == null) return 0;
+    int first = linearLayoutManager.findFirstVisibleItemPosition();
+    if (first < 0 || first >= PostListContent.POSTS.size()) return 0;
+    return ReadProgressManager.firstNumber(PostListContent.POSTS.get(first).getPosition());
+  }
+
+  /** 退出时保存阅读进度：楼层 + 当前回帖数快照 + 所在页 */
+  private void saveReadingProgress() {
+    if (mTopic == null || mCurrentPageNo <= 0) return;
+    int floor = currentVisibleFloor();
+    if (floor <= 0) return;
+    int replyCount = ReadProgressManager.replyCountOf(mTopic);
+    ReadProgressManager.getInstance().save(mTopic.getBoardEngName(), mTopic.getTopicID(),
+        floor, replyCount, mCurrentPageNo);
   }
 
   /** 整段文字复制到剪贴板（大爆炸选择框的兜底路径） */

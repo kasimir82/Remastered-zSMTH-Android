@@ -24,6 +24,7 @@ import com.scwang.smart.refresh.layout.api.RefreshLayout;
 import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
+import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.helpers.StringUtils;
 import com.zfdang.zsmth_android.models.Board;
 import com.zfdang.zsmth_android.models.Topic;
@@ -348,8 +349,7 @@ public class FeedFragment extends Fragment {
 
         author.setText(topic.getAuthor());
 
-        String replyCount = topic.getReplyCounts();
-        reply.setText(TextUtils.isEmpty(replyCount) ? "" : "回复 " + replyCount);
+        reply.setText(ReadProgressManager.formatReplyLabel(topic));
 
         // 按什么排序就显示哪个时间，否则看起来像乱序
         if (Settings.getInstance().getFeedSortMode() == Settings.SORT_BY_LAST_REPLY

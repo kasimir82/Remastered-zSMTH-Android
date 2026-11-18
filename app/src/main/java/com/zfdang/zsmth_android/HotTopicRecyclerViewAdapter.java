@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.listeners.OnTopicFragmentInteractionListener;
 import com.zfdang.zsmth_android.models.Topic;
 import java.util.List;
@@ -44,7 +45,7 @@ public class HotTopicRecyclerViewAdapter extends RecyclerView.Adapter<HotTopicRe
 
       holder.mTopicTitle.setText(holder.mItem.getTitle());
       holder.mBoardName.setText(holder.mItem.getBoardName());
-      holder.mReplyCount.setText(holder.mItem.getTotalPostNoAsStr());
+      holder.mReplyCount.setText(ReadProgressManager.formatReplyNumber(holder.mItem));
     }
 
     holder.mView.setOnClickListener(new View.OnClickListener() {
