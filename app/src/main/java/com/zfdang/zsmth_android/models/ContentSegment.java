@@ -1,7 +1,9 @@
 package com.zfdang.zsmth_android.models;
 
 import android.text.Html;
+import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.RelativeSizeSpan;
 
 /**
  * Post content will finally be processed as a list of ContentSegment
@@ -41,7 +43,42 @@ public class ContentSegment {
     // http://stackoverflow.com/questions/4793347/jsoup-not-translating-ampersand-in-links-in-html
     // Html.fromHtml has bugs to parse &mid: only &mid; should be converted, but it convert &mid wrongly
     String tempText = text.replaceAll("&mid([^;])", "&amp;mid$1");
-    this.spanned = Html.fromHtml(tempText);
+
+    // 来源/修改行被 Post 用 SMALL_MARK 成对包裹，去掉标记并加半号字体 span
+    String mark = Post.SMALL_MARK;
+    if (tempText.contains(mark)) {
+      SpannableStringBuilder builder = new SpannableStringBuilder();
+      int cursor = 0;
+      while (true) {
+        int start = tempText.indexOf(mark, cursor);
+        if (start < 0) {
+          // 剩余普通文本
+          if (cursor < tempText.length()) {
+            builder.append(Html.fromHtml(tempText.substring(cursor)));
+          }
+          break;
+        }
+        // 标记前的普通文本
+        if (start > cursor) {
+          builder.append(Html.fromHtml(tempText.substring(cursor, start)));
+        }
+        int end = tempText.indexOf(mark, start + mark.length());
+        if (end < 0) {
+          builder.append(Html.fromHtml(tempText.substring(start + mark.length())));
+          break;
+        }
+        // 标记内的文本：转 HTML 后加半号字体
+        CharSequence small = Html.fromHtml(tempText.substring(start + mark.length(), end));
+        int spanStart = builder.length();
+        builder.append(small);
+        builder.setSpan(new RelativeSizeSpan(0.5f), spanStart, builder.length(),
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        cursor = end + mark.length();
+      }
+      this.spanned = builder;
+    } else {
+      this.spanned = Html.fromHtml(tempText);
+    }
   }
 
   public Spanned getSpanned() {

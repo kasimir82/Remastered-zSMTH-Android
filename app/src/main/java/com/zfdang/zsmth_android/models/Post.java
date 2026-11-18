@@ -27,6 +27,8 @@ public class Post {
   private static final String ATTACHMENT_MARK = "###ZSMTH_ATTACHMENT###";
   // 冒号开头的引文块用这个标记包起来，parseContentToSegments 会拆成可折叠的独立段
   private static final String QUOTE_MARK = "###ZSMTH_QUOTE###";
+  // 来源/修改行用这个标记包起来，ContentSegment 里转成半号字体
+  public static final String SMALL_MARK = "###ZSMTH_SMALL###";
   public static int ACTION_DEFAULT = 0;
   public static int ACTION_FIRST_POST_IN_SUBJECT = 1;
   public static int ACTION_PREVIOUS_POST_IN_SUBJECT = 2;
@@ -400,6 +402,10 @@ public class Post {
 
       // handle quoted content: 连续的冒号引文行收成一个块, 之后拆成可折叠的段
       if (line.startsWith(":")) {
+        // 引文块前原本留了一个空行（正文<br/><br/>引文），去掉它，让引文紧跟正文
+        if (sb.toString().endsWith("<br /><br />")) {
+          sb.setLength(sb.length() - "<br />".length());
+        }
         StringBuilder quoteBlock = new StringBuilder();
         while (i < lines.length && lines[i].startsWith(":")) {
           quoteBlock.append("<font color=#299999>").append(lines[i]).append("</font><br />");
@@ -434,6 +440,11 @@ public class Post {
       }
 
       // ※ 修改:·wpd419 于 Mar 29 09:43:17 2016 修改本文·[FROM: 111.203.75.*]
+      // 签名分隔符 "--" 后面原本会留一个空行，去掉它，让来源行紧跟 "--"
+      if (signatureMode == 1 && i > signatureStartLine && sb.toString().endsWith("--<br /><br />")) {
+        sb.setLength(sb.length() - "<br />".length());
+      }
+
       // ※ 来源:·水木社区 http://www.newsmth.net·[FROM: 111.203.75.*]
       if (line.contains("※ 来源:·")) {
         // jump out of signature mode
@@ -453,14 +464,15 @@ public class Post {
             .replace("官方应用", "")
             .replace("客户端", "");
 
-        line = "<font color=#727272>" + StringUtils.lookupIPLocation(line) + "</font>";
-        sb.append(line).append("<br />");
+        // 来源行用自定义标记包裹，ContentSegment 里转成 RelativeSizeSpan(0.5) 真正缩小一半
+        line = SMALL_MARK + "<font color=#727272>" + StringUtils.lookupIPLocation(line) + "</font>" + SMALL_MARK;
+        sb.append(line);
         continue;
       } else if (line.contains("※ 修改:·")) {
         // jump out of signature mode
         signatureMode = 0;
         line = line.replace("·", "").replace("修改本文", "");
-        line = "<font color=#727272>" + StringUtils.lookupIPLocation(line) + "</font>";
+        line = SMALL_MARK + "<font color=#727272>" + StringUtils.lookupIPLocation(line) + "</font>" + SMALL_MARK;
         sb.append(line).append("<br />");
         continue;
       }
