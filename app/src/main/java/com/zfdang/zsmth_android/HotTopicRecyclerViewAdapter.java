@@ -45,7 +45,7 @@ public class HotTopicRecyclerViewAdapter extends RecyclerView.Adapter<HotTopicRe
 
       holder.mTopicTitle.setText(holder.mItem.getTitle());
       holder.mBoardName.setText(holder.mItem.getBoardName());
-      holder.mReplyCount.setText(ReadProgressManager.formatReplyNumber(holder.mItem));
+      holder.mReplyCount.setText(ReadProgressManager.replySpannable(holder.mItem, ""));
     }
 
     holder.mView.setOnClickListener(new View.OnClickListener() {

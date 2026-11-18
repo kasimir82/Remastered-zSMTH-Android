@@ -349,7 +349,7 @@ public class FeedFragment extends Fragment {
 
         author.setText(topic.getAuthor());
 
-        reply.setText(ReadProgressManager.formatReplyLabel(topic));
+        reply.setText(ReadProgressManager.replySpannable(topic, "回复 "));
 
         // 按什么排序就显示哪个时间，否则看起来像乱序
         if (Settings.getInstance().getFeedSortMode() == Settings.SORT_BY_LAST_REPLY

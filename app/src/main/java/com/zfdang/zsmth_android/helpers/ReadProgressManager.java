@@ -2,6 +2,10 @@ package com.zfdang.zsmth_android.helpers;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 
 import com.zfdang.SMTHApplication;
@@ -121,6 +125,42 @@ public class ReadProgressManager {
    * - 看过且有新增 → "回复 AA+BB"（AA=退出时快照，BB=当前-快照）
    * - 看过但无新增 → "回复 AA"
    */
+  private static final int COLOR_ZERO = 0xFFE53935;   // 回复 0 标红
+  private static final int COLOR_READ = 0xFF1976D2;   // 看过的帖子回复数标蓝
+
+  /**
+   * 带颜色的回复数文案：
+   * - 回复数为 0 → 数字标红
+   * - 看过的帖子（有快照，含 AA / AA+BB）→ 数字部分标蓝
+   * prefix 如 "回复 " / "回复: " / ""（热门用纯数字）
+   */
+  public static SpannableString replySpannable(Topic topic, String prefix) {
+    if (prefix == null) prefix = "";
+    if (topic == null) return new SpannableString(prefix);
+
+    int current = replyCountOf(topic);
+    int snapshot = getInstance().getReplySnapshot(topic.getBoardEngName(), topic.getTopicID());
+    String numberText;
+    int color = -1; // -1 表示不着色
+
+    if (snapshot > 0) {
+      int added = current - snapshot;
+      numberText = added > 0 ? snapshot + "+" + added : String.valueOf(snapshot);
+      color = COLOR_READ;
+    } else {
+      numberText = String.valueOf(current);
+      if (current == 0) color = COLOR_ZERO;
+    }
+
+    String full = prefix + numberText;
+    SpannableString sp = new SpannableString(full);
+    if (color != -1 && numberText.length() > 0) {
+      sp.setSpan(new ForegroundColorSpan(color), prefix.length(), full.length(),
+          Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+    return sp;
+  }
+
   public static String formatReplyLabel(Topic topic) {
     int current = replyCountOf(topic);
     if (topic == null) return "";

@@ -53,10 +53,11 @@ public class BoardTopicRecyclerViewAdapter extends RecyclerView.Adapter<BoardTop
       holder.mReplier.setText(topic.getReplier());
       holder.mPublishDate.setText(StringUtils.formatTopicDate(topic.getPublishDate()));
       holder.mReplyDate.setText(StringUtils.formatTopicDate(topic.getReplyDate()));
-      // 回复数带阅读进度：看过且新增显示 回复 AA+BB；其余部分(Likes/评分)保持原样
-      String status = ReadProgressManager.formatReplyLabel(topic).replace("回复 ", "回复: ");
+      // 回复数带阅读进度与颜色（0红/看过蓝）；其余部分(Likes/评分)保持原样
+      android.text.SpannableStringBuilder status = new android.text.SpannableStringBuilder(
+          ReadProgressManager.replySpannable(topic, "回复: "));
       if (topic.getLikes() != null && topic.getLikes().length() > 0) {
-        status += String.format("    Likes: %-4s    评分: %-4s", topic.getLikes(), topic.getScore());
+        status.append(String.format("    Likes: %-4s    评分: %-4s", topic.getLikes(), topic.getScore()));
       }
       holder.mStatusSummary.setText(status);
 
