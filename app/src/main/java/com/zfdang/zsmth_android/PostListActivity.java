@@ -860,16 +860,37 @@ public class PostListActivity extends SMTHBaseActivity
       mCurrentPageNo = 1;
       reloadPostList();
     } else if (action == ACT_COPY_CONTENT) {
-      // 大爆炸式选择：把正文切成词条，点选后复制到剪贴板
+      // 展示标题+完整正文，用户长按用系统文字选择器自由复制
       if (post == null || TextUtils.isEmpty(post.getRawContent())) {
         Toast.makeText(PostListActivity.this, "复制失败！", Toast.LENGTH_SHORT).show();
         return;
       }
+      // 去掉内部富文本标记(###ZSMTH_QUOTE###/###ZSMTH_SMALL###)，不暴露给用户；
+      // 连续换行压缩为最多一个，避免复制出大量空行
+      String body = post.getRawContent()
+          .replace("###ZSMTH_QUOTE###", "")
+          .replace("###ZSMTH_SMALL###", "")
+          .replaceAll("[\\r\\n]+", "\n")
+          .trim();
+      // 只有楼主(第1楼)带标题，其余楼层只复制正文
+      int floor = com.zfdang.zsmth_android.helpers.ReadProgressManager.firstNumber(post.getPosition());
+      String fullText;
+      if (floor <= 1) {
+        String title = post.getTitle();
+        if (TextUtils.isEmpty(title) && mTopic != null) title = mTopic.getTitle();
+        if (!TextUtils.isEmpty(title)) {
+          fullText = title + "\n" + body;
+        } else {
+          fullText = body;
+        }
+      } else {
+        fullText = body;
+      }
       try {
-        new TextBombDialog(PostListActivity.this, post.getRawContent()).show();
+        new com.zfdang.zsmth_android.helpers.CopyTextDialog(PostListActivity.this, fullText).show();
       } catch (Throwable t) {
-        // 兜底：选择框起不来就整段复制
-        copyTextToClipboard(post.getRawContent());
+        // 兜底：选择框起不来就整段复制到剪贴板
+        copyTextToClipboard(fullText);
         Toast.makeText(PostListActivity.this, "帖子内容已复制到剪贴板", Toast.LENGTH_SHORT).show();
       }
     } else if (action == ACT_FORWARD) {

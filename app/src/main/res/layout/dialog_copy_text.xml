@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 复制帖子内容：完整文本可长按用系统文字选择器自由选取 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/body_background_night"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="复制帖子内容"
+        android:textColor="@color/status_text_night"
+        android:textSize="@dimen/zsmth_font_size_large"
+        android:textStyle="bold"
+        android:paddingBottom="4dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="长按文字选择想要复制的部分"
+        android:textColor="@color/status_text_night"
+        android:textSize="@dimen/zsmth_font_size_small"
+        android:paddingBottom="10dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:maxHeight="420dp">
+
+        <TextView
+            android:id="@+id/copy_text_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textIsSelectable="true"
+            android:textColor="@color/status_text_night"
+            android:textSize="@dimen/zsmth_font_size_medium"
+            android:padding="4dp"
+            android:lineSpacingExtra="2dp" />
+    </ScrollView>
+
+    <Button
+        android:id="@+id/copy_text_close"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="关闭" />
+</LinearLayout>

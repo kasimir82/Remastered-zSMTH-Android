@@ -421,16 +421,10 @@ public class ComposePostActivity extends SMTHBaseActivity {
   public void publishPost() {
     // 用户主动点发送：这是一次全新发布，重置「转换后重试」标记
     isRetriedPublish = false;
-    // DEBUG 测试开关：发帖/回帖前弹窗询问发布方式，用于测试敏感词绕过方案。
-    // release 版开关不可见且 isForcePublishMethodDialog() 恒 false，不影响正常流程。
-    if (Settings.getInstance().isForcePublishMethodDialog() && !isChildSafetyReport()) {
-      showPublishMethodDialog();
-      return;
-    }
     doPublishPost();
   }
 
-  /** DEBUG：发布方式选择弹窗（按钮式，三种方式都可用） */
+  /** 敏感词拦截后的发布方式选择弹窗（按钮式，JPG / 竖排） */
   private void showPublishMethodDialog() {
     View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
     final AlertDialog dialog = new AlertDialog.Builder(this)
@@ -611,7 +605,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
           }
 
           @Override public void onNext(@NonNull AjaxResponse ajaxResponse) {
-            // 详细记录站方返回的原始数据，供分析敏感词/审核拦截（DEBUG 用，写入本地文件）
+            // 详细记录站方返回的原始数据，供分析敏感词/审核拦截（写入本地文件）
             String respDetail = "st=" + ajaxResponse.getAjax_st()
                 + " code=" + ajaxResponse.getAjax_code()
                 + " msg=" + ajaxResponse.getAjax_msg()

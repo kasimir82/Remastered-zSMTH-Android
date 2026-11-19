@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- DEBUG：发布方式选择弹窗（按钮式） -->
+<!-- 敏感词拦截后的发布方式选择弹窗（按钮式） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -13,7 +13,7 @@
         android:id="@+id/pm_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="[DEBUG] 选择发布方式"
+        android:text="内容需审核 · 选择发布方式"
         android:textColor="@color/mine_row_title"
         android:textSize="18sp"
         android:textStyle="bold" />

@@ -106,12 +106,6 @@ public class MineFragment extends Fragment {
     items.add(MineItem.section("发帖"));
     items.add(MineItem.toggle("signature", R.drawable.ic_mine_signature, "添加设备签名", null, settings.bUseSignature()));
     items.add(MineItem.row("signature_content", R.drawable.ic_mine_signature, "设备型号", settings.getSignature()));
-    // DEBUG-only 测试开关：强制每次发帖/回帖弹窗询问发布方式，release 版不可见
-    if (BuildConfig.DEBUG) {
-      items.add(MineItem.toggle("debug_publish_dialog", R.drawable.ic_mine_nav,
-          "[DEBUG] 发帖方式选择弹窗", "测试用：每次发帖都询问发布方式",
-          settings.isForcePublishMethodDialog()));
-    }
 
     items.add(MineItem.section("存储与关于"));
     items.add(MineItem.row("clear_image", R.drawable.ic_mine_clean, "清除图片缓存", imageCacheSummary));
@@ -327,10 +321,6 @@ public class MineFragment extends Fragment {
         break;
       case "signature":
         settings.setUseSignature(value);
-        break;
-      case "debug_publish_dialog":
-        settings.setForcePublishMethodDialog(value);
-        Toast.makeText(getActivity(), value ? "已开启：发帖将弹窗询问方式" : "已关闭", Toast.LENGTH_SHORT).show();
         break;
       default:
         return;
