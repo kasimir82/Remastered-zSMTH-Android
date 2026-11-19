@@ -111,6 +111,20 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
       if (retryLeft > 0) endView.post(() -> adjustEndMarkerHeight(endView, retryLeft - 1));
       return;
     }
+    adjustEndMarkerHeightNow();
+  }
+
+  /** 立即校准结束标记高度（供滚动停止时调用，末楼图片加载后高度会变） */
+  public void adjustEndMarkerHeightNow() {
+    if (mRecyclerView == null || !mRecyclerView.isAttachedToWindow() || !mShowEndMarker) return;
+    RecyclerView.LayoutManager lm = mRecyclerView.getLayoutManager();
+    if (!(lm instanceof androidx.recyclerview.widget.LinearLayoutManager)) return;
+    View endView = lm.findViewByPosition(mPosts.size());
+    if (endView == null) return;
+    int viewport = mRecyclerView.getHeight() - mRecyclerView.getPaddingTop() - mRecyclerView.getPaddingBottom();
+    View lastPostView = lm.findViewByPosition(mPosts.size() - 1);
+    int lastH = lastPostView == null ? 0 : lastPostView.getHeight();
+    if (viewport <= 0 || lastH <= 0) return;
     int markerH = Math.max(dpToPx(endView, 72), viewport - lastH);
     RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
     if (lp != null && Math.abs(lp.height - markerH) > dpToPx(endView, 8)) {

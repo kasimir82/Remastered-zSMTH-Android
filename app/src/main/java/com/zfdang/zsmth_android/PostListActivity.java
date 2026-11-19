@@ -120,6 +120,9 @@ public class PostListActivity extends SMTHBaseActivity
 
   public int mCurrentPageNo = 1;
   private String mFilterUser = null;
+  /** 结束标记高度校准的防重入标记（滚动停止时校准，避免改高度触发布局循环） */
+  private boolean mEndMarkerAdjusting = false;
+
   /** 自动加载下一页时防止重复触发 */
   private boolean mLoadingMore = false;
 
@@ -272,6 +275,19 @@ public class PostListActivity extends SMTHBaseActivity
         int remaining = postCount - 1 - last;
         if (remaining <= 5 && mCurrentPageNo < mTopic.getTotalPageNo()) {
           loadNextPageAppend();
+        }
+      }
+
+      @Override public void onScrollStateChanged(RecyclerView rv, int newState) {
+        // 滚动停止后再校准一次结束标记高度：图片加载完成后末楼高度会变，
+        // 只在插入时算一次会导致末楼顶不到标题。IDLE 时校准 + 防重入标记，避免布局循环。
+        if (newState == RecyclerView.SCROLL_STATE_IDLE && mAdapter != null
+            && mAdapter.isShowingEndMarker() && !mEndMarkerAdjusting) {
+          mEndMarkerAdjusting = true;
+          rv.post(() -> {
+            mAdapter.adjustEndMarkerHeightNow();
+            mEndMarkerAdjusting = false;
+          });
         }
       }
     });

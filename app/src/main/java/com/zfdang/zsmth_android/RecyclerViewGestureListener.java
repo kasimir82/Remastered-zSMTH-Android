@@ -49,7 +49,7 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     if (handleQuoteTriangleTap(e)) {
       return true;
     }
-    // 点在「本贴结束」空白区域 → 返回上一界面
+    // 点在「本贴结束」空白区域 → 返回上一界面（仅末楼已顶到标题时）
     if (handleEndMarkerTap(e)) {
       return true;
     }
@@ -148,9 +148,25 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         recyclerView, e.getRawX(), e.getRawY());
   }
 
-  /** 点击是否落在「本贴结束」标记上，是则通知宿主返回 */
+  /**
+   * 点「本贴结束」空白区域返回，但仅当「最后一楼已经顶到标题（滚到头）」时才返回。
+   * 末楼还没顶到顶时点空白，交给后面的翻页逻辑把末楼顶上去（不返回）。
+   */
   private boolean handleEndMarkerTap(MotionEvent e) {
     if (recyclerView == null || mListener == null) return false;
+    RecyclerView.LayoutManager lm = recyclerView.getLayoutManager();
+    if (!(lm instanceof LinearLayoutManager)) return false;
+    int itemCount = lm.getItemCount();
+    if (itemCount < 2) return false;
+
+    // 前提：最后一楼（结束标记的前一项）顶部已对齐视口上沿 = 滚到头了
+    View lastPost = lm.findViewByPosition(itemCount - 2);
+    if (lastPost == null) return false;
+    int tolerance = Math.round(8 * recyclerView.getResources().getDisplayMetrics().density);
+    if (lastPost.getTop() > recyclerView.getPaddingTop() + tolerance) {
+      return false; // 末楼还没顶到标题，本次点击不返回，交给翻页把末楼顶上去
+    }
+
     int[] loc = new int[2];
     recyclerView.getLocationOnScreen(loc);
     float localX = e.getRawX() - loc[0];
