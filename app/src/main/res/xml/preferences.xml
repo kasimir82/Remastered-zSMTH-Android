@@ -70,14 +70,6 @@
         android:summaryOff="从水木加载图片(海外访问使用)"
         android:summaryOn="从CDN加载图片(推荐)"
         android:title="图片来源"/>
-
-    <CheckBoxPreference
-        app:iconSpaceReserved="false"
-        android:defaultValue="on"
-        android:key="setting_image_grid_mode"
-        android:summaryOff="图文混合"
-        android:summaryOn="图片以网格形式显示"
-        android:title="图文显示模式"/>
   </PreferenceCategory>
 
   <PreferenceCategory android:title="提醒">

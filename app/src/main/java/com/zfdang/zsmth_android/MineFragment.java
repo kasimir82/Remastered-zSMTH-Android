@@ -100,7 +100,6 @@ public class MineFragment extends Fragment {
     items.add(MineItem.toggle("img_quality", R.drawable.ic_mine_image, "总是加载原图",
         settings.isLoadOriginalImage() ? "列表中也加载原图" : "仅全屏看图时加载原图", settings.isLoadOriginalImage()));
     items.add(MineItem.toggle("img_cdn", R.drawable.ic_mine_image, "从 CDN 加载图片", null, settings.isImageSourceCDN()));
-    items.add(MineItem.toggle("img_grid", R.drawable.ic_mine_image, "图片网格模式", null, settings.isImageGridMode()));
 
     items.add(MineItem.section("发帖"));
     items.add(MineItem.toggle("signature", R.drawable.ic_mine_signature, "添加设备签名", null, settings.bUseSignature()));
@@ -305,9 +304,6 @@ public class MineFragment extends Fragment {
         break;
       case "img_cdn":
         settings.setImageSourceCDN(value);
-        break;
-      case "img_grid":
-        settings.setImageGridMode(value);
         break;
       case "signature":
         settings.setUseSignature(value);

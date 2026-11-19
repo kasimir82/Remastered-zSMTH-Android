@@ -559,7 +559,8 @@ public class Settings {
     bLoadOriginalImage = mPreference.getBoolean(LOAD_ORIGINAL_IMAGE, true);
     bLoginWithVerification = mPreference.getBoolean(LOGIN_WITH_VERIFICATION, true);
     bImageSourceCDN = mPreference.getBoolean(IMAGE_SOURCE_CDN, true);
-    bImageGridMode = mPreference.getBoolean(IMAGE_GRID_MODE, false);
+    // 图片网格模式已移除，写死关闭（兼容旧配置里存过 true 的情况）
+    bImageGridMode = false;
 
     bBoardMasterOnly = mPreference.getBoolean(BOARD_MASTER_ONLY, false);
 
