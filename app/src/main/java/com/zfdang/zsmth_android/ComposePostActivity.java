@@ -1,9 +1,11 @@
 package com.zfdang.zsmth_android;
 
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.net.Uri;
+import android.text.TextUtils;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -53,6 +55,13 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
   public static final int COMPOSE_ACTIVITY_REQUEST_CODE = 107;
   private static final String TAG = "ComposePostActivity";
+
+  /** 敏感词流程日志：仅 debug 版输出到 logcat，release 版记录完整正文有隐私风险 */
+  private static void flowLog(String msg) {
+    if (BuildConfig.DEBUG) {
+      android.util.Log.d("SMTHFlow", msg);
+    }
+  }
   private final String UPLOAD_TEMPLATE = " [upload=%d][/upload] ";
 
   private Button mButton;
@@ -390,6 +399,16 @@ public class ComposePostActivity extends SMTHBaseActivity {
       // if the content is not empty, set cursor to the beginning
       mContent.setSelection(0);
     }
+
+    // 「强制敏感词方式回复」：从长按菜单进来时，正文已按引用格式填好，直接弹方式选择弹窗
+    if (getIntent().getBooleanExtra("force_sensitive", false)) {
+      blockedOriginalContent = mContent.getText().toString();
+      mContent.post(new Runnable() {
+        @Override public void run() {
+          showPublishMethodDialog();
+        }
+      });
+    }
   }
 
   @Override public boolean onCreateOptionsMenu(Menu menu) {
@@ -434,6 +453,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
   /** 敏感词拦截后的发布方式选择弹窗（按钮式，JPG / 竖排） */
   private void showPublishMethodDialog() {
+    // 弹窗出现时就把竖排文本写入剪贴板，用户取消也可直接用系统粘贴
+    copyVerticalTextToClipboard();
     View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
     final AlertDialog dialog = new AlertDialog.Builder(this)
         .setView(v)
@@ -441,15 +462,42 @@ public class ComposePostActivity extends SMTHBaseActivity {
         .create();
 
     v.findViewById(R.id.pm_btn_jpg).setOnClickListener(x -> {
+      flowLog("USER CHOICE = JPG");
       dialog.dismiss();
       publishAsJpg();
     });
     v.findViewById(R.id.pm_btn_vertical).setOnClickListener(x -> {
+      flowLog("USER CHOICE = VERTICAL");
       dialog.dismiss();
       publishAsVertical();
     });
-    v.findViewById(R.id.pm_btn_cancel).setOnClickListener(x -> dialog.dismiss());
+    v.findViewById(R.id.pm_btn_cancel).setOnClickListener(x -> {
+      flowLog("USER CHOICE = CANCEL");
+      dialog.dismiss();
+    });
+    flowLog("===== METHOD DIALOG SHOWN =====");
     dialog.show();
+  }
+
+  /** 把当前正文转成竖排文本并写入剪贴板（弹窗弹出时调用） */
+  private void copyVerticalTextToClipboard() {
+    try {
+      String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
+          ? blockedOriginalContent : mContent.getText().toString();
+      PublishMethodHelper.SplitResult split = PublishMethodHelper.split(content);
+      if (TextUtils.isEmpty(split.userText)) return;
+      String vertical = PublishMethodHelper.toVerticalWithFillers(split.userText);
+      android.content.ClipboardManager cm =
+          (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+      if (cm != null) {
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("竖排文本", vertical));
+        flowLog("===== CLIPBOARD (VERTICAL) =====");
+        flowLog(vertical);
+        Toast.makeText(this, "竖排文本已复制到剪贴板", Toast.LENGTH_SHORT).show();
+      }
+    } catch (Throwable t) {
+      android.util.Log.w(TAG, "copy vertical text failed", t);
+    }
   }
 
   /** 方式①：用户输入转 JPG 图片，作为附件；正文只保留引用块(+简短说明) */
@@ -493,11 +541,14 @@ public class ComposePostActivity extends SMTHBaseActivity {
     }
     mAttachments.setText(String.format("共有%d个附件", mPhotos.size()));
 
-    // 正文：用户输入替换为简短说明，保留原引用块
-    String newContent = "(正文见图片附件)\n" + split.quotePart;
+    // 正文：用户输入替换为简短说明，引用块只保留「大作中提到」行 + …
+    String newContent = "(正文见图片附件)\n" + PublishMethodHelper.abbreviateQuote(split.quotePart);
     mContent.setText(newContent);
-    Toast.makeText(this, "已生成 " + added + " 张图片附件，正文见图片", Toast.LENGTH_SHORT).show();
-    doPublishPost();
+    flowLog("===== JPG RESULT =====");
+    flowLog("images=" + added + " originalUserText=" + split.userText);
+    flowLog("newContent=" + newContent);
+    Toast.makeText(this, "已生成 " + added + " 张图片附件，请检查后点发送", Toast.LENGTH_LONG).show();
+    // 不自动发送：避免触发站方「两次发文间隔过密」限制，由用户确认后自己点发送
   }
 
   /** 方式②：用户输入转竖排诗歌风格文本，保留引用块 */
@@ -510,15 +561,16 @@ public class ComposePostActivity extends SMTHBaseActivity {
       Toast.makeText(this, "没有可转换的正文内容", Toast.LENGTH_SHORT).show();
       return;
     }
-    // 目标：总宽度(列数)≤14，同时尽量缩减高度(行数)。
-    // 每列字数 k 越小→行数越少，但列数越多；约束列数=⌈字数/k⌉≤14 → k≥字数/14。
-    int charCount = split.userText.replace("\n", "").replace("\r", "").length();
-    int perCol = Math.max(3, (int) Math.ceil(charCount / 14.0)); // 下限3保持竖排感
-    String vertical = PublishMethodHelper.toVerticalPoem(split.userText, perCol);
-    String newContent = vertical + (split.hasQuote ? "\n" + split.quotePart : "");
+    // 竖排 + 每字间随机插入 1~2 个全角下划线，打断敏感词连续匹配
+    String vertical = PublishMethodHelper.toVerticalWithFillers(split.userText);
+    // 引用块只保留「大作中提到」行 + …，去掉可能含敏感词的引用正文
+    String quote = split.hasQuote ? "\n" + PublishMethodHelper.abbreviateQuote(split.quotePart) : "";
+    String newContent = vertical + quote;
     mContent.setText(newContent);
-    Toast.makeText(this, "已转为竖排风格", Toast.LENGTH_SHORT).show();
-    doPublishPost();
+    flowLog("===== VERTICAL RESULT =====");
+    flowLog(newContent);
+    Toast.makeText(this, "已转为竖排风格，请检查后点发送", Toast.LENGTH_LONG).show();
+    // 不自动发送：由用户确认后自己点发送
   }
 
   private void doPublishPost() {
@@ -585,6 +637,14 @@ public class ComposePostActivity extends SMTHBaseActivity {
     if (!isChildSafetyReport() && Settings.getInstance().bUseSignature()) {
       postContent += "\n" + String.format("#发自%s", Settings.getInstance().getSignature());
     }
+    // [流程日志] 发送前的完整请求内容
+    flowLog("===== SEND REQUEST =====");
+    flowLog("mode=" + mPostContext.getComposingMode()
+        + " board=" + mPostContext.getBoardEngName()
+        + " title=" + mTitle.getText().toString()
+        + " attachments=" + (mPhotos == null ? 0 : mPhotos.size())
+        + " isRetried=" + isRetriedPublish);
+    flowLog("POST CONTENT >>>\n" + postContent + "\n<<< END CONTENT");
     Observable<AjaxResponse> resp2 = null;
     if (isChildSafetyReport() || mPostContext.getComposingMode() == ComposePostContext.MODE_NEW_MAIL
         || mPostContext.getComposingMode() == ComposePostContext.MODE_NEW_MAIL_TO_USER
@@ -628,6 +688,10 @@ public class ComposePostActivity extends SMTHBaseActivity {
             String msg = ajaxResponse.getAjax_msg();
             boolean isSensitive = "0405".equals(code)
                 || (msg != null && (msg.contains("不当内容") || msg.contains("需经审核")));
+            // [流程日志] 服务器响应 + 拦截判断
+            flowLog("===== SERVER RESPONSE =====");
+            flowLog(respDetail);
+            flowLog("isSensitive=" + isSensitive + " isRetried=" + isRetriedPublish);
             if (isSensitive && !isRetriedPublish) {
               sensitiveBlocked = true;
               Log.w(TAG, "sensitive content blocked by server: code=" + code + " msg=" + msg);
@@ -666,6 +730,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
             if (sensitiveBlocked) {
               sensitiveBlocked = false;
               blockedOriginalContent = mContent.getText().toString();
+              flowLog("===== SENSITIVE BLOCKED -> DIALOG =====");
+              flowLog("blockedOriginalContent=\n" + blockedOriginalContent);
               Toast.makeText(ComposePostActivity.this,
                   "站方提示内容需审核，文章未发出。请选择其它发布方式。", Toast.LENGTH_LONG).show();
               showPublishMethodDialog();

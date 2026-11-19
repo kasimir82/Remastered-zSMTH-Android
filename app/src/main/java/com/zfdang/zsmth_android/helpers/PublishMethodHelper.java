@@ -71,20 +71,35 @@ public final class PublishMethodHelper {
   }
 
   /**
-   * 竖排诗歌风格：把文本转成「每字一格、从上往下、从左到右」的排列（现代顺序，非古文从右往左）。
+   * 压缩引用块：只保留「【 在 xxx 的大作中提到: 】」这一行，其后的引用正文用「…」省略。
+   * 目的：回帖被 0405 拦截时，引用内容本身可能含敏感词，去掉引用正文避免二次拦截。
+   */
+  public static String abbreviateQuote(String quotePart) {
+    if (quotePart == null || quotePart.trim().isEmpty()) return quotePart;
+    String[] lines = quotePart.replace("\r\n", "\n").replace("\r", "\n").split("\n");
+    for (String line : lines) {
+      if (line.contains(QUOTE_MARKER)) {
+        return line.trim() + "\n…";
+      }
+    }
+    return quotePart;
+  }
+
+  /**
+   * 竖排诗歌风格：古文顺序，从右上角开始写，列从右往左，每列从上往下读。
    *
    * 做法：
    *  - 按每列 maxCharsPerColumn 个字把文本分成若干列
-   *  - 列从左到右排列（最左列是原文开头），每列从上往下读
+   *  - 最右列是原文开头；纯文本从左到右输出时列序反转（原文开头的列放每行最后/视觉最右）
    *  - 每行用 ASCII 制表符 │ 包裹成格子
    *
    * 例：原文 "床前明月光疑是地上霜"，每列5字 →
-   *   │床│霜│
-   *   │前│上│
-   *   │明│地│
-   *   │月│是│
-   *   │光│疑│
-   * （竖着读：最左列 床前明月光，右列 疑是地上霜）
+   *   │霜│床│
+   *   │上│前│
+   *   │地│明│
+   *   │是│月│
+   *   │疑│光│
+   * （竖着从右往左读：右列 床前明月光，左列 疑是地上霜）
    */
   public static String toVerticalPoem(String text, int maxCharsPerColumn) {
     if (text == null || text.trim().isEmpty()) return text;
@@ -118,9 +133,9 @@ public final class PublishMethodHelper {
     String cell = "│";
     for (int row = 0; row < maxRows; row++) {
       List<String> rowCells = new ArrayList<>();
-      // 从左上开始(现代顺序，非古文)：最左列是原文开头，列从左到右排列，
-      // 每列从上往下读，读完一列接下一列。
-      for (int c = 0; c < colCount; c++) {
+      // 古文顺序：从右上角开始写，列从右往左。最右列是原文开头(cols[0])。
+      // 纯文本从左到右输出，所以列序反转：原开头的列放在每行最后(视觉最右)。
+      for (int c = colCount - 1; c >= 0; c--) {
         String col = columns.get(c);
         rowCells.add(row < col.length() ? String.valueOf(col.charAt(row)) : "　");
       }
@@ -206,6 +221,9 @@ public final class PublishMethodHelper {
         y += lineHeight;
       }
 
+      // 加 15% 椒盐噪点：随机把像素点变成纯黑或纯白，干扰图片敏感词识别，人眼仍可读
+      applySaltPepperNoise(bitmap, 0.15f);
+
       // 文件名必须全局唯一：站方按文件名去重，同名附件第二次上传会报 1205
       File file = new File(dir, "text-image-" + java.util.UUID.randomUUID().toString().replace("-", "") + "-" + p + ".jpg");
       try (FileOutputStream out = new FileOutputStream(file)) {
@@ -220,5 +238,56 @@ public final class PublishMethodHelper {
       bitmap.recycle();
     }
     return result;
+  }
+
+  /**
+   * 在每个汉字之间插入 1~2 个全角下划线 ＿(U+FF3F)，打断敏感词的连续匹配。
+   * 下划线与汉字同宽；用文本 hashCode 作随机种子，保证同一文本多次生成结果一致
+   * （这样弹窗时写入剪贴板的文本与随后发布的正文完全相同）。
+   */
+  public static String insertFillers(String text) {
+    if (text == null || text.trim().isEmpty()) return text;
+    String normalized = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "");
+    if (normalized.isEmpty()) return text;
+    java.util.Random random = new java.util.Random(normalized.hashCode());
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < normalized.length(); i++) {
+      sb.append(normalized.charAt(i));
+      if (i < normalized.length() - 1) {
+        int count = 1 + random.nextInt(2); // 1 或 2 个
+        for (int j = 0; j < count; j++) sb.append('\uFF3F');
+      }
+    }
+    return sb.toString();
+  }
+
+  /** 竖排 + 下划线填充：先插入填充符，再按插入后的字数计算列宽并竖排化 */
+  public static String toVerticalWithFillers(String text) {
+    String filled = insertFillers(text);
+    int charCount = filled.replace("\n", "").replace("\r", "").length();
+    int perCol = Math.max(3, (int) Math.ceil(charCount / 14.0));
+    return toVerticalPoem(filled, perCol);
+  }
+
+  /**
+   * 给 bitmap 加椒盐噪点：以 density 概率把像素随机变成纯黑或纯白。
+   * 用于干扰图片敏感词识别；density=0.15 时人眼仍可正常阅读。
+   */
+  private static void applySaltPepperNoise(Bitmap bitmap, float density) {
+    int w = bitmap.getWidth();
+    int h = bitmap.getHeight();
+    int[] pixels = new int[w * h];
+    bitmap.getPixels(pixels, 0, w, 0, 0, w, h);
+    java.util.Random random = new java.util.Random();
+    float half = density / 2f;
+    for (int i = 0; i < pixels.length; i++) {
+      float r = random.nextFloat();
+      if (r < half) {
+        pixels[i] = 0xFF000000; // pepper 黑
+      } else if (r > 1f - half) {
+        pixels[i] = 0xFFFFFFFF; // salt 白
+      }
+    }
+    bitmap.setPixels(pixels, 0, w, 0, 0, w, h);
   }
 }

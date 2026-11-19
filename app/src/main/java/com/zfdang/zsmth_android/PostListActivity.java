@@ -755,7 +755,7 @@ public class PostListActivity extends SMTHBaseActivity
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_view_in_browser), R.drawable.ic_open_in_browser_black_48dp, ACT_VIEW_IN_BROWSER));
     menuItemsArray.add(new PostActionAlertDialogItem(
-        getString(R.string.post_share), R.drawable.ic_share_black_48dp, ACT_SHARE));
+        "强制敏感词方式回复", R.drawable.ic_share_black_48dp, ACT_SHARE));
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_delete_post), R.drawable.ic_delete_black_48dp, ACT_DELETE_POST));
     menuItemsArray.add(new PostActionAlertDialogItem(
@@ -913,7 +913,19 @@ public class PostListActivity extends SMTHBaseActivity
           mTopic.getTopicID(), mCurrentPageNo);
       startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
     } else if (action == ACT_SHARE) {
-      sharePost(post);
+      // 「强制敏感词方式回复」：直接构造回复 Context，带 force_sensitive 标记，
+      // ComposePostActivity 一进来就弹竖排/JPG 选择弹窗，无需先发一次触发 0405
+      ComposePostContext postContext = new ComposePostContext();
+      postContext.setBoardEngName(mTopic.getBoardEngName());
+      postContext.setPostId(post.getPostID());
+      postContext.setPostTitle(mTopic.getTitle());
+      postContext.setPostAuthor(post.getRawAuthor());
+      postContext.setPostContent(post.getRawContent());
+      postContext.setComposingMode(ComposePostContext.MODE_REPLY_POST);
+      Intent intent = new Intent(this, ComposePostActivity.class);
+      intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
+      intent.putExtra("force_sensitive", true);
+      startActivityForResult(intent, ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE);
     } else if (action == ACT_DELETE_POST) {
       deletePost(post);
     } else if (action == ACT_EDIT_POST) {
