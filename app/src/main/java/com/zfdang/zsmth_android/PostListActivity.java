@@ -466,11 +466,20 @@ public class PostListActivity extends SMTHBaseActivity
               if (targetIndex >= 0) {
                 linearLayoutManager.scrollToPositionWithOffset(targetIndex, 0);
                 mRestoreDone = true;
-              } else if (mCurrentPageNo < mTopic.getTotalPageNo()) {
-                // 楼层不在本页（分页边界浮点误差），继续加载下一页再找
-                loadNextPageAppend();
               } else {
-                mRestoreDone = true; // 找不到就放弃，保持当前位置
+                // 楼层不在本页：优先按 floor 算出它真正所在的页(每页10楼)。
+                // 兼容旧版本存错的 page(如 floor=2 却存了 page=2)，直接跳到正确页重载。
+                int correctPage = (mRestoreFloor + 9) / 10;
+                if (correctPage != mCurrentPageNo && correctPage >= 1) {
+                  mCurrentPageNo = correctPage;
+                  reloadPostListWithoutAlert();
+                  return; // 重载后 onComplete 会再走一次恢复逻辑
+                } else if (mCurrentPageNo < mTopic.getTotalPageNo()) {
+                  // 页对了但仍找不到(黑名单过滤等)，继续追加下一页再找
+                  loadNextPageAppend();
+                } else {
+                  mRestoreDone = true; // 找不到就放弃，保持当前位置
+                }
               }
             }
 
@@ -955,8 +964,12 @@ public class PostListActivity extends SMTHBaseActivity
     int floor = currentVisibleFloor();
     if (floor <= 0) floor = 1; // 停在楼主层或取不到时按第1楼记，保证退出也算看过
     int replyCount = ReadProgressManager.replyCountOf(mTopic);
+    // page 必须按楼层号推导（每页10楼），不能用 mCurrentPageNo：
+    // 自动加载下一页后 mCurrentPageNo 会+1，但用户可能还在看上一页的楼层，
+    // 存成 mCurrentPageNo 会导致恢复时按错误的页加载、找不到目标楼层。
+    int page = (floor + 9) / 10;
     ReadProgressManager.getInstance().save(mTopic.getBoardEngName(), mTopic.getTopicID(),
-        floor, replyCount, mCurrentPageNo);
+        floor, replyCount, page);
   }
 
   /** 整段文字复制到剪贴板（大爆炸选择框的兜底路径） */
