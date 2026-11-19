@@ -997,6 +997,17 @@ public class SMTHHelper {
   }
 
   // sample input: mailbox_response.html, refer_at_posts.html
+  /**
+   * 统计收件箱 HTML 里未读邮件数（tr.no-read）。轻量无副作用，供「我的」页角标用。
+   * 若返回错误页(div.error)返回 -1 表示请求失败。
+   */
+  public static int countUnreadMails(String content) {
+    if (content == null) return -1;
+    org.jsoup.nodes.Document doc = org.jsoup.Jsoup.parse(content);
+    if (doc.select("div.error").size() > 0) return -1;
+    return doc.select("table.m-table tr.no-read").size();
+  }
+
   public static List<Mail> ParseMailsFromWWW(String content) {
     List<Mail> mails = new ArrayList<>();
 

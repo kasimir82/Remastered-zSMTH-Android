@@ -26,6 +26,11 @@ import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.FileLess;
 import com.zfdang.zsmth_android.helpers.FileSizeUtil;
 import com.zfdang.zsmth_android.models.MailListContent;
+import com.zfdang.zsmth_android.newsmth.SMTHHelper;
+
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
+import okhttp3.ResponseBody;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -43,6 +48,7 @@ public class MineFragment extends Fragment {
 
   private String imageCacheSummary = "点击清除";
   private String httpCacheSummary = "点击清除";
+  private int mailUnreadCount = 0; // 站内信未读数(进入本页时从收件箱第一页统计)
 
   @Nullable @Override public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
       @Nullable Bundle savedInstanceState) {
@@ -62,6 +68,27 @@ public class MineFragment extends Fragment {
     super.onResume();
     // 从屏蔽设置等页面返回、或登录状态变化后，重新渲染
     buildItems();
+    // 进入本页时统计一次站内信未读数(只请求收件箱第一页，不做后台轮询)
+    refreshMailUnreadCount();
+  }
+
+  /** 请求收件箱第一页，统计 no-read 行数作为站内信未读数 */
+  private void refreshMailUnreadCount() {
+    if (!SMTHApplication.isValidUser() || getActivity() == null) return;
+    SMTHHelper.getInstance().wService.getUserMails("inbox", "1")
+        .subscribeOn(Schedulers.io())
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribe((ResponseBody body) -> {
+          try {
+            int count = SMTHHelper.countUnreadMails(body.string());
+            if (count >= 0 && count != mailUnreadCount) {
+              mailUnreadCount = count;
+              buildItems();
+            }
+          } catch (Exception e) {
+            Log.w(TAG, "count unread mails failed", e);
+          }
+        }, e -> Log.w(TAG, "fetch mail list failed", e));
   }
 
   /** 由 MainActivity 在用户状态更新后调用（可能来自后台回调，此时 Fragment 未必 attached） */
@@ -83,8 +110,7 @@ public class MineFragment extends Fragment {
     items.add(MineItem.userCard());
 
     items.add(MineItem.section("我的内容"));
-    items.add(MineItem.row("favorite", R.drawable.ic_mine_star, "收藏夹", null));
-    items.add(MineItem.row("mail", R.drawable.ic_mine_mail, "站内信", null));
+    items.add(MineItem.rowWithBadge("mail", R.drawable.ic_mine_mail, "站内信", null, mailUnreadCount));
     // 回复我的：有未读时在标题后显示红字 (N)
     int replyBadge = 0;
     if (SMTHApplication.isValidUser() && SMTHApplication.activeUser != null
@@ -241,10 +267,6 @@ public class MineFragment extends Fragment {
         } else {
           activity.onLogin();
         }
-        break;
-
-      case "favorite":
-        activity.onNavigationItemID(R.id.nav_favorite);
         break;
 
       case "mail":

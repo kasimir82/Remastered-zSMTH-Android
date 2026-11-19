@@ -172,9 +172,13 @@ public class MainActivity extends SMTHBaseActivity
       Fragment initialFragment = FeedConfig.getInstance().isEnabled() ? feedFragment : hotTopicFragment;
       fm.beginTransaction().replace(R.id.content_frame, initialFragment).commit();
       setTitle(SMTHApplication.App_Title_Prefix + "信息流");
+      SMTHApplication.currentTabId = R.id.nav_guidance;
+      syncBottomNavChecked(R.id.nav_guidance);
     } else {
       fm.beginTransaction().replace(R.id.content_frame, favoriteBoardFragment).commit();
       setTitle(SMTHApplication.App_Title_Prefix + "收藏夹");
+      SMTHApplication.currentTabId = R.id.nav_favorite;
+      syncBottomNavChecked(R.id.nav_favorite);
     }
 
     getSupportFragmentManager().addOnBackStackChangedListener(new FragmentManager.OnBackStackChangedListener() {
@@ -464,6 +468,13 @@ public class MainActivity extends SMTHBaseActivity
     // 回到前台（含冷启动、从后台切回、休眠唤醒）都检查一次登录态：
     // cookie 可能已失效，及时发现并静默重登。Worker 内部用 unique+REPLACE 防堆积。
     updateUserStatusNow();
+  }
+
+  /** 只同步底部导航的高亮状态，不触发选中回调(避免重复切换 fragment) */
+  private void syncBottomNavChecked(int tabId) {
+    if (mBottomNav == null) return;
+    MenuItem item = mBottomNav.getMenu().findItem(tabId);
+    if (item != null) item.setChecked(true);
   }
 
   /**
