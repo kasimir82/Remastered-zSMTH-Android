@@ -64,8 +64,12 @@ public class MineFragment extends Fragment {
     buildItems();
   }
 
-  /** 由 MainActivity 在用户状态更新后调用 */
+  /** 由 MainActivity 在用户状态更新后调用（可能来自后台回调，此时 Fragment 未必 attached） */
   public void refreshUserInfo() {
+    // 登录状态变化时 MainActivity 会同步刷新「我的」页，但该回调可能发生在
+    // Fragment 尚未 attached / 已 detached 时（如正在切 tab、页面未创建）。
+    // 此时调用 getResources() 会抛 "Fragment not attached to a context" 崩溃。
+    if (!isAdded() || getActivity() == null) return;
     buildItems();
   }
 
@@ -141,7 +145,8 @@ public class MineFragment extends Fragment {
   }
 
   private String fontSummary() {
-    String[] names = getResources().getStringArray(R.array.font_size_names);
+    // 用 application context 的 resources，不依赖 Fragment 是否 attached
+    String[] names = SMTHApplication.getAppContext().getResources().getStringArray(R.array.font_size_names);
     int index = Settings.getInstance().getFontIndex();
     if (index < 0 || index >= names.length) {
       index = 1;
@@ -324,8 +329,8 @@ public class MineFragment extends Fragment {
   }
 
   private void showFontDialog(MainActivity activity) {
-    final String[] names = getResources().getStringArray(R.array.font_size_names);
-    final int[] values = getResources().getIntArray(R.array.font_size_values_int);
+    final String[] names = activity.getResources().getStringArray(R.array.font_size_names);
+    final int[] values = activity.getResources().getIntArray(R.array.font_size_values_int);
     int current = 0;
     int fontIndex = Settings.getInstance().getFontIndex();
     for (int i = 0; i < values.length; i++) {
