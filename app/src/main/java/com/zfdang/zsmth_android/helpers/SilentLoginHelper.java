@@ -5,6 +5,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.webkit.CookieManager;
+import android.webkit.JsResult;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -62,6 +64,7 @@ public class SilentLoginHelper {
     String password = Settings.getInstance().getPassword();
     if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
       Log.w(TAG, "no saved credentials, skip silent login");
+      LoginFailureLogger.log("no_credentials", "saved username/password missing");
       callback.onFailed("no_credentials");
       return;
     }
@@ -75,6 +78,7 @@ public class SilentLoginHelper {
     // 冷却期内不提交，避免触发水木限制
     if (LoginThrottle.inCooldown()) {
       Log.w(TAG, "in cooldown, skip silent login");
+      LoginFailureLogger.log("cooldown", "silent login skipped, in penalty cooldown");
       callback.onFailed("cooldown");
       return;
     }
@@ -108,15 +112,74 @@ public class SilentLoginHelper {
         @Override public void onPageFinished(WebView view, String url) {
           super.onPageFinished(view, url);
           if (done[0]) return;
+          Log.d(TAG, "onPageFinished: " + url);
           // 页面加载完后注入账号密码并提交
           injectCredentials(view, username, password);
           // 检测是否出现验证码页面
           detectCaptcha(view, () -> {
             if (done[0]) return;
+            Log.w(TAG, "captcha required");
+            LoginFailureLogger.log("captcha", "captcha detected on login page");
             finish(holder, callback, done, false);
             callback.onCaptchaRequired();
           });
           pollRunnable[0].run();
+        }
+
+        @Override public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+          super.onReceivedError(view, errorCode, description, failingUrl);
+          String detail = "code=" + errorCode + " desc=" + description + " url=" + failingUrl;
+          Log.e(TAG, "WebView onReceivedError: " + detail);
+          LoginFailureLogger.log("webview_error", detail);
+        }
+
+        @Override public void onReceivedHttpError(WebView view, android.webkit.WebResourceRequest request,
+            android.webkit.WebResourceResponse errorResponse) {
+          super.onReceivedHttpError(view, request, errorResponse);
+          if (errorResponse != null) {
+            String detail = "status=" + errorResponse.getStatusCode()
+                + " reason=" + errorResponse.getReasonPhrase()
+                + " url=" + (request == null ? "null" : request.getUrl());
+            Log.e(TAG, "WebView HTTP error: " + detail);
+            LoginFailureLogger.log("http_error", detail);
+          }
+        }
+      });
+
+      // 静默登录的离屏 WebView 之前没设 WebChromeClient，JS 弹窗(如「登录太多窗口/账号过多」)
+      // 被 WebView 默认吞掉，只能看到 timeout，无法知道真实原因。这里拦截并记录所有弹窗。
+      webView.setWebChromeClient(new WebChromeClient() {
+        @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+          Log.w(TAG, "JS alert: " + message + " (url=" + url + ")");
+          LoginFailureLogger.log("js_alert", message + " (url=" + url + ")");
+          if (LoginThrottle.isTooFrequentDialog(message)) {
+            LoginThrottle.onTooFrequent(message);
+            LoginFailureLogger.log("too_frequent", message);
+            result.cancel(); // 不确认，避免触发踢掉其它设备
+          } else {
+            result.confirm(); // 普通提示：自动确认，避免静默流程卡住
+          }
+          return true;
+        }
+
+        @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+          Log.w(TAG, "JS confirm: " + message + " (url=" + url + ")");
+          LoginFailureLogger.log("js_confirm", message + " (url=" + url + ")");
+          if (LoginThrottle.isTooFrequentDialog(message)) {
+            LoginThrottle.onTooFrequent(message);
+            LoginFailureLogger.log("too_frequent", message);
+          }
+          // 「踢掉多余窗口」类确认不能点确定（会挤掉其它设备），静默模式下取消
+          result.cancel();
+          return true;
+        }
+
+        @Override public boolean onJsPrompt(WebView view, String url, String message, String defaultValue,
+            android.webkit.JsPromptResult result) {
+          Log.w(TAG, "JS prompt: " + message + " default=" + defaultValue + " (url=" + url + ")");
+          LoginFailureLogger.log("js_prompt", message + " default=" + defaultValue);
+          result.cancel();
+          return true;
         }
       });
 
@@ -124,6 +187,8 @@ public class SilentLoginHelper {
         @Override public void run() {
           if (done[0]) return;
           String userId = readUserId();
+          // 每次 poll 都记录读到的登录 ID（guest/null/真实用户名），便于定位为何判定未登录
+          Log.d(TAG, "poll #" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
           if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId)) {
             Log.i(TAG, "silent login success: " + userId);
             LoginThrottle.onLoginSuccess();
@@ -132,7 +197,10 @@ public class SilentLoginHelper {
             return;
           }
           if (++pollCount[0] > MAX_POLL) {
-            Log.w(TAG, "silent login timeout, fallback to user interaction");
+            String detail = "timeout after " + MAX_POLL + "s, last userId="
+                + (userId == null ? "null" : "'" + userId + "'");
+            Log.w(TAG, "silent login " + detail + ", fallback to user interaction");
+            LoginFailureLogger.log("timeout", detail);
             finish(holder, callback, done, false);
             callback.onFailed("timeout");
             return;
@@ -144,6 +212,7 @@ public class SilentLoginHelper {
       webView.loadUrl(LOGIN_URL);
     } catch (Throwable t) {
       Log.e(TAG, "silent login error", t);
+      LoginFailureLogger.log("exception", "silent login error: " + t);
       running = false;
       destroyWebView(holder[0]);
       callback.onFailed("error: " + t.getMessage());

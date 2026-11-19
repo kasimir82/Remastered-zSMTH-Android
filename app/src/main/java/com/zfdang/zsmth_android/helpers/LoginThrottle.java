@@ -89,6 +89,18 @@ public class LoginThrottle {
       return true;
     }
     String msg = response.getAjax_msg();
+    return matchesTooFrequentText(msg);
+  }
+
+  /**
+   * 统一的「登录过多/频繁」文案识别。
+   * 水木实际弹窗文案有多种：
+   * - 「您已登录的账号过多，无法重复登录」
+   * - 「你登录的窗口过多，是否踢出多余的窗口？」(确定/取消)
+   * - 「请勿频繁登录」
+   * 关键词必须覆盖「窗口过多」「踢出」，否则这类弹窗识别不到、会反复弹出。
+   */
+  private static boolean matchesTooFrequentText(String msg) {
     if (msg == null) {
       return false;
     }
@@ -96,7 +108,11 @@ public class LoginThrottle {
         || msg.contains("账号过多")
         || msg.contains("帐号过多")
         || msg.contains("重复登录")
-        || msg.contains("踢掉");
+        || msg.contains("踢掉")
+        || msg.contains("踢出")
+        || msg.contains("窗口过多")
+        || msg.contains("登录过多")
+        || msg.contains("登录的窗口");
   }
 
   /** 被判频繁登录：进入冷却，停止自动登录 */
@@ -107,15 +123,8 @@ public class LoginThrottle {
     Log.w(TAG, "onTooFrequent: " + reason + ", cooldown until " + until);
   }
 
-  /** WebView 登录页出现"账号过多/踢掉多余窗口"弹窗时调用 */
+  /** WebView 登录页出现"账号过多/踢掉多余窗口/窗口过多"弹窗时调用 */
   public static boolean isTooFrequentDialog(String message) {
-    if (message == null) {
-      return false;
-    }
-    return message.contains("账号过多")
-        || message.contains("帐号过多")
-        || message.contains("重复登录")
-        || message.contains("踢掉")
-        || message.contains("频繁");
+    return matchesTooFrequentText(message);
   }
 }

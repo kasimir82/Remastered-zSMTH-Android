@@ -135,8 +135,12 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
              */
             @Override
             public boolean onJsAlert(WebView view, String url, String message, final android.webkit.JsResult result) {
+                // 记录所有 JS 弹窗原文，便于定位登录页返回的具体错误
+                Log.w(TAG, "JS alert: " + message + " (url=" + url + ")");
+                com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("js_alert", message + " (url=" + url + ")");
                 if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)) {
                     com.zfdang.zsmth_android.helpers.LoginThrottle.onTooFrequent(message);
+                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("too_frequent", message);
                     Log.w(TAG, "too frequent login dialog: " + message);
                     new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
                             .setTitle("登录受限")
@@ -154,8 +158,12 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
 
             @Override
             public boolean onJsConfirm(WebView view, String url, String message, final android.webkit.JsResult result) {
+                // 记录所有 JS confirm 原文（含「踢掉多余窗口」类提示）
+                Log.w(TAG, "JS confirm: " + message + " (url=" + url + ")");
+                com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("js_confirm", message + " (url=" + url + ")");
                 if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)) {
                     com.zfdang.zsmth_android.helpers.LoginThrottle.onTooFrequent(message);
+                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("too_frequent", message);
                     Log.w(TAG, "too frequent login confirm: " + message);
                     // 用户点的"踢掉多余窗口"会挤掉其它设备的登录，这里直接取消并结束
                     new android.app.AlertDialog.Builder(WebviewLoginActivity.this)

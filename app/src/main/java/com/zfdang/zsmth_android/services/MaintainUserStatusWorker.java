@@ -78,7 +78,20 @@ public class MaintainUserStatusWorker extends Worker {
         helper.wService.queryActiveUserStatus().map(new Function<UserStatus, UserStatus>() {
             @Override
             public UserStatus apply(UserStatus userStatus) throws Exception {
-//                Log.d(TAG, "2.0 " + userStatus.toString());
+                // 记录 ajax_session 返回的原始登录态：id / is_login / ajax_code / ajax_msg，
+                // 便于定位「有 cookie 但被判游客」以及登录受限(太多窗口/频繁)错误
+                Log.d(TAG, "queryActiveUserStatus: " + (userStatus == null ? "null" : userStatus.toString()));
+                // 响应异常(非成功码/含受限关键词)落盘；正常 guest 是冷启动常见现象，不记避免刷屏
+                if (userStatus != null) {
+                  String code = userStatus.getAjax_code();
+                  String msg = userStatus.getAjax_msg();
+                  if ((code != null && !"0005".equals(code))
+                      || com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(msg)) {
+                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("status_abnormal",
+                        "ajax_code=" + code + " ajax_msg=" + msg + " id=" + userStatus.getId()
+                            + " is_login=" + userStatus.is_login());
+                  }
+                }
                 // create a dummy userStatus if it is null
                 if (userStatus == null) {
                     userStatus = new UserStatus();
