@@ -99,6 +99,10 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
           int lastPost = p - 1; // 结束标记的前一项 = 真正的最后一楼
           if (lastPost >= 0) {
             snapToTop(lastPost);
+            // 末楼顶到顶后，若底部空白不足导致它没能真正贴到视口顶部，
+            // 下一帧复核：把结束标记高度补足到「视口 - 末楼高」再顶一次。
+            // 这样不依赖插入时的高度测量时机（图片加载前测不准会导致顶不上去）。
+            ensureLastPostPinned(lm, v, lastPost);
           }
           return;
         }
@@ -176,6 +180,27 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
       return mListener.onEndMarkerClicked();
     }
     return false;
+  }
+
+  /**
+   * snapToTop 后复核：若末楼没能贴到视口顶部（结束标记高度算小了），
+   * 把结束标记高度补到「视口 - 末楼高」再顶一次。避免依赖插入时测量时机。
+   */
+  private void ensureLastPostPinned(final RecyclerView.LayoutManager lm, final View endView, final int lastPost) {
+    recyclerView.post(() -> {
+      View lastV = lm.findViewByPosition(lastPost);
+      if (lastV == null) return;
+      int top = lastV.getTop();
+      int tol = Math.round(8 * recyclerView.getResources().getDisplayMetrics().density);
+      if (top <= recyclerView.getPaddingTop() + tol) return; // 已经顶到了，不用补
+      // 高度差 = 末楼离顶部的距离；补足它，末楼就能顶到顶
+      RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
+      if (lp != null) {
+        lp.height = lp.height + top;
+        endView.setLayoutParams(lp);
+        ((LinearLayoutManager) lm).scrollToPositionWithOffset(lastPost, 0);
+      }
+    });
   }
 
   /** 判断一个 item view 是否为「本贴结束」标记 */
