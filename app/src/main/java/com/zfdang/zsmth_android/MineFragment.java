@@ -138,6 +138,8 @@ public class MineFragment extends Fragment {
     items.add(MineItem.toggle("entry_hot", R.drawable.ic_mine_home, "启动页面",
         settings.isLaunchHotTopic() ? "信息流" : "收藏夹", settings.isLaunchHotTopic()));
     items.add(MineItem.toggle("volume", R.drawable.ic_mine_volume, "音量键翻页", null, settings.isVolumeKeyScroll()));
+    // 「隐藏置顶」= 不显示置顶帖；与 isShowSticky 相反，默认开启(即默认隐藏置顶)
+    items.add(MineItem.toggle("hide_sticky", R.drawable.ic_mine_star, "隐藏置顶帖", null, !settings.isShowSticky()));
     items.add(MineItem.toggle("board_master", R.drawable.ic_mine_shield, "版主专用功能", null, settings.isBoardMasterOnly()));
 
     items.add(MineItem.section("图片"));
@@ -348,6 +350,10 @@ public class MineFragment extends Fragment {
         break;
       case "volume":
         settings.setVolumeKeyScroll(value);
+        break;
+      case "hide_sticky":
+        // value=true(隐藏置顶开启) → showSticky=false
+        settings.setShowSticky(!value);
         break;
       case "board_master":
         settings.setBoardMasterOnly(value);

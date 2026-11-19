@@ -157,7 +157,7 @@ public class Topic implements Parcelable {
 
   /** 排序键统一成「日期 * 100000 + 当天秒数」，值越大越新 */
   private static final long SORT_KEY_SCALE = 100000L;
-  /** 只给了时刻说明是当天，用比任何真实日期都大的日子占位 */
+  /** 只给时刻时代表今天的占位日期；昨天占位比它小 1 */
   private static final long SORT_KEY_TODAY = 99999999L;
   private static final long SORT_KEY_YESTERDAY = 99999998L;
 
@@ -227,6 +227,40 @@ public class Topic implements Parcelable {
   /** 「按发表时间排序」用的排序键 */
   public long getPublishSortKey() {
     return parseSortKey(publishDate, 0L);
+  }
+
+  /**
+   * 该帖的时间是否属于「今天」——用于全局排序时判断是否可以提前停止加载。
+   * byReply=true 看回复时间，false 看发帖时间。
+   * 纯时刻(如 00:27)与「今天」开头的字符串都会被 parseSortKey 映射到 SORT_KEY_TODAY。
+   */
+  /**
+   * 帖子的对应时间是否落在最近 days 天内（今天=第0天，昨天=第1天）。
+   * 用于智能预读：连续遇到超出范围的时间即可停止加载。
+   */
+  public boolean isWithinLastDays(int days, boolean byReply) {
+    long key = byReply ? getReplySortKey() : getPublishSortKey();
+    long day = key / SORT_KEY_SCALE;
+    // 纯时刻或「今天」映射到 SORT_KEY_TODAY
+    if (day >= SORT_KEY_TODAY) return true;
+    // 「昨天」占位
+    if (day == SORT_KEY_YESTERDAY) return days >= 2;
+    // day 形如 yyyyMMdd，转成日历算与今天相差的天数
+    int year = (int) (day / 10000);
+    int month = (int) ((day % 10000) / 100);
+    int dom = (int) (day % 100);
+    if (year < 2000 || month < 1 || month > 12 || dom < 1 || dom > 31) {
+      return true; // 解析异常，保守当作在范围内
+    }
+    java.util.Calendar post = java.util.Calendar.getInstance();
+    post.clear();
+    post.set(year, month - 1, dom);
+    java.util.Calendar today = java.util.Calendar.getInstance();
+    today.clear();
+    today.set(today.get(java.util.Calendar.YEAR), today.get(java.util.Calendar.MONTH),
+        today.get(java.util.Calendar.DAY_OF_MONTH));
+    long diffDays = (today.getTimeInMillis() - post.getTimeInMillis()) / (24L * 60 * 60 * 1000);
+    return diffDays >= 0 && diffDays < days;
   }
 
   /**

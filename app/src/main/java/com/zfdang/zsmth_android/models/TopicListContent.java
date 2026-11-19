@@ -44,4 +44,10 @@ public class TopicListContent {
   public static void clearBoardTopics() {
     BOARD_TOPICS.clear();
   }
+
+  /** 判断帖子是否命中屏蔽规则（供加载全部页全局排序时用） */
+  public static boolean isTopicBlocked(Topic item, String boardName) {
+    if (item == null) return true;
+    return BlockListManager.getInstance().isBlocked(item.getAuthor(), item.getTitle());
+  }
 }

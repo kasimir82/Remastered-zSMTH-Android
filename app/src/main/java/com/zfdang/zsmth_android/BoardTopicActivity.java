@@ -70,6 +70,13 @@ public class BoardTopicActivity extends SMTHBaseActivity
     private int mCurrentPageNo = 1;
     private int LOAD_MORE_THRESHOLD = 1;
 
+    // 全局排序：串行加载页的上限，防止超大版面(如616页)请求过多
+    private static final int MAX_PAGES_FOR_GLOBAL_SORT = 50;
+    // 智能预读的时间范围：最近 N 天（今天=0），超出即停止加载
+    private static final int SMART_LOAD_DAYS = 2;
+    private boolean mLoadingAllForSort = false;
+    private boolean mTotalPagesReachedLimit = false;
+
     private SwipeRefreshLayout mSwipeRefreshLayout = null;
     private EndlessRecyclerOnScrollListener mScrollListener = null;
     private RecyclerView mRecyclerView = null;
@@ -169,7 +176,12 @@ public class BoardTopicActivity extends SMTHBaseActivity
 
         if (TopicListContent.BOARD_TOPICS.size() == 0) {
             // only load boards on the first time
-            RefreshBoardTopicsWithoutClear();
+            // 两种排序模式都走全局加载（智能停止 + 上限），舍弃分页符
+            if (!isSearchMode) {
+                loadAllPagesAndSortGlobally();
+            } else {
+                RefreshBoardTopicsWithoutClear();
+            }
         }
     }
 
@@ -264,6 +276,10 @@ public class BoardTopicActivity extends SMTHBaseActivity
         if (isSearchMode || mSwipeRefreshLayout.isRefreshing() || pDialog.isShowing()) {
             return;
         }
+        // 两种排序模式都一次性加载全部并全局排序，禁用分页加载(且列表无分页符)
+        if (mLoadingAllForSort || mGlobalSortMode) {
+            return;
+        }
 
         mCurrentPageNo += 1;
         // Log.d(TAG, mCurrentPageNo + " page is loading now...");
@@ -274,6 +290,12 @@ public class BoardTopicActivity extends SMTHBaseActivity
     public void onRefresh() {
         // this method is slightly different with RefreshBoardTopicFromPageOne
         // this method does not alert since it's triggered by SwipeRefreshLayout
+        if (!isSearchMode) {
+            mTotalPagesReachedLimit = false;
+            loadAllPagesAndSortGlobally();
+            if (mSwipeRefreshLayout.isRefreshing()) mSwipeRefreshLayout.setRefreshing(false);
+            return;
+        }
         mCurrentPageNo = 1;
         TopicListContent.clearBoardTopics();
         mRecyclerView.getAdapter().notifyDataSetChanged();
@@ -299,6 +321,7 @@ public class BoardTopicActivity extends SMTHBaseActivity
     public void LoadBoardTopics() {
 
         isSearchMode = false;
+        mGlobalSortMode = false; // 普通分页加载，恢复分页符
         final SMTHHelper helper = SMTHHelper.getInstance();
 
         helper.wService.getBoardTopicsByPage(mBoard.getBoardEngName(), Integer.toString(mCurrentPageNo))
@@ -354,35 +377,136 @@ public class BoardTopicActivity extends SMTHBaseActivity
                     @Override
                     public void onComplete() {
                         clearLoadingHints();
-                        // 逐条插入结束后再统一重排，避免与 notifyItemInserted 冲突
-                        if (!isSearchMode && mSetting.getTopicSortMode() == Settings.SORT_BY_PUBLISH_TIME) {
-                            mRecyclerView.post(new Runnable() {
-                                @Override public void run() {
-                                    sortBoardTopicsByPublishTime();
-                                }
-                            });
-                        }
+                        // 按发表时间模式走 loadAllPagesAndSortByPublishTime 全局排序，
+                        // 这里的普通分页加载不再做分段排序（该模式下不触发分页加载）
                     }
                 });
     }
 
-    /** 按发表时间倒序重排已加载的主题；置顶帖固定在各页最前 */
-    private void sortBoardTopicsByPublishTime() {
-        List<Topic> topics = TopicListContent.BOARD_TOPICS;
-        if (topics.size() < 2) {
-            return;
-        }
+    /**
+     * 按发表时间全局排序：串行加载全部页(有上限)，舍弃分页符，全局按发帖时间倒序。
+     * 先加载第1页拿到总页数，再逐页追加到临时列表，全部完成后一次性替换列表。
+     */
+    // 加载全部页全局排序用的状态
+    private List<Topic> mSortAllTopics;
+    private int mSortTotalPages;
+    private boolean mSortByReply; // true=按回复时间, false=按发帖时间
+    private boolean mSortPageHasToday; // 本页是否含「当天」帖子，用于智能停止
+    private boolean mGlobalSortMode = false; // 当前列表是否为全局排序(无分页符)结果
 
-        int start = 0;
-        for (int i = 0; i <= topics.size(); i++) {
-            if (i == topics.size() || topics.get(i).isCategory) {
-                sortTopicsRange(topics, start, i);
-                start = i + 1;
+    /**
+     * 全局排序入口：串行加载页（有上限 + 智能停止），舍弃分页符，按当前排序模式全局排序。
+     * 智能停止：某一页已不含「当天」的对应时间（发帖排序看发帖时间，回复排序看回复时间）时停止。
+     */
+    private void loadAllPagesAndSortGlobally() {
+        if (mLoadingAllForSort || isSearchMode || mBoard == null) return;
+        mLoadingAllForSort = true;
+        mGlobalSortMode = true;
+        mTotalPagesReachedLimit = false;
+        mSortByReply = mSetting.getTopicSortMode() == Settings.SORT_BY_LAST_REPLY;
+        mSortAllTopics = new ArrayList<>();
+        mSortTotalPages = 1;
+        showProgress("加载帖子 0/1 页...");
+        loadSortPage(1);
+    }
+
+    /** 串行加载第 page 页，完成后根据「是否含当天帖子」和上限决定是否继续 */
+    private void loadSortPage(final int page) {
+        SMTHHelper helper = SMTHHelper.getInstance();
+        helper.wService.getBoardTopicsByPage(mBoard.getBoardEngName(), Integer.toString(page))
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(new Observer<ResponseBody>() {
+                @Override public void onSubscribe(@NonNull Disposable d) {}
+                @Override public void onNext(@NonNull ResponseBody body) {
+                    try {
+                        String response = body.string();
+                        if (page == 1) {
+                            int tp = SMTHHelper.parseBoardTotalPages(response);
+                            mTotalPagesReachedLimit = tp > MAX_PAGES_FOR_GLOBAL_SORT;
+                            mSortTotalPages = Math.min(tp, MAX_PAGES_FOR_GLOBAL_SORT);
+                        }
+                        List<Topic> pageTopics = SMTHHelper.ParseBoardTopicsFromWWW(response);
+                        boolean hasToday = false;
+                        int added = 0;
+                        for (Topic t : pageTopics) {
+                            if (t.isCategory) continue; // 舍弃分页符
+                            if (TopicListContent.isTopicBlocked(t, mBoard.getBoardEngName())) continue;
+                            mSortAllTopics.add(t);
+                            added++;
+                            if (t.isWithinLastDays(SMART_LOAD_DAYS, mSortByReply)) hasToday = true;
+                        }
+                        // 本页一条都没加进来（解析失败/全被屏蔽），也视为无当天数据
+                        mSortPageHasToday = hasToday && added > 0;
+                        Log.d(TAG, "sort load page " + page + ": added=" + added
+                            + " hasToday=" + hasToday + " byReply=" + mSortByReply);
+                    } catch (Exception e) {
+                        Log.e(TAG, "loadAllForSort page " + page + " failed", e);
+                        mSortPageHasToday = false;
+                    }
+                }
+                @Override public void onError(@NonNull Throwable e) {
+                    Log.e(TAG, "loadAllForSort page " + page + " error", e);
+                    finishGlobalSort(mSortAllTopics);
+                }
+                @Override public void onComplete() {
+                    // 停止条件：已到上限，或本页不含当天对应时间（说明再往后都是更旧的）
+                    boolean reachedLimit = page >= mSortTotalPages;
+                    boolean noMoreToday = !mSortPageHasToday;
+                    if (!reachedLimit && !noMoreToday) {
+                        showProgress("加载帖子 " + page + "/" + mSortTotalPages + " 页...");
+                        loadSortPage(page + 1);
+                    } else {
+                        Log.d(TAG, "sort load stop at page " + page
+                            + " reachedLimit=" + reachedLimit + " noMoreToday=" + noMoreToday);
+                        finishGlobalSort(mSortAllTopics);
+                    }
+                }
+            });
+    }
+
+    /** 页面全部加载完成：按当前排序模式全局排序 */
+    private void finishGlobalSort(final List<Topic> allTopics) {
+        mLoadingAllForSort = false;
+        applyGlobalSort(allTopics);
+    }
+
+    /** 置顶帖在前，其余按当前排序模式全局倒序，一次性替换列表 */
+    private void applyGlobalSort(List<Topic> allTopics) {
+        dismissProgress();
+        if (allTopics.isEmpty()) return;
+
+        List<Topic> sticky = new ArrayList<>();
+        List<Topic> normal = new ArrayList<>();
+        boolean showSticky = mSetting.isShowSticky();
+        for (Topic t : allTopics) {
+            if (t.isSticky) {
+                if (showSticky) sticky.add(t); // 隐藏置顶时不加入列表
+            } else {
+                normal.add(t);
             }
         }
+        final boolean byReply = mSortByReply;
+        Collections.sort(normal, new Comparator<Topic>() {
+            @Override public int compare(Topic lhs, Topic rhs) {
+                long lk = byReply ? lhs.getReplySortKey() : lhs.getPublishSortKey();
+                long rk = byReply ? rhs.getReplySortKey() : rhs.getPublishSortKey();
+                return Long.compare(rk, lk);
+            }
+        });
+
+        List<Topic> finalList = new ArrayList<>();
+        finalList.addAll(sticky);
+        finalList.addAll(normal);
+
+        TopicListContent.clearBoardTopics();
+        TopicListContent.BOARD_TOPICS.addAll(finalList);
         if (mRecyclerView.getAdapter() != null) {
             mRecyclerView.getAdapter().notifyDataSetChanged();
         }
+        String hint = (mTotalPagesReachedLimit ? "（已达加载上限）" : "");
+        String modeName = mSortByReply ? "回复时间" : "发表时间";
+        Toast.makeText(this, "已加载 " + finalList.size() + " 帖并按" + modeName + "排序" + hint, Toast.LENGTH_SHORT).show();
     }
 
     private void sortTopicsRange(List<Topic> topics, int from, int to) {
@@ -434,13 +558,9 @@ public class BoardTopicActivity extends SMTHBaseActivity
                         return;
                     }
                     mSetting.setTopicSortMode(which);
-                    if (which == Settings.SORT_BY_PUBLISH_TIME) {
-                        sortBoardTopicsByPublishTime();
-                        Toast.makeText(BoardTopicActivity.this, "已按发表时间排序", Toast.LENGTH_SHORT).show();
-                    } else {
-                        // 本页顺序已经被打乱，切回最后回复需要重新向服务器取一次
-                        RefreshBoardTopicFromPageOne();
-                    }
+                    // 两种模式都全局加载(智能停止+上限)，舍弃分页符
+                    mTotalPagesReachedLimit = false;
+                    loadAllPagesAndSortGlobally();
                 }
             })
             .setNegativeButton("取消", null)

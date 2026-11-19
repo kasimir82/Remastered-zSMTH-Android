@@ -24,8 +24,8 @@ public class LoginThrottle {
    * 30 分钟间隔不会触发水木的账号过多限制。
    */
   public static final long NORMAL_INTERVAL_MS = 30L * 60 * 1000;
-  /** 被判频繁登录后的冷却：12 小时 */
-  public static final long PENALTY_COOLDOWN_MS = 12L * 60 * 60 * 1000;
+  /** 被判频繁登录后的冷却：5 分钟 */
+  public static final long PENALTY_COOLDOWN_MS = 5L * 60 * 1000;
 
   /** 当前是否处于水木的登录限制冷却期 */
   public static boolean inCooldown() {
@@ -159,11 +159,11 @@ public class LoginThrottle {
     }
     if (waitText == null) {
       // 服务端文案没给具体时间：
-      // - 窗口过多/频繁登录这类是临时限制，给一个务实的短建议(15分钟)，
-      //   不暴露后台 12 小时的惩罚性冷却(那是防自动登录的，不该展示给用户吓人)
+      // - 窗口过多/频繁登录这类是临时限制，给一个务实的短建议(5分钟)，
+      //   惩罚性冷却本身也已设为 5 分钟
       // - 其它失败(超时等)用冷却剩余时间兜底
       if (matchesTooFrequentText(reason)) {
-        waitText = "建议等待约 15 分钟后再试";
+        waitText = "建议等待约 5 分钟后再试";
       } else {
         long remainMs = s.getLoginCooldownUntil() - System.currentTimeMillis();
         if (remainMs > 0) {

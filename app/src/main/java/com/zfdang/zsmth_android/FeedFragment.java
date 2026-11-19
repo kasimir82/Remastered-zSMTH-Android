@@ -59,6 +59,10 @@ public class FeedFragment extends Fragment {
   private static final long CACHE_TTL = 10 * 60 * 1000L;
   /** 同时请求的版面数量，别把水木打挂了 */
   private static final int MAX_CONCURRENCY = 4;
+  /** 单个版面智能预读的页数上限 */
+  private static final int FEED_SMART_LOAD_MAX_PAGES = 50;
+  /** 智能预读的时间范围：最近 N 天（今天=0），超出即停止加载 */
+  private static final int FEED_SMART_LOAD_DAYS = 2;
 
   private SmartRefreshLayout mRefreshLayout;
   private RecyclerView mRecyclerView;
@@ -253,30 +257,8 @@ public class FeedFragment extends Fragment {
                 }
               }
             }
-            // 按当前选择的排序方式合并，最新的在最上面
-            sortTopics(merged);
-
-            FEED_TOPICS.clear();
-            FEED_TOPICS.addAll(merged);
-            sLastLoadTime = System.currentTimeMillis();
-            sCachedSignature = signature;
-            mDisplayedSignature = signature;
-
-            if (mAdapter != null) {
-              mAdapter.notifyDataSetChanged();
-            }
-            // 只有主动刷新(双击信息流/下拉/刷新按钮)才滚到顶，避免新排到顶部的帖子超出窗口上边缘。
-            // 首次进入(force=false)不滚，保留浏览位置。
-            // post 到下一帧，等 notifyDataSetChanged 的布局完成后再滚，确保位置生效。
-            if (force && mRecyclerView != null) {
-              mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
-            }
-            if (merged.isEmpty()) {
-              showEmpty("所选版面暂时没有取到内容，下拉可以重试");
-            } else {
-              hideEmpty();
-            }
-            finishRefresh();
+            // 排序并展示
+            displayFeed(merged, force, signature);
           }
         }, new Consumer<Throwable>() {
           @Override public void accept(Throwable throwable) {
@@ -288,28 +270,70 @@ public class FeedFragment extends Fragment {
         });
   }
 
+  /** 补全时间后：排序、填入列表、刷新 UI */
+  private void displayFeed(List<Topic> merged, boolean force, String signature) {
+    // 按当前选择的排序方式合并，最新的在最上面
+    sortTopics(merged);
+
+    FEED_TOPICS.clear();
+    FEED_TOPICS.addAll(merged);
+    sLastLoadTime = System.currentTimeMillis();
+    sCachedSignature = signature;
+    mDisplayedSignature = signature;
+
+    if (mAdapter != null) {
+      mAdapter.notifyDataSetChanged();
+    }
+    // 只有主动刷新才滚到顶；首次进入不滚，保留浏览位置
+    if (force && mRecyclerView != null) {
+      mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
+    }
+    if (merged.isEmpty()) {
+      showEmpty("所选版面暂时没有取到内容，下拉可以重试");
+    } else {
+      hideEmpty();
+    }
+    finishRefresh();
+  }
+
+  /** 单个版面：按智能预读策略串行加载多页（含当天就继续，到上限或无当天就停） */
   private ObservableSource<List<Topic>> fetchBoardTopics(final Board board) {
-    return SMTHHelper.getInstance().wService.getBoardTopicsByPage(board.getBoardEngName(), "1")
-        .subscribeOn(Schedulers.io())
-        .map(new Function<ResponseBody, List<Topic>>() {
-          @Override public List<Topic> apply(ResponseBody responseBody) throws Exception {
-            List<Topic> topics = SMTHHelper.ParseBoardTopicsFromWWW(responseBody.string());
-            List<Topic> result = new ArrayList<>();
-            for (Topic topic : topics) {
-              if (topic.isCategory || topic.isSticky) {
-                continue;
-              }
-              topic.setBoardEngName(board.getBoardEngName());
-              topic.setBoardChsName(board.getBoardChsName());
-              result.add(topic);
-            }
-            return result;
-          }
-        })
+    final boolean byReply = Settings.getInstance().getFeedSortMode() == Settings.SORT_BY_LAST_REPLY;
+    return fetchBoardPagesRecursive(board, 1, new ArrayList<Topic>(), byReply)
         .onErrorReturn(new Function<Throwable, List<Topic>>() {
           @Override public List<Topic> apply(Throwable throwable) {
             Log.e(TAG, "fetch " + board.getBoardEngName() + ": " + throwable.getMessage());
             return new ArrayList<>();
+          }
+        });
+  }
+
+  /** 递归串行加载第 page 页，累积到 accumulated，按「是否含当天」与上限决定是否继续 */
+  private Observable<List<Topic>> fetchBoardPagesRecursive(final Board board, final int page,
+      final List<Topic> accumulated, final boolean byReply) {
+    return SMTHHelper.getInstance().wService.getBoardTopicsByPage(board.getBoardEngName(), String.valueOf(page))
+        .subscribeOn(Schedulers.io())
+        .flatMap(new Function<ResponseBody, ObservableSource<List<Topic>>>() {
+          @Override public ObservableSource<List<Topic>> apply(ResponseBody responseBody) throws Exception {
+            List<Topic> pageTopics = SMTHHelper.ParseBoardTopicsFromWWW(responseBody.string());
+            boolean hasToday = false;
+            int added = 0;
+            for (Topic topic : pageTopics) {
+              if (topic.isCategory || topic.isSticky) continue; // 舍弃分页符与置顶
+              topic.setBoardEngName(board.getBoardEngName());
+              topic.setBoardChsName(board.getBoardChsName());
+              accumulated.add(topic);
+              added++;
+              if (topic.isWithinLastDays(FEED_SMART_LOAD_DAYS, byReply)) hasToday = true;
+            }
+            Log.d(TAG, "fetch " + board.getBoardEngName() + " page " + page
+                + ": added=" + added + " hasToday=" + hasToday + " byReply=" + byReply);
+            if (page < FEED_SMART_LOAD_MAX_PAGES && hasToday) {
+              return fetchBoardPagesRecursive(board, page + 1, accumulated, byReply);
+            }
+            Log.d(TAG, "fetch " + board.getBoardEngName() + " stop at page " + page
+                + " total=" + accumulated.size());
+            return Observable.just(accumulated);
           }
         });
   }

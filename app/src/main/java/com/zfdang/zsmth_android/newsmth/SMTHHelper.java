@@ -715,6 +715,29 @@ public class SMTHHelper {
   }
 
   // parse board topics from WWW
+  /**
+   * 从版面 HTML 里解析总页数：取分页导航里所有 ?p=N 的最大值。
+   * 没有分页导航时返回 1。供「按发表时间全局排序」加载全部页用。
+   */
+  public static int parseBoardTotalPages(String content) {
+    if (content == null) return 1;
+    Document doc = Jsoup.parse(content);
+    Elements links = doc.select("ol.page-main a[href]");
+    int max = 1;
+    for (Element a : links) {
+      String href = a.attr("href");
+      java.util.regex.Matcher m = java.util.regex.Pattern.compile("[?&]p=(\\d+)").matcher(href);
+      if (m.find()) {
+        try {
+          int p = Integer.parseInt(m.group(1));
+          if (p > max) max = p;
+        } catch (NumberFormatException ignored) {
+        }
+      }
+    }
+    return max;
+  }
+
   public static List<Topic> ParseBoardTopicsFromWWW(String content) {
     List<Topic> results = new ArrayList<>();
     if (content == null) {
