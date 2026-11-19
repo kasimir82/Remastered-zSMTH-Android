@@ -17,6 +17,7 @@ public class MineItem {
   public final String summary;
   public final int iconRes;
   public boolean checked;
+  public int badgeCount; // >0 时在标题后显示红字 (N)
 
   private MineItem(int type, String key, String title, String summary, int iconRes, boolean checked) {
     this.type = type;
@@ -25,6 +26,7 @@ public class MineItem {
     this.summary = summary;
     this.iconRes = iconRes;
     this.checked = checked;
+    this.badgeCount = 0;
   }
 
   public static MineItem userCard() {
@@ -41,6 +43,13 @@ public class MineItem {
 
   public static MineItem row(String key, int iconRes, String title, String summary) {
     return new MineItem(TYPE_ROW, key, title, summary, iconRes, false);
+  }
+
+  /** 带未读数字的列表行（标题后追加红字 (N)，N<=0 不显示） */
+  public static MineItem rowWithBadge(String key, int iconRes, String title, String summary, int badgeCount) {
+    MineItem item = new MineItem(TYPE_ROW, key, title, summary, iconRes, false);
+    item.badgeCount = badgeCount;
+    return item;
   }
 
   public static MineItem toggle(String key, int iconRes, String title, String summary, boolean checked) {

@@ -85,7 +85,21 @@ public class MineFragment extends Fragment {
     items.add(MineItem.section("我的内容"));
     items.add(MineItem.row("favorite", R.drawable.ic_mine_star, "收藏夹", null));
     items.add(MineItem.row("mail", R.drawable.ic_mine_mail, "站内信", null));
-    items.add(MineItem.row("reply_to_me", R.drawable.ic_mine_bell, "回复我的", null));
+    // 回复我的：有未读时在标题后显示红字 (N)
+    int replyBadge = 0;
+    if (SMTHApplication.isValidUser() && SMTHApplication.activeUser != null
+        && SMTHApplication.activeUser.hasNewReply()) {
+      String raw = SMTHApplication.activeUser.getNew_reply();
+      if (raw != null) {
+        try {
+          replyBadge = Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+          replyBadge = 1; // "true" 等非数字：按 1 条算
+        }
+      }
+      if (replyBadge <= 0) replyBadge = 1;
+    }
+    items.add(MineItem.rowWithBadge("reply_to_me", R.drawable.ic_mine_bell, "回复我的", null, replyBadge));
     items.add(MineItem.row("draft", R.drawable.ic_mine_draft, "发帖草稿", draftSummary()));
     items.add(MineItem.row("feed_settings", R.drawable.ic_mine_nav, "信息流设置", feedSummary()));
 

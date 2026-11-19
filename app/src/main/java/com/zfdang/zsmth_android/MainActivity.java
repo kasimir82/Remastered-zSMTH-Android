@@ -511,6 +511,7 @@ public class MainActivity extends SMTHBaseActivity
     int left = Math.max(0, count - 1);
     SMTHApplication.activeUser.setNew_reply(String.valueOf(left));
     updateReplyBadge();
+    if (mineFragment != null) mineFragment.refreshUserInfo(); // 同步「我的」页回复角标
   }
 
   /** 全部已读后本地清掉未读标记并隐藏红点（不必等服务端的 2 分钟轮询） */
@@ -519,6 +520,7 @@ public class MainActivity extends SMTHBaseActivity
       SMTHApplication.activeUser.setNew_reply("0");
     }
     updateReplyBadge();
+    if (mineFragment != null) mineFragment.refreshUserInfo(); // 同步「我的」页回复角标
   }
 
   /** 信息流开关可能刚从设置页改过，回到该标签时切到对应的页面 */

@@ -188,7 +188,18 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     void bind(MineItem item) {
       icon.setImageResource(item.iconRes);
-      title.setText(item.title);
+      if (item.badgeCount > 0) {
+        android.text.SpannableString label = new android.text.SpannableString(item.title + "  (" + item.badgeCount + ")");
+        int start = item.title.length();
+        label.setSpan(new android.text.style.ForegroundColorSpan(
+                title.getContext().getResources().getColor(R.color.login_restricted_warn)),
+            start, label.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        label.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+            start, label.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        title.setText(label);
+      } else {
+        title.setText(item.title);
+      }
       if (TextUtils.isEmpty(item.summary)) {
         summary.setVisibility(View.GONE);
       } else {
