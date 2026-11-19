@@ -319,6 +319,23 @@ public class Settings {
     }
   }
 
+  // DEBUG-only: 每次发帖/回帖都弹窗询问发布方式(测试敏感词绕过方案用)。
+  // 仅 debug 版在「我的」页显示开关；release 版该开关不可见且恒为 false。
+  private static final String FORCE_PUBLISH_METHOD_DIALOG = "FORCE_PUBLISH_METHOD_DIALOG";
+  private boolean bForcePublishMethodDialog;
+
+  public boolean isForcePublishMethodDialog() {
+    return BuildConfig.DEBUG && bForcePublishMethodDialog;
+  }
+
+  public void setForcePublishMethodDialog(boolean value) {
+    if (this.bForcePublishMethodDialog != value) {
+      this.bForcePublishMethodDialog = value;
+      mEditor.putBoolean(FORCE_PUBLISH_METHOD_DIALOG, this.bForcePublishMethodDialog);
+      mEditor.commit();
+    }
+  }
+
   // night mode
   private static final String NIGHT_MODE = "NIGHT_MODE";
   private boolean bNightMode;
@@ -585,6 +602,7 @@ public class Settings {
     bImageGridMode = false;
 
     bBoardMasterOnly = mPreference.getBoolean(BOARD_MASTER_ONLY, false);
+    bForcePublishMethodDialog = mPreference.getBoolean(FORCE_PUBLISH_METHOD_DIALOG, false);
 
     bNightMode = mPreference.getBoolean(NIGHT_MODE, true);
 

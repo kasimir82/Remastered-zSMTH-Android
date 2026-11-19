@@ -29,8 +29,8 @@ public class Post {
   private static final String QUOTE_MARK = "###ZSMTH_QUOTE###";
   // 来源/修改行用这个标记包起来，ContentSegment 里转成半号字体
   public static final String SMALL_MARK = "###ZSMTH_SMALL###";
-  // 「在 XXX 的大作中提到」标题行的灰色，与折叠引文提示 QuoteTextHelper.QUOTE_HINT_COLOR 同色(#AAAAAA)
-  private static final String QUOTE_HEADER_HTML_COLOR = "#AAAAAA";
+  // 「在 XXX 的大作中提到」标题行的颜色，与引文/折叠提示统一为 nForum 苹果绿(#00B4AE)
+  private static final String QUOTE_HEADER_HTML_COLOR = "#00B4AE";
   public static int ACTION_DEFAULT = 0;
   public static int ACTION_FIRST_POST_IN_SUBJECT = 1;
   public static int ACTION_PREVIOUS_POST_IN_SUBJECT = 2;
@@ -424,7 +424,7 @@ public class Post {
         }
         StringBuilder quoteBlock = new StringBuilder();
         while (i < lines.length && lines[i].startsWith(":")) {
-          quoteBlock.append("<font color=#299999>").append(lines[i]).append("</font><br />");
+          quoteBlock.append("<font color=#00B4AE>").append(lines[i]).append("</font><br />");
           i++;
         }
         i--; // 外层 for 还会 i++

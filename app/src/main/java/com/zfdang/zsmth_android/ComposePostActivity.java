@@ -32,6 +32,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.KeyboardLess;
+import com.zfdang.zsmth_android.helpers.LoginFailureLogger;
+import com.zfdang.zsmth_android.helpers.PublishMethodHelper;
 import com.zfdang.zsmth_android.helpers.StringUtils;
 import com.zfdang.zsmth_android.models.ComposePostContext;
 import com.zfdang.zsmth_android.newsmth.AjaxResponse;
@@ -73,6 +75,13 @@ public class ComposePostActivity extends SMTHBaseActivity {
   private int postPublishResult = 0;
   private String postPublishMessage = null;
   private AjaxResponse lastResponse = null;
+
+  // 敏感词审核拦截：站方返回 code=0405 / msg 含「不当内容」时，保留原文弹窗让用户选转换方式
+  private boolean sensitiveBlocked;
+  // 当前这次发帖是否是「转换后重试」，避免转换后的内容再次被拦截后无限弹窗
+  private boolean isRetriedPublish;
+  // 触发敏感词时的原始正文（转换失败/取消时可恢复）
+  private String blockedOriginalContent;
 
   private File cameraAttachment;
   private boolean importingImages;
@@ -410,6 +419,107 @@ public class ComposePostActivity extends SMTHBaseActivity {
   }
 
   public void publishPost() {
+    // 用户主动点发送：这是一次全新发布，重置「转换后重试」标记
+    isRetriedPublish = false;
+    // DEBUG 测试开关：发帖/回帖前弹窗询问发布方式，用于测试敏感词绕过方案。
+    // release 版开关不可见且 isForcePublishMethodDialog() 恒 false，不影响正常流程。
+    if (Settings.getInstance().isForcePublishMethodDialog() && !isChildSafetyReport()) {
+      showPublishMethodDialog();
+      return;
+    }
+    doPublishPost();
+  }
+
+  /** DEBUG：发布方式选择弹窗（按钮式，三种方式都可用） */
+  private void showPublishMethodDialog() {
+    View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
+    final AlertDialog dialog = new AlertDialog.Builder(this)
+        .setView(v)
+        .setCancelable(true)
+        .create();
+
+    v.findViewById(R.id.pm_btn_jpg).setOnClickListener(x -> {
+      dialog.dismiss();
+      publishAsJpg();
+    });
+    v.findViewById(R.id.pm_btn_vertical).setOnClickListener(x -> {
+      dialog.dismiss();
+      publishAsVertical();
+    });
+    v.findViewById(R.id.pm_btn_cancel).setOnClickListener(x -> dialog.dismiss());
+    dialog.show();
+  }
+
+  /** 方式①：用户输入转 JPG 图片，作为附件；正文只保留引用块(+简短说明) */
+  private void publishAsJpg() {
+    // 敏感词拦截后用保存的原文转换，避免依赖已被改动的编辑框
+    String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
+        ? blockedOriginalContent : mContent.getText().toString();
+    isRetriedPublish = true;
+    PublishMethodHelper.SplitResult split = PublishMethodHelper.split(content);
+    if (split.userText.trim().isEmpty()) {
+      Toast.makeText(this, "没有可转换的正文内容", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    // 文字渲染成图片（横排每行14字，每页最多20行，JPEG Q10）
+    PublishMethodHelper.ImageResult imgs =
+        PublishMethodHelper.textToImages(this, split.userText, 20);
+    if (imgs.files.isEmpty()) {
+      Toast.makeText(this, "生成图片失败", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    if (mPhotos == null) mPhotos = new ArrayList<>();
+    // 先移除之前转换生成的图片(text-image-*)，避免重发时累积/同名冲突 1205
+    java.util.Iterator<String> it = mPhotos.iterator();
+    while (it.hasNext()) {
+      String p = it.next();
+      if (p != null && new File(p).getName().startsWith("text-image-")) {
+        it.remove();
+      }
+    }
+    // 最多5个附件，留位置给新图
+    int canAdd = 5 - mPhotos.size();
+    if (canAdd <= 0) {
+      Toast.makeText(this, "附件已达上限(5个)", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    int added = 0;
+    for (File f : imgs.files) {
+      if (added >= canAdd) break;
+      mPhotos.add(f.getAbsolutePath());
+      added++;
+    }
+    mAttachments.setText(String.format("共有%d个附件", mPhotos.size()));
+
+    // 正文：用户输入替换为简短说明，保留原引用块
+    String newContent = "(正文见图片附件)\n" + split.quotePart;
+    mContent.setText(newContent);
+    Toast.makeText(this, "已生成 " + added + " 张图片附件，正文见图片", Toast.LENGTH_SHORT).show();
+    doPublishPost();
+  }
+
+  /** 方式②：用户输入转竖排诗歌风格文本，保留引用块 */
+  private void publishAsVertical() {
+    String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
+        ? blockedOriginalContent : mContent.getText().toString();
+    isRetriedPublish = true;
+    PublishMethodHelper.SplitResult split = PublishMethodHelper.split(content);
+    if (split.userText.trim().isEmpty()) {
+      Toast.makeText(this, "没有可转换的正文内容", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    // 目标：总宽度(列数)≤14，同时尽量缩减高度(行数)。
+    // 每列字数 k 越小→行数越少，但列数越多；约束列数=⌈字数/k⌉≤14 → k≥字数/14。
+    int charCount = split.userText.replace("\n", "").replace("\r", "").length();
+    int perCol = Math.max(3, (int) Math.ceil(charCount / 14.0)); // 下限3保持竖排感
+    String vertical = PublishMethodHelper.toVerticalPoem(split.userText, perCol);
+    String newContent = vertical + (split.hasQuote ? "\n" + split.quotePart : "");
+    mContent.setText(newContent);
+    Toast.makeText(this, "已转为竖排风格", Toast.LENGTH_SHORT).show();
+    doPublishPost();
+  }
+
+  private void doPublishPost() {
     if (isChildSafetyReport() && reportSending) return;
     if (isChildSafetyReport() && mContent.getText().toString().trim().isEmpty()) {
       mContent.setError(getString(R.string.child_safety_report_hint));
@@ -501,7 +611,35 @@ public class ComposePostActivity extends SMTHBaseActivity {
           }
 
           @Override public void onNext(@NonNull AjaxResponse ajaxResponse) {
-            Log.d(TAG, "onNext: " + ajaxResponse.toString());
+            // 详细记录站方返回的原始数据，供分析敏感词/审核拦截（DEBUG 用，写入本地文件）
+            String respDetail = "st=" + ajaxResponse.getAjax_st()
+                + " code=" + ajaxResponse.getAjax_code()
+                + " msg=" + ajaxResponse.getAjax_msg()
+                + " content=" + ajaxResponse.getContent()
+                + " group_id=" + ajaxResponse.getGroup_id();
+            Log.d(TAG, "publish response: " + respDetail + " | " + ajaxResponse.toString());
+            com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("publish_response", respDetail);
+
+            // 检测站方的「含不当内容需审核」拦截：code=0405 或 msg 含关键词。
+            // 站方此时 ajax_st 仍是 1(看似成功)，但实际未发出，必须拦截并让用户换方式重发。
+            String code = ajaxResponse.getAjax_code();
+            String msg = ajaxResponse.getAjax_msg();
+            boolean isSensitive = "0405".equals(code)
+                || (msg != null && (msg.contains("不当内容") || msg.contains("需经审核")));
+            if (isSensitive && !isRetriedPublish) {
+              sensitiveBlocked = true;
+              Log.w(TAG, "sensitive content blocked by server: code=" + code + " msg=" + msg);
+              LoginFailureLogger.log("sensitive_blocked", "code=" + code + " msg=" + msg);
+              return; // 不走 st 判断，也不更新 step，交给 onComplete 弹窗
+            }
+
+            // 站方发帖频率限制(0403)：给明确提示，避免用户困惑
+            if ("0403".equals(code) && (msg != null && msg.contains("间隔"))) {
+              Toast.makeText(ComposePostActivity.this,
+                  "发帖太频繁，站方限制了频率。请稍等 5-10 秒后再点发送。",
+                  Toast.LENGTH_LONG).show();
+            }
+
             if (ajaxResponse.getAjax_st() != AjaxResponse.AJAX_RESULT_OK) {
               postPublishResult = AjaxResponse.AJAX_RESULT_FAILED;
               postPublishMessage += ajaxResponse.getAjax_msg() + "\n";
@@ -521,6 +659,17 @@ public class ComposePostActivity extends SMTHBaseActivity {
           @Override public void onComplete() {
             reportSending = false;
             dismissProgress();
+
+            // 敏感词拦截：保留原文，弹出方式选择对话框让用户换方式重发
+            if (sensitiveBlocked) {
+              sensitiveBlocked = false;
+              blockedOriginalContent = mContent.getText().toString();
+              Toast.makeText(ComposePostActivity.this,
+                  "站方提示内容需审核，文章未发出。请选择其它发布方式。", Toast.LENGTH_LONG).show();
+              showPublishMethodDialog();
+              return;
+            }
+
             if (isChildSafetyReport() && lastResponse == null) {
               postPublishResult = AjaxResponse.AJAX_RESULT_FAILED;
               postPublishMessage = "未收到服务器确认，请检查发件箱后再重试。";

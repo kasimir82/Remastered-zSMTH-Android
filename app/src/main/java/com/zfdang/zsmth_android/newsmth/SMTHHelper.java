@@ -1,5 +1,7 @@
 package com.zfdang.zsmth_android.newsmth;
 
+import com.zfdang.zsmth_android.BuildConfig;
+
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -178,7 +180,27 @@ public class SMTHHelper {
       @Override
       public Response intercept(Chain chain) throws IOException {
         Request request = chain.request().newBuilder().header("User-Agent", USER_AGENT).build();
-        return chain.proceed(request);
+        Response response = chain.proceed(request);
+
+        // DEBUG: 记录发帖/回帖/发信相关接口的原始响应体，用于分析站方敏感词/审核拦截
+        if (BuildConfig.DEBUG) {
+          String url = request.url().toString();
+          if (url.contains("ajax_post") || url.contains("ajax_add") || url.contains("ajax_send")
+              || url.contains("ajax_edit") || url.contains("ajax_forward")) {
+            try {
+              okio.BufferedSource source = response.body().source();
+              source.request(Long.MAX_VALUE); // 读完整 body
+              okio.Buffer buffer = source.getBuffer().clone();
+              String body = buffer.readUtf8();
+              String detail = "URL=" + url + " | HTTP=" + response.code() + " | BODY=" + body;
+              Log.d("PublishRawResp", detail);
+              com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("publish_raw_response", detail);
+            } catch (Throwable t) {
+              Log.w("PublishRawResp", "read body failed", t);
+            }
+          }
+        }
+        return response;
       }
     }).addNetworkInterceptor(new Interceptor() {
       // for error response, do not cache its content
