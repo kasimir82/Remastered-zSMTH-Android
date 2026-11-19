@@ -43,7 +43,6 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
   CheckBoxPreference launch_hottopic_as_entry;
   CheckBoxPreference setting_volume_key_scroll;
   ListPreference setting_fontsize_control;
-  CheckBoxPreference image_quality_control;
   CheckBoxPreference login_with_verification;
   CheckBoxPreference image_source_cdn;
 
@@ -132,20 +131,6 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
         if (activity != null) {
           activity.recreate();
         }
-        return true;
-      }
-    });
-
-    image_quality_control = (CheckBoxPreference) findPreference("setting_image_quality_control");
-    image_quality_control.setChecked(Settings.getInstance().isLoadOriginalImage());
-    image_quality_control.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-      @Override public boolean onPreferenceChange(Preference preference, Object newValue) {
-        boolean bLoadOriginalImage = Settings.getInstance().isLoadOriginalImage();
-        if (newValue instanceof Boolean) {
-          Boolean boolVal = (Boolean) newValue;
-          bLoadOriginalImage = boolVal;
-        }
-        Settings.getInstance().setLoadOriginalImage(bLoadOriginalImage);
         return true;
       }
     });

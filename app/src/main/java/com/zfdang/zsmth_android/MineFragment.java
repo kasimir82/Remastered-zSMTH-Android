@@ -54,7 +54,7 @@ public class MineFragment extends Fragment {
     recyclerView.setAdapter(adapter);
 
     buildItems();
-    updateCacheSummary();
+    updateCacheSummary(0);
     return view;
   }
 
@@ -97,8 +97,6 @@ public class MineFragment extends Fragment {
     items.add(MineItem.toggle("board_master", R.drawable.ic_mine_shield, "版主专用功能", null, settings.isBoardMasterOnly()));
 
     items.add(MineItem.section("图片"));
-    items.add(MineItem.toggle("img_quality", R.drawable.ic_mine_image, "总是加载原图",
-        settings.isLoadOriginalImage() ? "列表中也加载原图" : "仅全屏看图时加载原图", settings.isLoadOriginalImage()));
     items.add(MineItem.toggle("img_cdn", R.drawable.ic_mine_image, "从 CDN 加载图片", null, settings.isImageSourceCDN()));
 
     items.add(MineItem.section("发帖"));
@@ -161,7 +159,17 @@ public class MineFragment extends Fragment {
     }
   }
 
-  private void updateCacheSummary() {
+  /** delayMs>0 时延迟测量：清除缓存(Fresco/文件删除)是异步的，立即测量会读到旧值 */
+  private void updateCacheSummary(long delayMs) {
+    Runnable measure = () -> doUpdateCacheSummary();
+    if (delayMs > 0 && recyclerView != null) {
+      recyclerView.postDelayed(measure, delayMs);
+    } else {
+      measure.run();
+    }
+  }
+
+  private void doUpdateCacheSummary() {
     final File imageCache = new File(SMTHApplication.getAppContext().getCacheDir(), "image_cache");
     final File httpCache = new File(SMTHApplication.getAppContext().getCacheDir(), "Responses");
     new Thread(() -> {
@@ -262,9 +270,11 @@ public class MineFragment extends Fragment {
 
       case "clear_image":
         ImagePipeline imagePipeline = Fresco.getImagePipeline();
-        imagePipeline.clearDiskCaches();
+        imagePipeline.clearDiskCaches(); // 异步清除
         Toast.makeText(activity, "图片缓存已清除", Toast.LENGTH_SHORT).show();
-        updateCacheSummary();
+        imageCacheSummary = "清除中…";
+        buildItems();
+        updateCacheSummary(1200); // 等异步清除完成后再测量，否则读到旧值
         break;
 
       case "clear_http":
@@ -274,7 +284,9 @@ public class MineFragment extends Fragment {
           cache.mkdirs();
         }
         Toast.makeText(activity, "帖子缓存已清除", Toast.LENGTH_SHORT).show();
-        updateCacheSummary();
+        httpCacheSummary = "清除中…";
+        buildItems();
+        updateCacheSummary(1200);
         break;
 
       case "signature_content":
@@ -298,9 +310,6 @@ public class MineFragment extends Fragment {
         break;
       case "board_master":
         settings.setBoardMasterOnly(value);
-        break;
-      case "img_quality":
-        settings.setLoadOriginalImage(value);
         break;
       case "img_cdn":
         settings.setImageSourceCDN(value);

@@ -58,14 +58,6 @@
     <CheckBoxPreference
         app:iconSpaceReserved="false"
         android:defaultValue="on"
-        android:key="setting_image_quality_control"
-        android:summaryOff="仅在全屏看图时加载原图(GIF点击后播放)"
-        android:summaryOn="总是加载原图(加载失败的可能性较大)"
-        android:title="图片质量"/>
-
-    <CheckBoxPreference
-        app:iconSpaceReserved="false"
-        android:defaultValue="on"
         android:key="setting_image_source_cdn"
         android:summaryOff="从水木加载图片(海外访问使用)"
         android:summaryOn="从CDN加载图片(推荐)"
