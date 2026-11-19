@@ -20,12 +20,25 @@ public class LoginThrottle {
 
   /**
    * 后台 Worker 两次自动登录之间的最小间隔：30 分钟。
-   * 太长（如 6 小时）会让 cookie 失效后迟迟不重登；配合下面的"频繁登录"12 小时冷却，
+   * 太长（如 6 小时）会让 cookie 失效后迟迟不重登；配合下面的"频繁登录"5 分钟冷却，
    * 30 分钟间隔不会触发水木的账号过多限制。
    */
   public static final long NORMAL_INTERVAL_MS = 30L * 60 * 1000;
   /** 被判频繁登录后的冷却：5 分钟 */
   public static final long PENALTY_COOLDOWN_MS = 5L * 60 * 1000;
+
+  /** 登录受限弹窗的统一文案：冷却分钟数由常量算出，避免文案与实际时长不一致 */
+  public static String getCooldownMessage() {
+    long minutes = PENALTY_COOLDOWN_MS / 60000L;
+    return "由于此前登录过于频繁，水木暂时限制了登录。已暂停自动登录 " + minutes
+        + " 分钟，请稍后再试。";
+  }
+
+  /** 带服务端原文前缀的受限文案 */
+  public static String getCooldownMessage(String serverMessage) {
+    long minutes = PENALTY_COOLDOWN_MS / 60000L;
+    return serverMessage + "。已暂停自动登录 " + minutes + " 分钟，请稍后再试。";
+  }
 
   /** 当前是否处于水木的登录限制冷却期 */
   public static boolean inCooldown() {

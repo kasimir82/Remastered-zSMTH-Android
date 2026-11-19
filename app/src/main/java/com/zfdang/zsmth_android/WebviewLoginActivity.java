@@ -56,7 +56,7 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
             Log.w(TAG, "in login cooldown, skip webview login");
             new android.app.AlertDialog.Builder(this)
                     .setTitle("登录受限")
-                    .setMessage("由于此前登录过于频繁，水木暂时限制了登录。已暂停自动登录 12 小时，请稍后再试。")
+                    .setMessage(com.zfdang.zsmth_android.helpers.LoginThrottle.getCooldownMessage())
                     .setPositiveButton("知道了", (dialog, which) -> finish())
                     .setOnCancelListener(dialog -> finish())
                     .show();
@@ -144,7 +144,7 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
                     Log.w(TAG, "too frequent login dialog: " + message);
                     new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
                             .setTitle("登录受限")
-                            .setMessage("水木提示登录过于频繁（" + message + "）。已暂停自动登录 12 小时，请稍后再试。")
+                            .setMessage(com.zfdang.zsmth_android.helpers.LoginThrottle.getCooldownMessage("水木提示登录过于频繁（" + message + "）"))
                             .setPositiveButton("知道了", (dialog, which) -> {
                                 result.confirm();
                                 finish();
@@ -168,7 +168,7 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
                     // 用户点的"踢掉多余窗口"会挤掉其它设备的登录，这里直接取消并结束
                     new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
                             .setTitle("登录受限")
-                            .setMessage("水木提示：" + message + "。已暂停自动登录 12 小时，请稍后再试。")
+                            .setMessage(com.zfdang.zsmth_android.helpers.LoginThrottle.getCooldownMessage("水木提示：" + message))
                             .setPositiveButton("知道了", (dialog, which) -> {
                                 result.cancel();
                                 finish();

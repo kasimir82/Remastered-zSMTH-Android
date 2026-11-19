@@ -44,7 +44,7 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
     if (LoginThrottle.inCooldown()) {
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("登录受限")
-                .setMessage("由于此前登录过于频繁，水木暂时限制了登录。已暂停自动登录 12 小时，请稍后再试。")
+                .setMessage(LoginThrottle.getCooldownMessage())
                 .setPositiveButton("知道了", (dialog, which) -> finish())
                 .setOnCancelListener(dialog -> finish())
                 .show();
