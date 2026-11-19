@@ -37,6 +37,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
 
   private final List<Post> mPosts;
   private final Activity mListener;
+  private RecyclerView mRecyclerView;
   /** 已加载到最后一页时，在列表末尾显示「本贴结束」标记 */
   private boolean mShowEndMarker = false;
 
@@ -55,6 +56,17 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
     mShowEndMarker = show;
     if (show) {
       notifyItemInserted(mPosts.size());
+      // 插入后延迟一帧校准高度（视口高 - 最后一楼高），让最后一楼能顶到与标题齐平。
+      // 只在插入时触发一次，绝不放 onBind 里——改 LayoutParams 会触发重绑定导致死循环 ANR。
+      if (mRecyclerView != null) {
+        mRecyclerView.post(() -> {
+          RecyclerView.LayoutManager lm = mRecyclerView.getLayoutManager();
+          if (lm != null) {
+            View endV = lm.findViewByPosition(mPosts.size());
+            if (endV != null) adjustEndMarkerHeight(endV, 5);
+          }
+        });
+      }
     } else {
       notifyItemRemoved(mPosts.size());
     }
@@ -68,6 +80,11 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
     return (position == mPosts.size() && mShowEndMarker) ? TYPE_END : TYPE_POST;
   }
 
+  @Override public void onAttachedToRecyclerView(RecyclerView recyclerView) {
+    super.onAttachedToRecyclerView(recyclerView);
+    mRecyclerView = recyclerView;
+  }
+
   @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
     if (viewType == TYPE_END) {
       View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_list_end, parent, false);
@@ -75,6 +92,35 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
     }
     View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_item, parent, false);
     return new ViewHolder(view);
+  }
+
+  /**
+   * 结束标记高度 = 视口高 - 最后一楼高：让最后一楼恰好能滚到与标题齐平（顶部对齐视口上沿）。
+   * 这样最后一楼顶到标题后，下方正好是「本贴结束」区域；再点下半屏(结束区域内)即返回。
+   * 测量需要等布局完成，最多重试几次（不挂 onScrolled，避免改高度反复触发滚动而 ANR）。
+   */
+  private void adjustEndMarkerHeight(final View endView, final int retryLeft) {
+    if (mRecyclerView == null || !mRecyclerView.isAttachedToWindow() || !mShowEndMarker) return;
+    RecyclerView.LayoutManager lm = mRecyclerView.getLayoutManager();
+    if (!(lm instanceof androidx.recyclerview.widget.LinearLayoutManager)) return;
+    int viewport = mRecyclerView.getHeight() - mRecyclerView.getPaddingTop() - mRecyclerView.getPaddingBottom();
+    View lastPostView = lm.findViewByPosition(mPosts.size() - 1);
+    int lastH = lastPostView == null ? 0 : lastPostView.getHeight();
+    if (viewport <= 0 || lastH <= 0) {
+      // 还没测好，下一帧再试，最多 5 次
+      if (retryLeft > 0) endView.post(() -> adjustEndMarkerHeight(endView, retryLeft - 1));
+      return;
+    }
+    int markerH = Math.max(dpToPx(endView, 72), viewport - lastH);
+    RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
+    if (lp != null && Math.abs(lp.height - markerH) > dpToPx(endView, 8)) {
+      lp.height = markerH;
+      endView.setLayoutParams(lp);
+    }
+  }
+
+  private static int dpToPx(View v, int dp) {
+    return Math.round(dp * v.getResources().getDisplayMetrics().density);
   }
 
   private void bindTextSegment(TextView tv, ContentSegment content, boolean addLinks) {
@@ -195,7 +241,6 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
 
   @Override public void onBindViewHolder(final RecyclerView.ViewHolder baseHolder, final int position) {
     if (baseHolder instanceof EndViewHolder) {
-      // 结束标记用布局里的 wrap_content 高度（一小条），不再撑满一屏。
       // 点「本贴结束」空白区域 → 返回，由 RecyclerViewGestureListener.onSingleTapUp
       // 统一判断点击坐标处理（子 View 的点击会被 RecyclerView 的 OnTouchListener 拦截）。
       return; // 结束标记没有其它需要绑定的数据
