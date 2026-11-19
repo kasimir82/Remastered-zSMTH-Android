@@ -215,8 +215,7 @@ public class MainActivity extends SMTHBaseActivity
     WorkManager.getInstance(getApplicationContext())
             .enqueueUniqueWork(MaintainUserStatusWorker.WORKER_ID, ExistingWorkPolicy.KEEP,userStatusWorkRequest);
 
-    // run the background service now
-    updateUserStatusNow();
+    // 登录态检查统一放在 onResume（冷启动后必然走到，且覆盖从后台切回/休眠唤醒）
     UpdateNavigationViewHeader();
 
     if (!AnalyticsPrivacy.hasChoice(this)) {
@@ -256,12 +255,16 @@ public class MainActivity extends SMTHBaseActivity
         .show();
   }
 
-  // triger the background service right now
+  // 立即检查一次登录态（冷启动 / 每次回到前台都会调）。
+  // 用独立的 unique work 名 + REPLACE：多次调用只保留最新一个，避免切前台时堆积多个请求；
+  // 且与周期 Worker 的 WORKER_ID 不同，不会冲掉后台周期链。
+  private static final String USER_STATUS_CHECK_NOW = "user_status_check_now";
+
   private void updateUserStatusNow() {
-    // run worker immediately for once
-    WorkRequest userStatusWorkRequest =
+    OneTimeWorkRequest check =
             new OneTimeWorkRequest.Builder(MaintainUserStatusWorker.class).build();
-    WorkManager.getInstance(getApplicationContext()).enqueue(userStatusWorkRequest);
+    WorkManager.getInstance(getApplicationContext())
+            .enqueueUniqueWork(USER_STATUS_CHECK_NOW, ExistingWorkPolicy.REPLACE, check);
   }
 
   private void setupUserStatusReceiver() {
@@ -458,6 +461,9 @@ public class MainActivity extends SMTHBaseActivity
     AnalyticsPrivacy.onResume(this);
     syncGuidanceFragment();
     updateReplyBadge();
+    // 回到前台（含冷启动、从后台切回、休眠唤醒）都检查一次登录态：
+    // cookie 可能已失效，及时发现并静默重登。Worker 内部用 unique+REPLACE 防堆积。
+    updateUserStatusNow();
   }
 
   /**
