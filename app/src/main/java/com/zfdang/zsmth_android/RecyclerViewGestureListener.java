@@ -21,6 +21,11 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     default boolean onImageLongClicked(int position, int imageIndex) {
       return false;
     }
+
+    /** 点击「本贴结束」空白区域，交给宿主返回上一界面 */
+    default boolean onEndMarkerClicked() {
+      return false;
+    }
   }
 
   private OnItemLongClickListener mListener;
@@ -42,6 +47,10 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     // 先判断是否点在引文的三角上：点是则展开/收起引文，不再翻页。
     // 引文 TextView 的触摸被 RecyclerView 拦截，所以统一在这里按坐标判断。
     if (handleQuoteTriangleTap(e)) {
+      return true;
+    }
+    // 点在「本贴结束」空白区域 → 返回上一界面
+    if (handleEndMarkerTap(e)) {
       return true;
     }
     int touchY = (int) e.getRawY();
@@ -137,6 +146,20 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     // 复用 QuoteTextHelper 的通用判断，邮件页也用同一套逻辑
     return com.zfdang.zsmth_android.helpers.QuoteTextHelper.handleTapQuote(
         recyclerView, e.getRawX(), e.getRawY());
+  }
+
+  /** 点击是否落在「本贴结束」标记上，是则通知宿主返回 */
+  private boolean handleEndMarkerTap(MotionEvent e) {
+    if (recyclerView == null || mListener == null) return false;
+    int[] loc = new int[2];
+    recyclerView.getLocationOnScreen(loc);
+    float localX = e.getRawX() - loc[0];
+    float localY = e.getRawY() - loc[1];
+    View v = recyclerView.findChildViewUnder(localX, localY);
+    if (v != null && isEndMarker(v)) {
+      return mListener.onEndMarkerClicked();
+    }
+    return false;
   }
 
   /** 判断一个 item view 是否为「本贴结束」标记 */

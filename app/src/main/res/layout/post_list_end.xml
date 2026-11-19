@@ -4,9 +4,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:gravity="center_horizontal"
-    android:paddingTop="80dp"
-    android:paddingBottom="120dp">
+  android:gravity="center_horizontal"
+  android:paddingTop="28dp"
+  android:paddingBottom="28dp">
 
   <TextView
       android:id="@+id/post_list_end_text"

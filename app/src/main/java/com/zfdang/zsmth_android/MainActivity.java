@@ -714,6 +714,25 @@ public class MainActivity extends SMTHBaseActivity
 
     // Make the textview clickable. Must be called after show()
     ((TextView) dlg.findViewById(android.R.id.message)).setMovementMethod(LinkMovementMethod.getInstance());
+
+    // 10 秒后自动关闭：用 dialog 窗口的 decor view 发延迟任务，用户提前关闭时移除，
+    // 避免误操作或泄漏。Activity/窗口销毁后 view 的 handler 也随之失效，不会崩溃。
+    final Runnable autoDismiss = new Runnable() {
+      @Override public void run() {
+        if (dlg.isShowing()) {
+          dlg.dismiss();
+        }
+      }
+    };
+    final View decorView = dlg.getWindow() == null ? null : dlg.getWindow().getDecorView();
+    if (decorView != null) {
+      decorView.postDelayed(autoDismiss, 10000);
+      dlg.setOnDismissListener(new DialogInterface.OnDismissListener() {
+        @Override public void onDismiss(DialogInterface dialog) {
+          decorView.removeCallbacks(autoDismiss);
+        }
+      });
+    }
   }
 
   @Override public boolean onCreateOptionsMenu(Menu menu) {

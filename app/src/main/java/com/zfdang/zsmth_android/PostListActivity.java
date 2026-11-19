@@ -702,6 +702,13 @@ public class PostListActivity extends SMTHBaseActivity
     return true;
   }
 
+  @Override
+  public boolean onEndMarkerClicked() {
+    // 点「本贴结束」空白区域 → 返回进帖子前的界面（信息流或版面帖子列表）
+    onBackPressed();
+    return true;
+  }
+
   public boolean onItemLongClicked(final int position, View v) {
     if (position == RecyclerView.NO_POSITION || position >= PostListContent.POSTS.size())
       return false;
