@@ -49,3 +49,5 @@ freeline/
 # 本地凭据文件（位于工作区根目录，绝不能入库）
 /GITHUB_TOKEN_DO_NOT_COMMIT.md
 GITHUB_TOKEN*.md
+/GITEE_TOKEN_DO_NOT_COMMIT.md
+GITEE_TOKEN*.md
