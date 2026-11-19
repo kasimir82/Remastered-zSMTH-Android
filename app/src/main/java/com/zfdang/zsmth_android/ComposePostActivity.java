@@ -369,12 +369,20 @@ public class ComposePostActivity extends SMTHBaseActivity {
         StringBuilder wordList = new StringBuilder();
         wordList.append("\n\n");
         wordList.append(String.format("【 在 %s 的大作中提到: 】", mPostContext.getPostAuthor())).append("\n");
-        for (int i = 0; i < lines.length && i < 5; i++) {
-          if (lines[i].startsWith("--")) {
+        int quoted = 0;
+        for (int i = 0; i < lines.length && quoted < 5; i++) {
+          String line = lines[i].trim();
+          if (line.startsWith("--")) {
             // this might be the start of signature, ignore following lines in quote
             break;
           }
-          wordList.append(String.format(": %s", lines[i])).append("\n");
+          // 跳过来源行/修改行与空行，只引用别人发的正文
+          if (line.isEmpty() || line.startsWith("※ 来源:") || line.startsWith("※ 来源：")
+              || line.startsWith("※ 修改:") || line.startsWith("※ 修改：")) {
+            continue;
+          }
+          wordList.append(String.format(": %s", line)).append("\n");
+          quoted++;
         }
         mContent.setText(new String(wordList));
       }

@@ -506,7 +506,9 @@ public class Post {
 
   // used by copy post content menu, or quoted content while replying
   public String getRawContent() {
-    return Html.fromHtml(this.htmlContent.replace(ATTACHMENT_MARK, "")).toString();
+    String text = Html.fromHtml(this.htmlContent.replace(ATTACHMENT_MARK, "")).toString();
+    // 去掉内部富文本标记，避免回帖引用/复制时暴露给用户
+    return text.replace(QUOTE_MARK, "").replace(SMALL_MARK, "");
   }
 
   // this method will be called when post content can't be fetched properly
