@@ -257,8 +257,30 @@ public class FeedFragment extends Fragment {
                 }
               }
             }
-            // 排序并展示
-            displayFeed(merged, force, signature);
+            // 按当前选择的排序方式合并，最新的在最上面
+            sortTopics(merged);
+
+            FEED_TOPICS.clear();
+            FEED_TOPICS.addAll(merged);
+            sLastLoadTime = System.currentTimeMillis();
+            sCachedSignature = signature;
+            mDisplayedSignature = signature;
+
+            if (mAdapter != null) {
+              mAdapter.notifyDataSetChanged();
+            }
+            // 只有主动刷新(双击信息流/下拉/刷新按钮)才滚到顶，避免新排到顶部的帖子超出窗口上边缘。
+            // 首次进入(force=false)不滚，保留浏览位置。
+            // post 到下一帧，等 notifyDataSetChanged 的布局完成后再滚，确保位置生效。
+            if (force && mRecyclerView != null) {
+              mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
+            }
+            if (merged.isEmpty()) {
+              showEmpty("所选版面暂时没有取到内容，下拉可以重试");
+            } else {
+              hideEmpty();
+            }
+            finishRefresh();
           }
         }, new Consumer<Throwable>() {
           @Override public void accept(Throwable throwable) {
@@ -268,32 +290,6 @@ public class FeedFragment extends Fragment {
             finishRefresh();
           }
         });
-  }
-
-  /** 补全时间后：排序、填入列表、刷新 UI */
-  private void displayFeed(List<Topic> merged, boolean force, String signature) {
-    // 按当前选择的排序方式合并，最新的在最上面
-    sortTopics(merged);
-
-    FEED_TOPICS.clear();
-    FEED_TOPICS.addAll(merged);
-    sLastLoadTime = System.currentTimeMillis();
-    sCachedSignature = signature;
-    mDisplayedSignature = signature;
-
-    if (mAdapter != null) {
-      mAdapter.notifyDataSetChanged();
-    }
-    // 只有主动刷新才滚到顶；首次进入不滚，保留浏览位置
-    if (force && mRecyclerView != null) {
-      mRecyclerView.post(() -> mRecyclerView.scrollToPosition(0));
-    }
-    if (merged.isEmpty()) {
-      showEmpty("所选版面暂时没有取到内容，下拉可以重试");
-    } else {
-      hideEmpty();
-    }
-    finishRefresh();
   }
 
   /** 单个版面：按智能预读策略串行加载多页（含当天就继续，到上限或无当天就停） */

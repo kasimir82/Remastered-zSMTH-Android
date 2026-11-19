@@ -465,15 +465,10 @@ public class BoardTopicActivity extends SMTHBaseActivity
             });
     }
 
-    /** 页面全部加载完成：按当前排序模式全局排序 */
-    private void finishGlobalSort(final List<Topic> allTopics) {
-        mLoadingAllForSort = false;
-        applyGlobalSort(allTopics);
-    }
-
-    /** 置顶帖在前，其余按当前排序模式全局倒序，一次性替换列表 */
-    private void applyGlobalSort(List<Topic> allTopics) {
+    /** 全局排序完成：置顶帖在前，其余按当前排序模式全局倒序，一次性替换列表 */
+    private void finishGlobalSort(List<Topic> allTopics) {
         dismissProgress();
+        mLoadingAllForSort = false;
         if (allTopics.isEmpty()) return;
 
         List<Topic> sticky = new ArrayList<>();
