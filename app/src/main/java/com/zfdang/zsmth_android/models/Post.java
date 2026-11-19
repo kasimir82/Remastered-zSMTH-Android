@@ -29,6 +29,8 @@ public class Post {
   private static final String QUOTE_MARK = "###ZSMTH_QUOTE###";
   // 来源/修改行用这个标记包起来，ContentSegment 里转成半号字体
   public static final String SMALL_MARK = "###ZSMTH_SMALL###";
+  // 「在 XXX 的大作中提到」标题行的灰色，与折叠引文提示 QuoteTextHelper.QUOTE_HINT_COLOR 同色(#AAAAAA)
+  private static final String QUOTE_HEADER_HTML_COLOR = "#AAAAAA";
   public static int ACTION_DEFAULT = 0;
   public static int ACTION_FIRST_POST_IN_SUBJECT = 1;
   public static int ACTION_PREVIOUS_POST_IN_SUBJECT = 2;
@@ -397,6 +399,17 @@ public class Post {
       // handle ATTACH_MARK
       if (line.contains(ATTACHMENT_MARK)) {
         sb.append(line);
+        continue;
+      }
+
+      // 「在 XXX 的大作中提到: 」标题行：用与折叠引文提示相同的灰色显示，
+      // 视觉上和下面的「▶ 展开引文」归为一组。
+      if (line.contains("的大作中提到")) {
+        while (sb.toString().endsWith("<br />")) {
+          sb.setLength(sb.length() - "<br />".length());
+        }
+        sb.append("<font color=").append(QUOTE_HEADER_HTML_COLOR).append(">")
+            .append(line).append("</font><br />");
         continue;
       }
 

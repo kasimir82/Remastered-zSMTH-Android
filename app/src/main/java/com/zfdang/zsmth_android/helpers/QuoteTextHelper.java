@@ -22,7 +22,8 @@ import com.zfdang.zsmth_android.models.ContentSegment;
  * 统一判断点击坐标后调用 toggleQuote），点文字区域不展开、不误触翻页。
  */
 public class QuoteTextHelper {
-  private static final int QUOTE_HINT_COLOR = 0xFF888888;
+  // 折叠引文提示的灰色；与「大作中提到」标题行共用同一色值(见 Post.QUOTE_HEADER_HTML_COLOR)
+  private static final int QUOTE_HINT_COLOR = 0xFFAAAAAA;
   private static final String TRIANGLE = "▶";
 
   public static void bind(final TextView tv, final ContentSegment content, Activity activity, boolean addLinks) {
