@@ -865,13 +865,24 @@ public class PostListActivity extends SMTHBaseActivity
         Toast.makeText(PostListActivity.this, "复制失败！", Toast.LENGTH_SHORT).show();
         return;
       }
-      // 去掉内部富文本标记(###ZSMTH_QUOTE###/###ZSMTH_SMALL###)，不暴露给用户；
-      // 连续换行压缩为最多一个，避免复制出大量空行
+      // 去掉内部富文本标记(###ZSMTH_QUOTE###/###ZSMTH_SMALL###)，不暴露给用户
       String body = post.getRawContent()
           .replace("###ZSMTH_QUOTE###", "")
-          .replace("###ZSMTH_SMALL###", "")
-          .replaceAll("[\\r\\n]+", "\n")
-          .trim();
+          .replace("###ZSMTH_SMALL###", "");
+      // 过滤掉「※ 来源:」「※ 修改:」行（兼容全角冒号），并去掉行内首尾空白
+      StringBuilder filtered = new StringBuilder();
+      for (String line : body.split("\\r?\\n")) {
+        String trimmed = line.trim();
+        if (trimmed.startsWith("※ 来源:") || trimmed.startsWith("※ 来源：")
+            || trimmed.startsWith("※ 修改:") || trimmed.startsWith("※ 修改：")) {
+          continue;
+        }
+        if (trimmed.isEmpty() && filtered.length() == 0) continue;
+        if (filtered.length() > 0) filtered.append('\n');
+        filtered.append(trimmed);
+      }
+      // 连续换行压缩为最多一个，避免复制出大量空行
+      body = filtered.toString().replaceAll("[\\r\\n]+", "\n").trim();
       // 只有楼主(第1楼)带标题，其余楼层只复制正文
       int floor = com.zfdang.zsmth_android.helpers.ReadProgressManager.firstNumber(post.getPosition());
       String fullText;
