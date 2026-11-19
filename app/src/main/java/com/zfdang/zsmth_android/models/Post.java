@@ -402,8 +402,11 @@ public class Post {
 
       // handle quoted content: 连续的冒号引文行收成一个块, 之后拆成可折叠的段
       if (line.startsWith(":")) {
-        // 引文块前原本留了一个空行（正文<br/><br/>引文），去掉它，让引文紧跟正文
-        if (sb.toString().endsWith("<br /><br />")) {
+        // 正文段与引文段会渲染成两个独立 TextView（块级上下排列），
+        // 正文段末尾残留的 <br /> 会在它内部渲染出一个多余空行，全部去掉。
+        // 旧代码只匹配 <br /><br />，但实际数据常是「大作中提到<br />:引文」(单个)，
+        // 导致空行残留。
+        while (sb.toString().endsWith("<br />")) {
           sb.setLength(sb.length() - "<br />".length());
         }
         StringBuilder quoteBlock = new StringBuilder();
