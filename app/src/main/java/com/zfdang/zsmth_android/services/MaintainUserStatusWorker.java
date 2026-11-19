@@ -228,6 +228,8 @@ public class MaintainUserStatusWorker extends Worker {
                 // "cooldown"/"no_credentials" 属于预期内跳过，不必提示。
                 Log.w(TAG, "silent login failed: " + reason);
                 if ("cooldown".equals(reason) || "no_credentials".equals(reason)) return;
+                // 记录受限原因，供「我的」页账号卡片展示「服务器未能登录：XXX」
+                com.zfdang.zsmth_android.helpers.LoginThrottle.onLoginFailed(reason);
                 if (receiver != null) {
                     Bundle bundle = new Bundle();
                     bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,

@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.facebook.drawee.view.SimpleDraweeView;
 import com.zfdang.SMTHApplication;
+import com.zfdang.zsmth_android.helpers.LoginThrottle;
 import com.zfdang.zsmth_android.newsmth.UserStatus;
 
 import java.util.List;
@@ -121,9 +122,30 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
           level = user.getLife();
         }
         levelValue.setText(TextUtils.isEmpty(level) ? "-" : level);
+      } else if (LoginThrottle.isRestricted()) {
+        // 登录受限态：显示服务端原因 + 建议等待时间，提醒用户不要反复重试
+        String[] hint = LoginThrottle.getRestrictionHint();
+        userName.setText("登录受限");
+        userName.setTextColor(userName.getContext().getResources()
+            .getColor(com.zfdang.zsmth_android.R.color.login_restricted_warn));
+        userHint.setText("服务器未能登录：" + hint[0] + "\n" + hint[1]);
+        userHint.setMaxLines(3);
+        userHint.setTextColor(userHint.getContext().getResources()
+            .getColor(com.zfdang.zsmth_android.R.color.login_restricted_warn));
+        loginAction.setText("重试");
+        avatar.setImageResource(R.drawable.ic_person_black_48dp);
+        postValue.setText("-");
+        scoreValue.setText("-");
+        loginValue.setText("-");
+        levelValue.setText("-");
       } else {
         userName.setText("点击登录");
+        userName.setTextColor(userName.getContext().getResources()
+            .getColor(com.zfdang.zsmth_android.R.color.mine_row_title));
         userHint.setText("登录后可管理收藏与站内信");
+        userHint.setMaxLines(2);
+        userHint.setTextColor(userHint.getContext().getResources()
+            .getColor(com.zfdang.zsmth_android.R.color.mine_row_summary));
         loginAction.setText("登录");
         avatar.setImageResource(R.drawable.ic_person_black_48dp);
         postValue.setText("-");

@@ -123,6 +123,26 @@ public class Settings {
     }
   }
 
+  /**
+   * 最近一次登录受限的原因文案(如「登录窗口过多，服务器拒绝了本次登录」)，
+   * 供「我的」页账号卡片在未登录时展示。登录成功后清空。
+   */
+  private static final String LOGIN_RESTRICTION_REASON = "login_restriction_reason";
+  private String loginRestrictionReason;
+
+  public String getLoginRestrictionReason() {
+    return loginRestrictionReason;
+  }
+
+  public void setLoginRestrictionReason(String reason) {
+    String value = reason == null ? "" : reason;
+    if (!value.equals(this.loginRestrictionReason)) {
+      this.loginRestrictionReason = value;
+      mEditor.putString(LOGIN_RESTRICTION_REASON, value);
+      mEditor.commit();
+    }
+  }
+
   // after user init login action, set online = true;
   // after user init logout action, set online = false;
   // this value will impact autoLogin behaviour of service
@@ -545,6 +565,7 @@ public class Settings {
     bLastLoginSuccess = mPreference.getBoolean(LAST_LOGIN_SUCCESS, false);
     lastLoginTime = mPreference.getLong(LAST_LOGIN_TIME, 0L);
     loginCooldownUntil = mPreference.getLong(LOGIN_COOLDOWN_UNTIL, 0L);
+    loginRestrictionReason = mPreference.getString(LOGIN_RESTRICTION_REASON, "");
     bUserOnline = mPreference.getBoolean(USER_ONLINE, false);
 
     bUseSignature = mPreference.getBoolean(USE_DEVICE_SIGNATURE, true);

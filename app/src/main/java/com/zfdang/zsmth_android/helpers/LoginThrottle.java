@@ -67,14 +67,17 @@ public class LoginThrottle {
     return true;
   }
 
-  /** 登录成功：记录时间并清除冷却 */
+  /** 登录成功：记录时间并清除冷却与受限状态 */
   public static void onLoginSuccess() {
     Settings s = Settings.getInstance();
     s.setLastLoginTime(System.currentTimeMillis());
     if (s.getLoginCooldownUntil() != 0) {
       s.setLoginCooldownUntil(0);
     }
-    Log.i(TAG, "onLoginSuccess: recorded login time");
+    if (s.getLoginRestrictionReason() != null && !s.getLoginRestrictionReason().isEmpty()) {
+      s.setLoginRestrictionReason("");
+    }
+    Log.i(TAG, "onLoginSuccess: recorded login time, restriction cleared");
   }
 
   /**
@@ -115,12 +118,91 @@ public class LoginThrottle {
         || msg.contains("登录的窗口");
   }
 
-  /** 被判频繁登录：进入冷却，停止自动登录 */
+  /** 被判频繁登录：进入冷却，停止自动登录，并记录受限原因供 UI 展示 */
   public static void onTooFrequent(String reason) {
     Settings s = Settings.getInstance();
     long until = System.currentTimeMillis() + PENALTY_COOLDOWN_MS;
     s.setLoginCooldownUntil(until);
+    // 记录服务端原文作为受限原因；UI 会据此展示「问题是：XXX」
+    s.setLoginRestrictionReason(reason == null ? "登录受限" : reason);
     Log.w(TAG, "onTooFrequent: " + reason + ", cooldown until " + until);
+  }
+
+  /** 当前是否处于受限态（冷却中 或 有未清除的受限原因），供「我的」页展示 */
+  public static boolean isRestricted() {
+    Settings s = Settings.getInstance();
+    if (inCooldown()) return true;
+    String reason = s.getLoginRestrictionReason();
+    return reason != null && !reason.isEmpty();
+  }
+
+  /**
+   * 生成给「我的」页账号卡片展示的受限提示文案。
+   * 优先用服务端原文里的等待时间(如「请 5 分钟后再试」)，提取不到则显示通用建议。
+   * 返回两行：第一行原因，第二行建议等待时间。
+   */
+  public static String[] getRestrictionHint() {
+    Settings s = Settings.getInstance();
+    String reason = s.getLoginRestrictionReason();
+    if (reason == null || reason.isEmpty()) reason = "服务器拒绝了本次登录";
+
+    // 从服务端文案里提取「X 分钟/分/X min」；没有则用冷却剩余时间估算
+    String waitText = null;
+    java.util.regex.Matcher m = java.util.regex.Pattern
+        .compile("(\\d+)\\s*(分钟|分|min|minutes?)").matcher(reason);
+    if (m.find()) {
+      try {
+        int mins = Integer.parseInt(m.group(1));
+        if (mins > 0) waitText = "建议等待 " + mins + " 分钟后再试";
+      } catch (NumberFormatException ignored) {
+      }
+    }
+    if (waitText == null) {
+      // 服务端文案没给具体时间：
+      // - 窗口过多/频繁登录这类是临时限制，给一个务实的短建议(15分钟)，
+      //   不暴露后台 12 小时的惩罚性冷却(那是防自动登录的，不该展示给用户吓人)
+      // - 其它失败(超时等)用冷却剩余时间兜底
+      if (matchesTooFrequentText(reason)) {
+        waitText = "建议等待约 15 分钟后再试";
+      } else {
+        long remainMs = s.getLoginCooldownUntil() - System.currentTimeMillis();
+        if (remainMs > 0) {
+          long remainMin = (remainMs + 59999) / 60000;
+          waitText = "建议等待约 " + remainMin + " 分钟后再试";
+        } else {
+          waitText = "建议稍后重试，或点右侧「重试」手动登录";
+        }
+      }
+    }
+    return new String[] { reason, waitText };
+  }
+
+  /**
+   * 静默登录失败时记录受限原因(把内部错误码映射成用户能看懂的中文)。
+   * 不设冷却时长——只有服务端明确判定频繁登录(onTooFrequent)才进入长时间冷却；
+   * 这里仅让「我的」页能显示「服务器未能登录：原因」。
+   */
+  public static void onLoginFailed(String reason) {
+    if (reason == null) reason = "unknown";
+    String friendly;
+    if (reason.startsWith("timeout")) {
+      friendly = "登录超时，服务器响应过慢";
+    } else if (reason.startsWith("error:")) {
+      friendly = "登录出错：" + reason.substring(Math.min(reason.length(), 6));
+    } else if ("captcha".equals(reason)) {
+      friendly = "需要验证码，请手动登录";
+    } else {
+      friendly = "登录失败（" + reason + "）";
+    }
+    Settings.getInstance().setLoginRestrictionReason(friendly);
+    Log.w(TAG, "onLoginFailed: " + reason + " -> " + friendly);
+  }
+
+  /** 登录成功后清除受限状态 */
+  public static void clearRestriction() {
+    Settings s = Settings.getInstance();
+    s.setLoginRestrictionReason("");
+    s.setLoginCooldownUntil(0);
   }
 
   /** WebView 登录页出现"账号过多/踢掉多余窗口/窗口过多"弹窗时调用 */
