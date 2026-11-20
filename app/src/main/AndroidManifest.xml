@@ -12,9 +12,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
-    <uses-permission
-        android:name="android.permission.VIBRATE"
-        android:maxSdkVersion="18" />
+    <!-- 翻页震动需要：去掉旧版遗留的 maxSdkVersion=18，否则 Android 4.3 以上无震动权限 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
