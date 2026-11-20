@@ -27,6 +27,24 @@
         android:summaryOn="启用音量键翻页"
         android:title="音量键翻页"/>
 
+    <CheckBoxPreference
+        app:iconSpaceReserved="false"
+        android:defaultValue="on"
+        android:key="setting_page_turn_vibrate"
+        android:summaryOff="翻页时不震动"
+        android:summaryOn="翻页时轻微震动"
+        android:title="翻页震动"/>
+
+    <ListPreference
+        app:iconSpaceReserved="false"
+        android:title="翻页震动时长"
+        android:key="setting_page_turn_vibrate_ms"
+        android:summary="%s"
+        android:entries="@array/vibrate_ms_names"
+        android:entryValues="@array/vibrate_ms_values"
+        android:defaultValue="20">
+    </ListPreference>
+
     <ListPreference
         app:iconSpaceReserved="false"
         android:title="字体设置"

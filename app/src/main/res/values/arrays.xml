@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <!-- 翻页震动时长档位 -->
+  <string-array name="vibrate_ms_names">
+    <item>10 毫秒(极短)</item>
+    <item>20 毫秒(轻微)</item>
+    <item>30 毫秒(适中)</item>
+    <item>50 毫秒(明显)</item>
+  </string-array>
+  <string-array name="vibrate_ms_values">
+    <item>10</item>
+    <item>20</item>
+    <item>30</item>
+    <item>50</item>
+  </string-array>
+
   <string-array name="font_size_names">
     <item>大字体(115%)</item>
     <item>正常字体(100%)</item>

@@ -56,14 +56,34 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     int touchY = (int) e.getRawY();
     //        Log.d("Gesture", "onSingleTapUp: " + String.format("%d / %d = %f", touchY, mScreenHeight, touchY * 1.0 / mScreenHeight));
     if (touchY < mScreenHeight * 0.40) {
+      vibrateOnPageTurn();
       scrollToAdjacentPost(false);
       return true;
     } else if (touchY > mScreenHeight * 0.60) {
+      vibrateOnPageTurn();
       scrollToAdjacentPost(true);
       return true;
     }
 
     return super.onSingleTapUp(e);
+  }
+
+  /** 翻页时按用户设置震动一下(开关关闭或时长<=0则不震) */
+  private void vibrateOnPageTurn() {
+    try {
+      com.zfdang.zsmth_android.Settings st = com.zfdang.zsmth_android.Settings.getInstance();
+      if (st == null || !st.isPageTurnVibrate() || st.getPageTurnVibrateMs() <= 0) return;
+      android.os.Vibrator v = (android.os.Vibrator) recyclerView.getContext()
+          .getSystemService(android.content.Context.VIBRATOR_SERVICE);
+      if (v == null || !v.hasVibrator()) return;
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        v.vibrate(android.os.VibrationEffect.createOneShot(st.getPageTurnVibrateMs(),
+            android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+      } else {
+        v.vibrate(st.getPageTurnVibrateMs());
+      }
+    } catch (Throwable ignored) {
+    }
   }
 
   /**

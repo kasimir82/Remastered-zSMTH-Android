@@ -448,6 +448,29 @@ public class Settings {
     }
   }
 
+  // 翻页震动：开关 + 时长(毫秒)
+  private static final String PAGE_TURN_VIBRATE = "PAGE_TURN_VIBRATE";
+  private static final String PAGE_TURN_VIBRATE_MS = "PAGE_TURN_VIBRATE_MS";
+  private boolean bPageTurnVibrate;
+  private int iPageTurnVibrateMs;
+
+  public boolean isPageTurnVibrate() { return bPageTurnVibrate; }
+  public void setPageTurnVibrate(boolean value) {
+    if (this.bPageTurnVibrate != value) {
+      this.bPageTurnVibrate = value;
+      mEditor.putBoolean(PAGE_TURN_VIBRATE, value);
+      mEditor.commit();
+    }
+  }
+  public int getPageTurnVibrateMs() { return iPageTurnVibrateMs; }
+  public void setPageTurnVibrateMs(int ms) {
+    if (this.iPageTurnVibrateMs != ms) {
+      this.iPageTurnVibrateMs = ms;
+      mEditor.putInt(PAGE_TURN_VIBRATE_MS, ms);
+      mEditor.commit();
+    }
+  }
+
 
   // 版面主题排序方式: 0 = 最后回复(服务端默认顺序), 1 = 发表时间(按本页发布时间倒序)
   public static final int SORT_BY_LAST_REPLY = 0;
@@ -622,6 +645,8 @@ public class Settings {
     bLaunchHotTopic = mPreference.getBoolean(LAUNCH_HOTTOPIC_AS_ENTRY, true);
 
     bVolumeKeyScroll = mPreference.getBoolean(VOLUME_KEY_SCROLL, true);
+    bPageTurnVibrate = mPreference.getBoolean(PAGE_TURN_VIBRATE, true);
+    iPageTurnVibrateMs = mPreference.getInt(PAGE_TURN_VIBRATE_MS, 20);
     iFontIndex = mPreference.getInt(ZSMTH_FONT_INDEX, 1);
     iTopicSortMode = mPreference.getInt(TOPIC_SORT_MODE, SORT_BY_LAST_REPLY);
     iFeedSortMode = mPreference.getInt(FEED_SORT_MODE, SORT_BY_PUBLISH_TIME);

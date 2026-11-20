@@ -138,6 +138,10 @@ public class MineFragment extends Fragment {
     items.add(MineItem.toggle("entry_hot", R.drawable.ic_mine_home, "启动页面",
         settings.isLaunchHotTopic() ? "信息流" : "收藏夹", settings.isLaunchHotTopic()));
     items.add(MineItem.toggle("volume", R.drawable.ic_mine_volume, "音量键翻页", null, settings.isVolumeKeyScroll()));
+    items.add(MineItem.toggle("vibrate", R.drawable.ic_mine_volume, "翻页震动", null, settings.isPageTurnVibrate()));
+    if (settings.isPageTurnVibrate()) {
+      items.add(MineItem.row("vibrate_ms", R.drawable.ic_mine_volume, "翻页震动时长", settings.getPageTurnVibrateMs() + " 毫秒"));
+    }
     // 「隐藏置顶」= 不显示置顶帖；与 isShowSticky 相反，默认开启(即默认隐藏置顶)
     items.add(MineItem.toggle("hide_sticky", R.drawable.ic_mine_star, "隐藏置顶帖", null, !settings.isShowSticky()));
     items.add(MineItem.toggle("board_master", R.drawable.ic_mine_shield, "版主专用功能", null, settings.isBoardMasterOnly()));
@@ -312,6 +316,10 @@ public class MineFragment extends Fragment {
         showFontDialog(activity);
         break;
 
+      case "vibrate_ms":
+        showVibrateMsDialog(activity);
+        break;
+
       case "about":
         activity.onNavigationItemID(R.id.nav_about);
         break;
@@ -356,6 +364,9 @@ public class MineFragment extends Fragment {
       case "volume":
         settings.setVolumeKeyScroll(value);
         break;
+      case "vibrate":
+        settings.setPageTurnVibrate(value);
+        break;
       case "hide_sticky":
         // value=true(隐藏置顶开启) → showSticky=false
         settings.setShowSticky(!value);
@@ -373,6 +384,25 @@ public class MineFragment extends Fragment {
         return;
     }
     buildItems();
+  }
+
+  private void showVibrateMsDialog(MainActivity activity) {
+    final int[] values = new int[]{10, 20, 30, 50};
+    final String[] names = new String[]{"10 毫秒(极短)", "20 毫秒(轻微)", "30 毫秒(适中)", "50 毫秒(明显)"};
+    int current = 0;
+    int now = Settings.getInstance().getPageTurnVibrateMs();
+    for (int i = 0; i < values.length; i++) {
+      if (values[i] == now) { current = i; break; }
+    }
+    new AlertDialog.Builder(activity)
+        .setTitle("翻页震动时长")
+        .setSingleChoiceItems(names, current, (dialog, which) -> {
+          dialog.dismiss();
+          Settings.getInstance().setPageTurnVibrateMs(values[which]);
+          buildItems();
+        })
+        .setNegativeButton("取消", null)
+        .show();
   }
 
   private void showFontDialog(MainActivity activity) {

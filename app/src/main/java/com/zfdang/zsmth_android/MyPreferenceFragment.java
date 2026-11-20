@@ -42,6 +42,8 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
 
   CheckBoxPreference launch_hottopic_as_entry;
   CheckBoxPreference setting_volume_key_scroll;
+  CheckBoxPreference setting_page_turn_vibrate;
+  ListPreference setting_page_turn_vibrate_ms;
   ListPreference setting_fontsize_control;
   CheckBoxPreference login_with_verification;
   CheckBoxPreference image_source_cdn;
@@ -114,6 +116,20 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
         Settings.getInstance().setVolumeKeyScroll(bValue);
         return true;
       }
+    });
+
+    setting_page_turn_vibrate = (CheckBoxPreference) findPreference("setting_page_turn_vibrate");
+    setting_page_turn_vibrate.setChecked(Settings.getInstance().isPageTurnVibrate());
+    setting_page_turn_vibrate.setOnPreferenceChangeListener((preference, newValue) -> {
+      if (newValue instanceof Boolean) Settings.getInstance().setPageTurnVibrate((Boolean) newValue);
+      return true;
+    });
+    setting_page_turn_vibrate_ms = (ListPreference) findPreference("setting_page_turn_vibrate_ms");
+    setting_page_turn_vibrate_ms.setValue(String.valueOf(Settings.getInstance().getPageTurnVibrateMs()));
+    setting_page_turn_vibrate_ms.setOnPreferenceChangeListener((preference, newValue) -> {
+      try { Settings.getInstance().setPageTurnVibrateMs(Integer.parseInt((String) newValue)); }
+      catch (Exception ignored) {}
+      return true;
     });
 
     setting_fontsize_control = (ListPreference) findPreference("setting_fontsize_control");
