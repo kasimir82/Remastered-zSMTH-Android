@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 敏感词拦截后的发布方式选择弹窗（按钮式） -->
+<!-- 回帖发送方式选择弹窗（正常/验证码图片/竖排） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -13,7 +13,7 @@
         android:id="@+id/pm_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="内容需审核 · 选择发布方式"
+        android:text="选择发布方式"
         android:textColor="@color/mine_row_title"
         android:textSize="18sp"
         android:textStyle="bold" />
@@ -23,16 +23,24 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="检测到异常，请选择替代发布方式："
+        android:text="如遇敏感词拦截，可选图片或竖排方式："
         android:textColor="@color/mine_row_summary"
         android:textSize="13sp" />
+
+    <Button
+        android:id="@+id/pm_btn_normal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="① 正常发送"
+        android:textAllCaps="false" />
 
     <Button
         android:id="@+id/pm_btn_jpg"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:text="① 转成验证码风格图片发送"
+        android:layout_marginTop="6dp"
+        android:text="② 转成验证码风格图片发送"
         android:textAllCaps="false" />
 
     <Button
@@ -40,7 +48,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="② 竖排诗歌风格发送"
+        android:text="③ 竖排诗歌风格发送"
         android:textAllCaps="false" />
 
     <Button

@@ -103,7 +103,6 @@ public class PostListActivity extends SMTHBaseActivity
   private static final int ACT_COPY_CONTENT = 5;
   private static final int ACT_FORWARD = 6;
   private static final int ACT_VIEW_IN_BROWSER = 7;
-  private static final int ACT_SHARE = 8;
   private static final int ACT_DELETE_POST = 9;
   private static final int ACT_EDIT_POST = 10;
   private static final int ACT_BLOCK_AUTHOR = 11;
@@ -755,8 +754,6 @@ public class PostListActivity extends SMTHBaseActivity
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_view_in_browser), R.drawable.ic_open_in_browser_black_48dp, ACT_VIEW_IN_BROWSER));
     menuItemsArray.add(new PostActionAlertDialogItem(
-        "强制敏感词方式回复", R.drawable.ic_share_black_48dp, ACT_SHARE));
-    menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_delete_post), R.drawable.ic_delete_black_48dp, ACT_DELETE_POST));
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_edit_post), R.drawable.ic_edit_black_48dp, ACT_EDIT_POST));
@@ -924,20 +921,6 @@ public class PostListActivity extends SMTHBaseActivity
       } else {
         Toast.makeText(this, "本帖未找到 IP 信息（可能不是本站发表的帖子）", Toast.LENGTH_SHORT).show();
       }
-    } else if (action == ACT_SHARE) {
-      // 「强制敏感词方式回复」：直接构造回复 Context，带 force_sensitive 标记，
-      // ComposePostActivity 一进来就弹竖排/JPG 选择弹窗，无需先发一次触发 0405
-      ComposePostContext postContext = new ComposePostContext();
-      postContext.setBoardEngName(mTopic.getBoardEngName());
-      postContext.setPostId(post.getPostID());
-      postContext.setPostTitle(mTopic.getTitle());
-      postContext.setPostAuthor(post.getRawAuthor());
-      postContext.setPostContent(post.getRawContent());
-      postContext.setComposingMode(ComposePostContext.MODE_REPLY_POST);
-      Intent intent = new Intent(this, ComposePostActivity.class);
-      intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
-      intent.putExtra("force_sensitive", true);
-      startActivityForResult(intent, ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE);
     } else if (action == ACT_DELETE_POST) {
       deletePost(post);
     } else if (action == ACT_EDIT_POST) {

@@ -91,8 +91,6 @@ public class ComposePostActivity extends SMTHBaseActivity {
   private boolean isRetriedPublish;
   // 触发敏感词时的原始正文（转换失败/取消时可恢复）
   private String blockedOriginalContent;
-  // 长按「强制敏感词方式回复」进来：先让用户输入内容，点发送时弹方式窗而不真正发布
-  private boolean forceSensitiveMode;
 
   private File cameraAttachment;
   private boolean importingImages;
@@ -402,22 +400,6 @@ public class ComposePostActivity extends SMTHBaseActivity {
       mContent.setSelection(0);
     }
 
-    // 「强制敏感词方式回复」：从长按菜单进来，正文已按引用格式填好。
-    // 此时还不知道用户想回什么内容，不再直接弹方式窗；
-    // 改为让用户先输入回复，点发送时拦截并弹 验证码图片/竖排 选择窗。
-    if (getIntent().getBooleanExtra("force_sensitive", false)) {
-      forceSensitiveMode = true;
-      // 光标定位到输入区最前面(position 0)：引用内容全是": "开头的行且在其下方，
-      // 之前用 QUOTE_MARKER("大作中提到")找位置会落到引文中间，导致光标乱跑。
-      mContent.post(new Runnable() {
-        @Override public void run() {
-          mContent.setSelection(0);
-          mContent.setFocusableInTouchMode(true);
-          mContent.requestFocus();
-        }
-      });
-      Toast.makeText(this, "请输入回复内容，完成后点发送选择发布方式", Toast.LENGTH_LONG).show();
-    }
   }
 
   @Override public boolean onCreateOptionsMenu(Menu menu) {
@@ -455,8 +437,10 @@ public class ComposePostActivity extends SMTHBaseActivity {
   }
 
   public void publishPost() {
-    // 长按「强制敏感词方式回复」进来：点发送不是真发布，而是保存当前输入后弹方式选择窗
-    if (forceSensitiveMode) {
+    // 回帖场景：点发送先弹方式选择窗(正常/图片/竖排)，用户自己决定，无需长按菜单。
+    // 已选过图片/竖排并完成转换的(isRetriedPublish=true)，再次点发送直接真发，避免重复弹窗。
+    if (!isRetriedPublish && mPostContext != null
+        && mPostContext.getComposingMode() == ComposePostContext.MODE_REPLY_POST) {
       String content = mContent.getText().toString();
       com.zfdang.zsmth_android.helpers.PublishMethodHelper.SplitResult split =
           com.zfdang.zsmth_android.helpers.PublishMethodHelper.split(content);
@@ -481,6 +465,13 @@ public class ComposePostActivity extends SMTHBaseActivity {
         .setCancelable(true)
         .create();
 
+    v.findViewById(R.id.pm_btn_normal).setOnClickListener(x -> {
+      flowLog("USER CHOICE = NORMAL");
+      dialog.dismiss();
+      blockedOriginalContent = null; // 正常发送用编辑框当前内容
+      isRetriedPublish = false;
+      doPublishPost();
+    });
     v.findViewById(R.id.pm_btn_jpg).setOnClickListener(x -> {
       flowLog("USER CHOICE = CAPTCHA IMAGE");
       dialog.dismiss();
@@ -501,8 +492,6 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
   /** 方式①：用户输入转 captcha 风格图片，作为附件；正文只保留引用块(+简短说明) */
   private void publishAsJpg() {
-    // 转换完成后退出「强制敏感词模式」，使用户再次点发送时真正发布，而不是重复弹方式窗
-    forceSensitiveMode = false;
     // 敏感词拦截后用保存的原文转换，避免依赖已被改动的编辑框
     String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
         ? blockedOriginalContent : mContent.getText().toString();
@@ -555,8 +544,6 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
   /** 方式②：用户输入转竖排诗歌风格文本，保留引用块 */
   private void publishAsVertical() {
-    // 转换完成后退出「强制敏感词模式」，使用户再次点发送时真正发布，而不是重复弹方式窗
-    forceSensitiveMode = false;
     String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
         ? blockedOriginalContent : mContent.getText().toString();
     isRetriedPublish = true;
