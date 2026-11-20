@@ -557,6 +557,25 @@ public class Settings {
   }
 
   // load all settings from SharedPreference
+  /**
+   * 安全读取 long：若该键被错误地存成 Integer(如旧版导入所致)，
+   * SharedPreferences.getLong 会抛 ClassCastException 导致 app 启动崩溃。
+   * 这里容错读取并顺手纠正类型，避免坏数据让 app 变砖。
+   */
+  private long getLongSafe(String key, long def) {
+    try {
+      return mPreference.getLong(key, def);
+    } catch (ClassCastException e) {
+      try {
+        int v = mPreference.getInt(key, (int) def);
+        mEditor.putLong(key, (long) v).apply(); // 纠正为 long
+        return v;
+      } catch (ClassCastException e2) {
+        return def;
+      }
+    }
+  }
+
   private void initSettings() {
     // this
     mPreference = SMTHApplication.getAppContext().getSharedPreferences(Preference_Name, Activity.MODE_PRIVATE);
@@ -568,8 +587,8 @@ public class Settings {
     mPassword = mPreference.getString(PASSWORD_KEY, "");
     bSaveInfo = mPreference.getBoolean(SAVE_INFO, true);
     bLastLoginSuccess = mPreference.getBoolean(LAST_LOGIN_SUCCESS, false);
-    lastLoginTime = mPreference.getLong(LAST_LOGIN_TIME, 0L);
-    loginCooldownUntil = mPreference.getLong(LOGIN_COOLDOWN_UNTIL, 0L);
+    lastLoginTime = getLongSafe(LAST_LOGIN_TIME, 0L);
+    loginCooldownUntil = getLongSafe(LOGIN_COOLDOWN_UNTIL, 0L);
     loginRestrictionReason = mPreference.getString(LOGIN_RESTRICTION_REASON, "");
     bUserOnline = mPreference.getBoolean(USER_ONLINE, false);
 

@@ -1,23 +1,33 @@
 package com.zfdang.zsmth_android;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.DocumentsContract;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.MenuItem;
-import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.zfdang.zsmth_android.helpers.AppDataManager;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.TopicTimeCache;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
@@ -27,8 +37,8 @@ import java.util.Locale;
 /** App 数据管理：导出/导入(设置+黑名单+时间缓存)、清理1个月前的时间缓存 */
 public class AppDataActivity extends SMTHBaseActivity {
   private static final String TAG = "AppDataActivity";
-  private static final int REQ_EXPORT = 1001;
   private static final int REQ_IMPORT = 1002;
+  private static final int REQ_WRITE_STORAGE = 1003;
 
   private TextView statsView;
   private TextView dbSizeView;
@@ -95,15 +105,26 @@ public class AppDataActivity extends SMTHBaseActivity {
     }).start();
   }
 
+  /** 导出到 Download 目录（照抄本机屏蔽页的 MediaStore 方式） */
   private void startExport() {
-    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-    intent.addCategory(Intent.CATEGORY_OPENABLE);
-    intent.setType("application/json");
-    intent.putExtra(Intent.EXTRA_TITLE, AppDataManager.defaultFileName());
-    try {
-      startActivityForResult(intent, REQ_EXPORT);
-    } catch (Exception e) {
-      Toast.makeText(this, "无法打开文件选择器", Toast.LENGTH_SHORT).show();
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+            && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED) {
+      ActivityCompat.requestPermissions(this,
+              new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_WRITE_STORAGE);
+      return;
+    }
+    doExport();
+  }
+
+  @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    if (requestCode == REQ_WRITE_STORAGE) {
+      if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        doExport();
+      } else {
+        Toast.makeText(this, "需要存储权限才能导出到 Download", Toast.LENGTH_LONG).show();
+      }
     }
   }
 
@@ -111,6 +132,12 @@ public class AppDataActivity extends SMTHBaseActivity {
     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
     intent.addCategory(Intent.CATEGORY_OPENABLE);
     intent.setType("*/*");
+    intent.putExtra(Intent.EXTRA_MIME_TYPES,
+            new String[] {"application/zip", "application/x-zip-compressed", "application/octet-stream"});
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+              Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload"));
+    }
     try {
       startActivityForResult(intent, REQ_IMPORT);
     } catch (Exception e) {
@@ -120,23 +147,35 @@ public class AppDataActivity extends SMTHBaseActivity {
 
   @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
-    if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return;
-    Uri uri = data.getData();
-    if (requestCode == REQ_EXPORT) {
-      doExport(uri);
-    } else if (requestCode == REQ_IMPORT) {
-      doImport(uri);
-    }
+    if (requestCode != REQ_IMPORT || resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return;
+    doImport(data.getData());
   }
 
-  private void doExport(Uri uri) {
+  private void doExport() {
     new Thread(() -> {
-      try (OutputStream out = getContentResolver().openOutputStream(uri)) {
-        if (out == null) throw new Exception("无法写入文件");
-        AppDataManager.ExportInfo info = AppDataManager.exportTo(out);
-        mainHandler.post(() -> Toast.makeText(this,
-            "导出成功：设置 " + info.settingCount + " 项，时间缓存 " + info.timeRecordCount + " 条",
-            Toast.LENGTH_LONG).show());
+      String fileName = AppDataManager.defaultFileName();
+      try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          ContentValues values = new ContentValues();
+          values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+          values.put(MediaStore.MediaColumns.MIME_TYPE, "application/zip");
+          values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+          Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+          if (uri == null) throw new Exception("无法创建文件");
+          try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+            AppDataManager.exportZip(out);
+          }
+        } else {
+          File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+          if (!dir.exists()) dir.mkdirs();
+          File file = new File(dir, fileName);
+          try (FileOutputStream out = new FileOutputStream(file)) {
+            AppDataManager.exportZip(out);
+          }
+          android.media.MediaScannerConnection.scanFile(this,
+                  new String[] {file.getAbsolutePath()}, new String[] {"application/zip"}, null);
+        }
+        mainHandler.post(() -> Toast.makeText(this, "已导出到 Download/" + fileName, Toast.LENGTH_LONG).show());
       } catch (Exception e) {
         Log.e(TAG, "export failed", e);
         final String msg = e.getMessage();
@@ -149,12 +188,17 @@ public class AppDataActivity extends SMTHBaseActivity {
     new Thread(() -> {
       try (InputStream in = getContentResolver().openInputStream(uri)) {
         if (in == null) throw new Exception("无法读取文件");
-        AppDataManager.ImportInfo info = AppDataManager.importFrom(in);
+        AppDataManager.ImportInfo info = AppDataManager.importZip(in);
         mainHandler.post(() -> {
-          Toast.makeText(this,
-              "导入成功：设置 " + info.settingCount + " 项，时间缓存 " + info.timeRecordCount + " 条",
-              Toast.LENGTH_LONG).show();
-          refreshStats();
+          // 全量恢复设置后，很多界面在启动时才读入内存，需重启才能完全生效
+          new androidx.appcompat.app.AlertDialog.Builder(this)
+              .setTitle("导入成功")
+              .setMessage("已恢复设置 " + info.settingCount + " 项、时间缓存 " + info.timeRecordCount
+                  + " 条。\n\n部分设置需要重启应用才能生效，是否立即重启？")
+              .setPositiveButton("立即重启", (d, w) -> restartApp())
+              .setNegativeButton("稍后", (d, w) -> refreshStats())
+              .setCancelable(false)
+              .show();
         });
       } catch (Exception e) {
         Log.e(TAG, "import failed", e);
@@ -162,6 +206,23 @@ public class AppDataActivity extends SMTHBaseActivity {
         mainHandler.post(() -> Toast.makeText(this, "导入失败：" + msg, Toast.LENGTH_LONG).show());
       }
     }).start();
+  }
+
+  /** 重启应用：用 AlarmManager 延迟拉起启动页，再杀掉当前进程，确保设置全部重新加载 */
+  private void restartApp() {
+    Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+    if (launch != null) {
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+      android.app.PendingIntent pi = android.app.PendingIntent.getActivity(
+          this, 0, launch, android.app.PendingIntent.FLAG_UPDATE_CURRENT
+              | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? android.app.PendingIntent.FLAG_IMMUTABLE : 0));
+      android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+      if (am != null) {
+        am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 500, pi);
+      }
+    }
+    android.os.Process.killProcess(android.os.Process.myPid());
+    System.exit(0);
   }
 
   private void cleanOld() {
