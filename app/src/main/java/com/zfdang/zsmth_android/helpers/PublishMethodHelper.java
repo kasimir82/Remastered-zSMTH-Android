@@ -107,11 +107,12 @@ public final class PublishMethodHelper {
 
     // 只处理非换行字符；原文换行视为段落分隔，转成竖排时用分隔符
     String normalized = text.replace("\r\n", "\n").replace("\r", "\n");
-    // 去掉换行，作为连续字符流（竖排里段落感用空列体现较弱，这里简化）
+    // 去掉换行，并把半角字符(英文/数字/标点/空格)转成全角，
+    // 让每个字符都占一个中文宽度，│格子才能对齐
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < normalized.length(); i++) {
       char c = normalized.charAt(i);
-      if (c != '\n') sb.append(c);
+      if (c != '\n') sb.append(toFullWidth(c));
     }
     String chars = sb.toString();
     if (chars.isEmpty()) return text;
@@ -148,6 +149,16 @@ public final class PublishMethodHelper {
       if (row < maxRows - 1) out.append("\n");
     }
     return out.toString();
+  }
+
+  /**
+   * 半角字符转全角：ASCII 空格(0x20)→全角空格(U+3000)，其它可打印 ASCII(0x21~0x7E)→+0xFEE0。
+   * 中文、全角、其它字符原样返回。用于竖排时让英文/数字/标点/空格与中文等宽。
+   */
+  private static char toFullWidth(char c) {
+    if (c == ' ') return '\u3000';
+    if (c >= 0x21 && c <= 0x7E) return (char) (c + 0xFEE0);
+    return c;
   }
 
   /** 渲染文字为图片的参数 */
