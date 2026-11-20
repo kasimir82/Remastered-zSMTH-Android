@@ -91,6 +91,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
   private boolean isRetriedPublish;
   // 触发敏感词时的原始正文（转换失败/取消时可恢复）
   private String blockedOriginalContent;
+  // 长按「强制敏感词方式回复」进来：先让用户输入内容，点发送时弹方式窗而不真正发布
+  private boolean forceSensitiveMode;
 
   private File cameraAttachment;
   private boolean importingImages;
@@ -400,14 +402,22 @@ public class ComposePostActivity extends SMTHBaseActivity {
       mContent.setSelection(0);
     }
 
-    // 「强制敏感词方式回复」：从长按菜单进来时，正文已按引用格式填好，直接弹方式选择弹窗
+    // 「强制敏感词方式回复」：从长按菜单进来，正文已按引用格式填好。
+    // 此时还不知道用户想回什么内容，不再直接弹方式窗；
+    // 改为让用户先输入回复，点发送时拦截并弹 JPG/竖排选择窗。
     if (getIntent().getBooleanExtra("force_sensitive", false)) {
-      blockedOriginalContent = mContent.getText().toString();
+      forceSensitiveMode = true;
+      // 光标定位到引用分界线上方（用户输入区），方便直接打字
+      String content = mContent.getText().toString();
+      int marker = content.indexOf(com.zfdang.zsmth_android.helpers.PublishMethodHelper.QUOTE_MARKER);
+      final int pos = marker >= 0 ? marker : 0;
       mContent.post(new Runnable() {
         @Override public void run() {
-          showPublishMethodDialog();
+          mContent.setSelection(pos);
+          mContent.requestFocus();
         }
       });
+      Toast.makeText(this, "请输入回复内容，完成后点发送选择发布方式", Toast.LENGTH_LONG).show();
     }
   }
 
@@ -446,6 +456,19 @@ public class ComposePostActivity extends SMTHBaseActivity {
   }
 
   public void publishPost() {
+    // 长按「强制敏感词方式回复」进来：点发送不是真发布，而是保存当前输入后弹方式选择窗
+    if (forceSensitiveMode) {
+      String content = mContent.getText().toString();
+      com.zfdang.zsmth_android.helpers.PublishMethodHelper.SplitResult split =
+          com.zfdang.zsmth_android.helpers.PublishMethodHelper.split(content);
+      if (split.userText.trim().isEmpty()) {
+        Toast.makeText(this, "请先输入回复内容", Toast.LENGTH_SHORT).show();
+        return;
+      }
+      blockedOriginalContent = content;
+      showPublishMethodDialog();
+      return;
+    }
     // 用户主动点发送：这是一次全新发布，重置「转换后重试」标记
     isRetriedPublish = false;
     doPublishPost();
@@ -502,6 +525,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
   /** 方式①：用户输入转 JPG 图片，作为附件；正文只保留引用块(+简短说明) */
   private void publishAsJpg() {
+    // 转换完成后退出「强制敏感词模式」，使用户再次点发送时真正发布，而不是重复弹方式窗
+    forceSensitiveMode = false;
     // 敏感词拦截后用保存的原文转换，避免依赖已被改动的编辑框
     String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
         ? blockedOriginalContent : mContent.getText().toString();
@@ -553,6 +578,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
   /** 方式②：用户输入转竖排诗歌风格文本，保留引用块 */
   private void publishAsVertical() {
+    // 转换完成后退出「强制敏感词模式」，使用户再次点发送时真正发布，而不是重复弹方式窗
+    forceSensitiveMode = false;
     String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
         ? blockedOriginalContent : mContent.getText().toString();
     isRetriedPublish = true;
@@ -561,7 +588,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
       Toast.makeText(this, "没有可转换的正文内容", Toast.LENGTH_SHORT).show();
       return;
     }
-    // 竖排 + 每字间随机插入 1~2 个全角下划线，打断敏感词连续匹配
+    // 转成竖排文本（已去除无用的下划线填充）
     String vertical = PublishMethodHelper.toVerticalWithFillers(split.userText);
     // 引用块只保留「大作中提到」行 + …，去掉可能含敏感词的引用正文
     String quote = split.hasQuote ? "\n" + PublishMethodHelper.abbreviateQuote(split.quotePart) : "";

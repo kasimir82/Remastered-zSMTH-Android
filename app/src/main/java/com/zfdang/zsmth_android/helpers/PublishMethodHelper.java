@@ -25,7 +25,7 @@ import java.util.List;
  */
 public final class PublishMethodHelper {
   private static final String TAG = "PublishMethod";
-  private static final String QUOTE_MARKER = "大作中提到";
+  public static final String QUOTE_MARKER = "大作中提到";
 
   private PublishMethodHelper() {}
 
@@ -261,12 +261,16 @@ public final class PublishMethodHelper {
     return sb.toString();
   }
 
-  /** 竖排 + 下划线填充：先插入填充符，再按插入后的字数计算列宽并竖排化 */
+  /**
+   * 竖排文本生成（不再插入下划线填充）。
+   * 之前会在字间插入全角下划线试图打断敏感词，但实际无用（竖排的 │ 格子本身已隔开字符），
+   * 反而让文本变长难读，故去掉。保留原方法名以免改动调用点。
+   */
   public static String toVerticalWithFillers(String text) {
-    String filled = insertFillers(text);
-    int charCount = filled.replace("\n", "").replace("\r", "").length();
+    if (text == null || text.trim().isEmpty()) return text;
+    int charCount = text.replace("\n", "").replace("\r", "").length();
     int perCol = Math.max(3, (int) Math.ceil(charCount / 14.0));
-    return toVerticalPoem(filled, perCol);
+    return toVerticalPoem(text, perCol);
   }
 
   /**
