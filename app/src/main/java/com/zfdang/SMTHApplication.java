@@ -79,6 +79,11 @@ public class SMTHApplication extends Application {
     super.onCreate();
     SMTHApplication.context = getApplicationContext();
 
+    // 全新启动 app（进程新建）时清除本地保存的登录受限状态，让本次可以直接登录。
+    // 只在冷启动走这里一次；切后台再回来不会重新执行 onCreate。
+    // 真正的限制仍由水木服务端判定，这里只清本地的记住状态。
+    com.zfdang.zsmth_android.helpers.LoginThrottle.clearRestriction();
+
     // init IP lookup database
     geoDB = new GEODatabase(this);
 

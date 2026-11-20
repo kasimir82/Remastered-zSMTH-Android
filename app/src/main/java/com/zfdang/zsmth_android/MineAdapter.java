@@ -128,8 +128,9 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         userName.setText("登录受限");
         userName.setTextColor(userName.getContext().getResources()
             .getColor(com.zfdang.zsmth_android.R.color.login_restricted_warn));
-        userHint.setText("服务器未能登录：" + hint[0] + "\n" + hint[1]);
-        userHint.setMaxLines(3);
+        // 倒计时放最前面，避免长原因文字把它挤出可见区域
+        userHint.setText(hint[1] + "\n原因：" + hint[0]);
+        userHint.setMaxLines(5);
         userHint.setTextColor(userHint.getContext().getResources()
             .getColor(com.zfdang.zsmth_android.R.color.login_restricted_warn));
         loginAction.setText("重试");
