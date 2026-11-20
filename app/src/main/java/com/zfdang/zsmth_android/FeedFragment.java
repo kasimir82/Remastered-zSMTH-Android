@@ -295,7 +295,10 @@ public class FeedFragment extends Fragment {
   /** 单个版面：按智能预读策略串行加载多页（含当天就继续，到上限或无当天就停） */
   private ObservableSource<List<Topic>> fetchBoardTopics(final Board board) {
     final boolean byReply = Settings.getInstance().getFeedSortMode() == Settings.SORT_BY_LAST_REPLY;
-    return fetchBoardPagesRecursive(board, 1, new ArrayList<Topic>(), byReply)
+    // 按回复排序：服务端已按最后回复倒序，每个版面只读第一页即可，不预读多页
+    // 按发帖排序：服务端是按回复排的，才需要预读多页后本地重排
+    final boolean preload = !byReply;
+    return fetchBoardPagesRecursive(board, 1, new ArrayList<Topic>(), byReply, preload)
         .onErrorReturn(new Function<Throwable, List<Topic>>() {
           @Override public List<Topic> apply(Throwable throwable) {
             Log.e(TAG, "fetch " + board.getBoardEngName() + ": " + throwable.getMessage());
@@ -304,9 +307,9 @@ public class FeedFragment extends Fragment {
         });
   }
 
-  /** 递归串行加载第 page 页，累积到 accumulated，按「是否含当天」与上限决定是否继续 */
+  /** 串行加载第 page 页，累积到 accumulated；preload=false 时只读这一页 */
   private Observable<List<Topic>> fetchBoardPagesRecursive(final Board board, final int page,
-      final List<Topic> accumulated, final boolean byReply) {
+      final List<Topic> accumulated, final boolean byReply, final boolean preload) {
     return SMTHHelper.getInstance().wService.getBoardTopicsByPage(board.getBoardEngName(), String.valueOf(page))
         .subscribeOn(Schedulers.io())
         .flatMap(new Function<ResponseBody, ObservableSource<List<Topic>>>() {
@@ -323,9 +326,10 @@ public class FeedFragment extends Fragment {
               if (topic.isWithinLastDays(FEED_SMART_LOAD_DAYS, byReply)) hasToday = true;
             }
             Log.d(TAG, "fetch " + board.getBoardEngName() + " page " + page
-                + ": added=" + added + " hasToday=" + hasToday + " byReply=" + byReply);
-            if (page < FEED_SMART_LOAD_MAX_PAGES && hasToday) {
-              return fetchBoardPagesRecursive(board, page + 1, accumulated, byReply);
+                + ": added=" + added + " hasToday=" + hasToday + " byReply=" + byReply
+                + " preload=" + preload);
+            if (preload && page < FEED_SMART_LOAD_MAX_PAGES && hasToday) {
+              return fetchBoardPagesRecursive(board, page + 1, accumulated, byReply, preload);
             }
             Log.d(TAG, "fetch " + board.getBoardEngName() + " stop at page " + page
                 + " total=" + accumulated.size());

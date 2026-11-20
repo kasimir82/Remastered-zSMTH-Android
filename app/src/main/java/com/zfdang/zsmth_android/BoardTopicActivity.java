@@ -102,7 +102,7 @@ public class BoardTopicActivity extends SMTHBaseActivity
         if (requestCode == ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE) {
             // returned from compose activity
             // ideally, we should also check the resultCode
-            RefreshBoardTopicFromPageOne();
+            refreshBoard();
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
@@ -176,8 +176,9 @@ public class BoardTopicActivity extends SMTHBaseActivity
 
         if (TopicListContent.BOARD_TOPICS.size() == 0) {
             // only load boards on the first time
-            // 两种排序模式都走全局加载（智能停止 + 上限），舍弃分页符
-            if (!isSearchMode) {
+            // 按回复排序：服务端已按最后回复倒序，直接普通分页加载即可
+            // 按发帖排序：服务端是按回复排的，才需要预读多页后本地全局重排
+            if (!isSearchMode && mSetting.getTopicSortMode() == Settings.SORT_BY_PUBLISH_TIME) {
                 loadAllPagesAndSortGlobally();
             } else {
                 RefreshBoardTopicsWithoutClear();
@@ -198,9 +199,9 @@ public class BoardTopicActivity extends SMTHBaseActivity
             return true;
         } else if (id == R.id.board_topic_action_sticky) {
             mSetting.toggleShowSticky();
-            this.RefreshBoardTopicFromPageOne();
+            this.refreshBoard();
         } else if (id == R.id.board_topic_action_refresh) {
-            this.RefreshBoardTopicFromPageOne();
+            this.refreshBoard();
         } else if (id == R.id.board_topic_action_newpost) {
             ComposePostContext postContext = new ComposePostContext();
             postContext.setBoardEngName(mBoard.getBoardEngName());
@@ -276,7 +277,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
         if (isSearchMode || mSwipeRefreshLayout.isRefreshing() || pDialog.isShowing()) {
             return;
         }
-        // 两种排序模式都一次性加载全部并全局排序，禁用分页加载(且列表无分页符)
+        // 按发帖排序是一次性全局排序(无分页符)，禁用分页加载；
+        // 按回复排序走普通分页，允许上拉加载下一页
         if (mLoadingAllForSort || mGlobalSortMode) {
             return;
         }
@@ -290,7 +292,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
     public void onRefresh() {
         // this method is slightly different with RefreshBoardTopicFromPageOne
         // this method does not alert since it's triggered by SwipeRefreshLayout
-        if (!isSearchMode) {
+        if (!isSearchMode && mSetting.getTopicSortMode() == Settings.SORT_BY_PUBLISH_TIME) {
+            // 按发帖排序才需要预读+全局重排
             mTotalPagesReachedLimit = false;
             loadAllPagesAndSortGlobally();
             if (mSwipeRefreshLayout.isRefreshing()) mSwipeRefreshLayout.setRefreshing(false);
@@ -300,6 +303,16 @@ public class BoardTopicActivity extends SMTHBaseActivity
         TopicListContent.clearBoardTopics();
         mRecyclerView.getAdapter().notifyDataSetChanged();
         LoadBoardTopics();
+    }
+
+    /** 按当前排序模式刷新：回复=普通分页重取第一页；发帖=预读全局重排 */
+    private void refreshBoard() {
+        if (!isSearchMode && mSetting.getTopicSortMode() == Settings.SORT_BY_PUBLISH_TIME) {
+            mTotalPagesReachedLimit = false;
+            loadAllPagesAndSortGlobally();
+        } else {
+            RefreshBoardTopicFromPageOne();
+        }
     }
 
     public void RefreshBoardTopicFromPageOne() {
@@ -553,9 +566,14 @@ public class BoardTopicActivity extends SMTHBaseActivity
                         return;
                     }
                     mSetting.setTopicSortMode(which);
-                    // 两种模式都全局加载(智能停止+上限)，舍弃分页符
-                    mTotalPagesReachedLimit = false;
-                    loadAllPagesAndSortGlobally();
+                    if (which == Settings.SORT_BY_PUBLISH_TIME) {
+                        // 按发帖排序：预读多页后本地全局重排
+                        mTotalPagesReachedLimit = false;
+                        loadAllPagesAndSortGlobally();
+                    } else {
+                        // 切回最后回复：服务端已按回复倒序，重新取第一页恢复分页即可
+                        RefreshBoardTopicFromPageOne();
+                    }
                 }
             })
             .setNegativeButton("取消", null)
