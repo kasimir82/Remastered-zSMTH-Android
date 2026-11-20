@@ -32,7 +32,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        android:text="① 转成 PNG 图片附件发送"
+        android:text="① 转成验证码风格图片发送"
         android:textAllCaps="false" />
 
     <Button

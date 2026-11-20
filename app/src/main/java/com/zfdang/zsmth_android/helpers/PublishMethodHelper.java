@@ -4,7 +4,10 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.text.TextPaint;
 import android.util.Log;
 
@@ -12,6 +15,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * DEBUG 测试用的「敏感词绕过」发布方式工具：
@@ -248,6 +252,113 @@ public final class PublishMethodHelper {
       }
       bitmap.recycle();
     }
+    return result;
+  }
+
+  /**
+   * Captcha 风格图片（中度扭曲）：逐字符随机旋转/缩放 + 黑体楷体混排 + 干扰曲线 + 噪点，
+   * 每行最多 CAPTCHA_COLS 个中文字，JPEG quality=10 压缩。用于绕过站方图片文字识别。
+   */
+  private static final int CAPTCHA_COLS = 7;
+  private static final int CAPTCHA_FONT = 44;
+  private static final int CAPTCHA_PAD = 20;
+  private static final int CAPTCHA_LINE_H = CAPTCHA_FONT + 16;
+
+  public static ImageResult textToCaptchaImages(Context context, String text) {
+    ImageResult result = new ImageResult();
+    if (text == null || text.trim().isEmpty()) return result;
+
+    // 按每行 CAPTCHA_COLS 个中文字切行
+    List<String> lines = new ArrayList<>();
+    String flat = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "");
+    for (int i = 0; i < flat.length(); i += CAPTCHA_COLS) {
+      lines.add(flat.substring(i, Math.min(i + CAPTCHA_COLS, flat.length())));
+    }
+    if (lines.isEmpty()) return result;
+
+    Random rnd = new Random(text.hashCode()); // 同文本可复现
+
+    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    paint.setTextSize(CAPTCHA_FONT);
+    Typeface heiti = Typeface.create("sans-serif", Typeface.NORMAL);
+    Typeface kaiti = Typeface.create("serif", Typeface.NORMAL); // 近似楷体/手写感
+    paint.setTypeface(heiti);
+
+    Rect bounds = new Rect();
+    paint.getTextBounds("测", 0, 1, bounds);
+    float charW = paint.measureText("测");
+
+    int w = CAPTCHA_PAD * 2 + (int) (charW * CAPTCHA_COLS) + 12;
+    int h = CAPTCHA_PAD * 2 + CAPTCHA_LINE_H * lines.size();
+
+    File dir = new File(context.getCacheDir(), "attachments");
+    if (!dir.exists() && !dir.mkdirs()) {
+      Log.e(TAG, "cannot create captcha attachments dir");
+      return result;
+    }
+
+    Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
+    Canvas canvas = new Canvas(bitmap);
+    canvas.drawColor(Color.WHITE);
+
+    for (int li = 0; li < lines.size(); li++) {
+      String line = lines.get(li);
+      float baselineY = CAPTCHA_PAD + CAPTCHA_FONT * 0.85f + li * CAPTCHA_LINE_H;
+      float x = CAPTCHA_PAD;
+      for (int i = 0; i < line.length(); i++) {
+        char c = line.charAt(i);
+        float rot = (rnd.nextFloat() * 2 - 1) * 18f;      // ±18°
+        float scale = 1f + (rnd.nextFloat() * 2 - 1) * 0.18f;
+        float dy = (rnd.nextFloat() * 2 - 1) * 6f;
+
+        canvas.save();
+        Matrix m = new Matrix();
+        m.postTranslate(x + charW / 2f, baselineY + dy);
+        m.postRotate(rot);
+        m.postScale(scale, scale);
+        m.postTranslate(-charW / 2f, 0);
+        canvas.concat(m);
+        paint.setTypeface(rnd.nextBoolean() ? kaiti : heiti);
+        int shade = 20 + rnd.nextInt(40);
+        paint.setColor(Color.rgb(shade, shade, shade));
+        canvas.drawText(String.valueOf(c), 0, 0, paint);
+        canvas.restore();
+
+        x += charW * (0.92f + rnd.nextFloat() * 0.16f); // 字间距轻微波动
+      }
+    }
+
+    // 3 条二次贝塞尔干扰曲线
+    Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    linePaint.setStyle(Paint.Style.STROKE);
+    linePaint.setStrokeWidth(1f);
+    android.graphics.Path path = new android.graphics.Path();
+    for (int i = 0; i < 3; i++) {
+      int y1 = rnd.nextInt(h), y2 = rnd.nextInt(h), yc = rnd.nextInt(h);
+      path.reset();
+      path.moveTo(CAPTCHA_PAD, y1);
+      path.quadTo(w / 2f, yc, w - CAPTCHA_PAD, y2);
+      int shade = 80 + rnd.nextInt(120);
+      linePaint.setColor(Color.argb(160, shade, shade, shade));
+      canvas.drawPath(path, linePaint);
+    }
+
+    // 1000 个噪点
+    for (int i = 0; i < 1000; i++) {
+      int px = rnd.nextInt(w), py = rnd.nextInt(h);
+      bitmap.setPixel(px, py, rnd.nextBoolean() ? Color.BLACK : Color.LTGRAY);
+    }
+
+    File file = new File(dir, "captcha-" + java.util.UUID.randomUUID().toString().replace("-", "") + ".jpg");
+    try (FileOutputStream out = new FileOutputStream(file)) {
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 10, out); // Q10
+      out.flush();
+      result.files.add(file);
+      Log.d(TAG, "captcha image: " + w + "x" + h + " lines=" + lines.size() + " size=" + file.length());
+    } catch (Exception e) {
+      Log.e(TAG, "save captcha failed", e);
+    }
+    bitmap.recycle();
     return result;
   }
 

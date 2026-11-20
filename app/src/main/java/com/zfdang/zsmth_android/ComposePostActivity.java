@@ -404,16 +404,15 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
     // 「强制敏感词方式回复」：从长按菜单进来，正文已按引用格式填好。
     // 此时还不知道用户想回什么内容，不再直接弹方式窗；
-    // 改为让用户先输入回复，点发送时拦截并弹 PNG/竖排选择窗。
+    // 改为让用户先输入回复，点发送时拦截并弹 验证码图片/竖排 选择窗。
     if (getIntent().getBooleanExtra("force_sensitive", false)) {
       forceSensitiveMode = true;
-      // 光标定位到引用分界线上方（用户输入区），方便直接打字
-      String content = mContent.getText().toString();
-      int marker = content.indexOf(com.zfdang.zsmth_android.helpers.PublishMethodHelper.QUOTE_MARKER);
-      final int pos = marker >= 0 ? marker : 0;
+      // 光标定位到输入区最前面(position 0)：引用内容全是": "开头的行且在其下方，
+      // 之前用 QUOTE_MARKER("大作中提到")找位置会落到引文中间，导致光标乱跑。
       mContent.post(new Runnable() {
         @Override public void run() {
-          mContent.setSelection(pos);
+          mContent.setSelection(0);
+          mContent.setFocusableInTouchMode(true);
           mContent.requestFocus();
         }
       });
@@ -474,7 +473,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     doPublishPost();
   }
 
-  /** 敏感词拦截后的发布方式选择弹窗（按钮式，PNG / 竖排） */
+  /** 敏感词拦截后的发布方式选择弹窗（按钮式，验证码图片 / 竖排） */
   private void showPublishMethodDialog() {
     View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
     final AlertDialog dialog = new AlertDialog.Builder(this)
@@ -483,7 +482,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
         .create();
 
     v.findViewById(R.id.pm_btn_jpg).setOnClickListener(x -> {
-      flowLog("USER CHOICE = PNG");
+      flowLog("USER CHOICE = CAPTCHA IMAGE");
       dialog.dismiss();
       publishAsJpg();
     });
@@ -500,7 +499,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     dialog.show();
   }
 
-  /** 方式①：用户输入转 PNG 图片，作为附件；正文只保留引用块(+简短说明) */
+  /** 方式①：用户输入转 captcha 风格图片，作为附件；正文只保留引用块(+简短说明) */
   private void publishAsJpg() {
     // 转换完成后退出「强制敏感词模式」，使用户再次点发送时真正发布，而不是重复弹方式窗
     forceSensitiveMode = false;
@@ -513,20 +512,21 @@ public class ComposePostActivity extends SMTHBaseActivity {
       Toast.makeText(this, "没有可转换的正文内容", Toast.LENGTH_SHORT).show();
       return;
     }
-    // 文字渲染成图片（横排每行14字，每页最多20行，JPEG Q10）
+    // 文字渲染成 captcha 风格图片（每行7字、扭曲混淆、JPEG Q10）
     PublishMethodHelper.ImageResult imgs =
-        PublishMethodHelper.textToImages(this, split.userText, 20);
+        PublishMethodHelper.textToCaptchaImages(this, split.userText);
     if (imgs.files.isEmpty()) {
       Toast.makeText(this, "生成图片失败", Toast.LENGTH_SHORT).show();
       return;
     }
     if (mPhotos == null) mPhotos = new ArrayList<>();
-    // 先移除之前转换生成的图片(text-image-*)，避免重发时累积/同名冲突 1205
+    // 先移除之前转换生成的图片(text-image-* / captcha-*)，避免重发时累积/同名冲突 1205
     java.util.Iterator<String> it = mPhotos.iterator();
     while (it.hasNext()) {
       String p = it.next();
-      if (p != null && new File(p).getName().startsWith("text-image-")) {
-        it.remove();
+      if (p != null) {
+        String name = new File(p).getName();
+        if (name.startsWith("text-image-") || name.startsWith("captcha-")) it.remove();
       }
     }
     // 最多5个附件，留位置给新图
@@ -546,7 +546,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     // 正文：用户输入替换为简短说明，引用块只保留「大作中提到」行 + …
     String newContent = "(正文见图片附件)\n" + PublishMethodHelper.abbreviateQuote(split.quotePart);
     mContent.setText(newContent);
-    flowLog("===== PNG RESULT =====");
+    flowLog("===== CAPTCHA RESULT =====");
     flowLog("images=" + added + " originalUserText=" + split.userText);
     flowLog("newContent=" + newContent);
     Toast.makeText(this, "已生成 " + added + " 张图片附件，请检查后点发送", Toast.LENGTH_LONG).show();
@@ -618,6 +618,17 @@ public class ComposePostActivity extends SMTHBaseActivity {
     final boolean bCompress = this.mCompress.isChecked();
     Observable<AjaxResponse> resp1 = Observable.fromIterable(mPhotos).map(new Function<String, BytesContainer>() {
       @Override public BytesContainer apply(@NonNull String filename) throws Exception {
+        // captcha 图已是 JPEG Q10，直接用原始字节上传，避免被 saveBitmapToFile 以 Q85 重编码放大
+        if (new File(filename).getName().startsWith("captcha-")) {
+          java.io.File cf = new java.io.File(filename);
+          byte[] raw = new byte[(int) cf.length()];
+          try (java.io.FileInputStream fis = new java.io.FileInputStream(cf)) {
+            int off = 0;
+            int n;
+            while (off < raw.length && (n = fis.read(raw, off, raw.length - off)) > 0) off += n;
+          }
+          return new BytesContainer(filename, raw);
+        }
         byte[] bytes = SMTHHelper.getBitmapBytesWithResize(filename, bCompress);
         return new BytesContainer(filename, bytes);
       }
