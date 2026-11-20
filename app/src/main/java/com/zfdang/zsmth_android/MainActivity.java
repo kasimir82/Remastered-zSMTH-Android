@@ -299,6 +299,8 @@ public class MainActivity extends SMTHBaseActivity
         runOnUiThread(() -> {
           mUsername.setText(getString(R.string.nav_header_click_to_login));
           mAvatar.setImageResource(R.drawable.ic_person_black_48dp);
+          // 登出/登录失效时同步刷新「我的」页顶端账号区域
+          if (mineFragment != null) mineFragment.refreshUserInfo();
         });
       }
     });

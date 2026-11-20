@@ -165,8 +165,10 @@ public class MaintainUserStatusWorker extends Worker {
                 }
 
                 UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
-                // send notification: 1. new message 2. new activeUser to update Sidebar status
-                if ((updateUserIcon || message.length() > 0) && receiver != null) {
+                // 每次检查完成都通知 UI 刷新：
+                // 登录成功后若 updateUserIcon=false 且无新消息，之前不会发通知，
+                // 导致「我的」页顶端账号区域不刷新。这里无条件发送，保证登录态变化时 UI 同步。
+                if (receiver != null) {
                     //Log.d(TAG, "4.2 cached user, valid message, valid receiver, send message");
                     Bundle bundle = new Bundle();
                     if (message.length() > 0) {
