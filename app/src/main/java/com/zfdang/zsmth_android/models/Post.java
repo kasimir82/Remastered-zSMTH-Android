@@ -346,11 +346,8 @@ public class Post {
   */
   private String parsePostPureContentFormat(String content) {
     // &nbsp; is converted as code=160, but not a whitespace (ascii=32)
-    // http://stackoverflow.com/questions/4728625/why-trim-is-not-working
     content = content.replace(String.valueOf((char) 160), " ");
 
-    // it's important to know that not all HTML tags are supported by Html.fromHtml, see the supported list
-    // https://commonsware.com/blog/Android/2010/05/26/html-tags-supported-by-textview.html
     String[] lines = content.split("\n");
 
     // find signature start line
@@ -358,33 +355,30 @@ public class Post {
     for (int i = lines.length - 1; i >= 0; i--) {
       String line = lines[i];
       if (line.startsWith("--") && line.length() <= 3) {
-        // find the first "--" from the last to the first
         signatureStartLine = i;
         break;
       }
     }
 
-    // process content line by line
-    StringBuilder sb = new StringBuilder();
+    // ===== 三块分离：正文 / 引文标题 / 引文内容(折叠) =====
+    StringBuilder body = new StringBuilder();       // 正文
+    StringBuilder quoteHeader = new StringBuilder(); // 【 在 xxx 的大作中提到: 】
+    StringBuilder quoteContent = new StringBuilder();// : 引文行，折叠区
+    StringBuilder sourceLine = new StringBuilder();  // 来源/修改行(放最后)
     int linebreak = 0;
     int signatureMode = 0;
+
     for (int i = 0; i < lines.length; i++) {
       String line = lines[i];
 
+      // 头部信息(发信人/标题/发信站)解析，跳过
       if ((line.startsWith("发信人:") || line.startsWith("寄信人:")) && i <= 3) {
-        // find nickname for author here, skip the line
-        // 发信人: schower (schower), 信区: WorkLife
         String nickName = StringUtils.subStringBetween(line, "(", ")");
-        if (nickName != null && nickName.length() > 0) {
-          this.setNickName(nickName);
-        }
+        if (nickName != null && nickName.length() > 0) this.setNickName(nickName);
         continue;
       } else if (line.startsWith("标  题:") && i <= 3) {
-        // skip this line
         continue;
       } else if (line.startsWith("发信站:") && i <= 3) {
-        // find post date here, skip the line
-        // <br /> 发信站: 水木社区 (Fri Mar 25 11:52:04 2016), 站内
         line = StringUtils.subStringBetween(line, "(", ")");
         SimpleDateFormat simpleFormat = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy", Locale.US);
         try {
@@ -396,138 +390,123 @@ public class Post {
         }
       }
 
-      // handle ATTACH_MARK
+      // 附件标记：跟正文走
       if (line.contains(ATTACHMENT_MARK)) {
-        sb.append(line);
-        continue;
-      }
-
-      // 「在 XXX 的大作中提到: 」标题行：用与折叠引文提示相同的灰色显示，
-      // 视觉上和下面的「▶ 展开引文」归为一组。
-      if (line.contains("的大作中提到")) {
-        // 有些帖子正文与引文标题挤在同一行(如"正文【 在 xxx 的大作中提到: 】")，
-        // 把标题前面的正文拆出来单独输出，否则整行会被染成引文色且没换行。
-        String headerLine = line;
-        boolean wasSameLine = false; // 正文与标题原本是否挤在同一行
-        int qIdx = line.indexOf("【 在");
-        if (qIdx > 0) {
-          String bodyPrefix = line.substring(0, qIdx).trim();
-          if (!bodyPrefix.isEmpty()) {
-            while (sb.toString().endsWith("<br />")) {
-              sb.setLength(sb.length() - "<br />".length());
-            }
-            sb.append(bodyPrefix);
-            wasSameLine = true;
-          }
-          headerLine = line.substring(qIdx);
-        }
-        while (sb.toString().endsWith("<br />")) {
-          sb.setLength(sb.length() - "<br />".length());
-        }
-        // 原本分行的：只补一个 <br /> 即形成"空一行"(补两个会空两行，间距过大)；
-        // 原本同行的：没有现成换行，需补两个才能换行并空一行。
-        if (sb.length() > 0) sb.append(wasSameLine ? "<br /><br />" : "<br />");
-        sb.append("<font color=").append(QUOTE_HEADER_HTML_COLOR).append(">")
-            .append(headerLine).append("</font><br />");
-        continue;
-      }
-
-      // handle quoted content: 连续的冒号引文行收成一个块, 之后拆成可折叠的段
-      if (line.startsWith(":")) {
-        // 正文段与引文段会渲染成两个独立 TextView（块级上下排列），
-        // 正文段末尾残留的 <br /> 会在它内部渲染出一个多余空行，全部去掉。
-        // 旧代码只匹配 <br /><br />，但实际数据常是「大作中提到<br />:引文」(单个)，
-        // 导致空行残留。
-        while (sb.toString().endsWith("<br />")) {
-          sb.setLength(sb.length() - "<br />".length());
-        }
-        StringBuilder quoteBlock = new StringBuilder();
-        while (i < lines.length && lines[i].startsWith(":")) {
-          quoteBlock.append("<font color=#00B4AE>").append(lines[i]).append("</font><br />");
-          i++;
-        }
-        i--; // 外层 for 还会 i++
-        sb.append(QUOTE_MARK).append(quoteBlock).append(QUOTE_MARK);
-        // 引文在前、正文在后：引文块被拆成独立段，段首的 <br /> 会在正文 TextView 里
-        // 渲染成空行。探测下一个非空行是否为正文(非来源/修改行、非引文)，是则补一个空行。
-        int next = i + 1;
-        while (next < lines.length && lines[next].trim().isEmpty()) next++;
-        if (next < lines.length) {
-          String nx = lines[next].trim();
-          if (!nx.startsWith(":") && !nx.startsWith("※ 来源") && !nx.startsWith("※ 修改")
-              && !nx.startsWith("--")) {
-            sb.append("<br />");
-          }
-        }
-        continue;
-      }
-
-      if (line.trim().length() == 0) {
-        // 签名区内的空行一并跳过，避免残留空白
-        if (signatureMode == 1) continue;
-        linebreak++;
-        if (linebreak >= 2) {
-          // continuous linebreak, skip extra linebreak
-          continue;
-        } else {
-          sb.append(line).append("<br />");
-          continue;
-        }
-      } else {
-        // reset counter
+        body.append(line);
         linebreak = 0;
+        continue;
       }
 
-      // handle signature
-      // we have to make sure "--" is the last one, it might appear in post content body
+      // 签名档 "--" 分隔符：进入签名模式(隐藏签名正文，只留来源行)
       if (i == signatureStartLine) {
-        // 进入签名模式：隐藏整个签名档（含 "--" 分隔符），只保留后面的来源/修改行
         signatureMode = 1;
         continue;
       }
 
-      // ※ 来源:·水木社区 http://www.newsmth.net·[FROM: 111.203.75.*]
-      if (line.contains("※ 来源:·")) {
-        // jump out of signature mode
+      // 来源 / 修改行：单独收集，组装时放最后(引文之后)，且退出签名模式
+      if (line.contains("※ 来源:·") || line.contains("※ 修改:·")) {
         signatureMode = 0;
-        line = line.replace("·", "")
-            .replace("http://www.mysmth.net", "")
-            .replace("http://www.newsmth.net", "")
-            .replace("http://m.mysmth.net", "")
-            .replace("http://m.newsmth.net", "")
-            .replace("http://mysmth.net", "")
-            .replace("https://exp.mysmth.net", "")
-            .replace("http://newsmth.net", "")
-            .replace("mysmth.net", "")
-            .replace("newsmth.net", "")
-            .replace("m.mysmth.net", "")
-            .replace("m.newsmth.net", "")
-            .replace("官方应用", "")
-            .replace("客户端", "");
-
-        // 来源行用自定义标记包裹，ContentSegment 里转成 RelativeSizeSpan(0.5) 真正缩小一半
-        line = SMALL_MARK + "<font color=#727272>" + StringUtils.lookupIPLocation(line) + "</font>" + SMALL_MARK;
-        sb.append(line);
-        continue;
-      } else if (line.contains("※ 修改:·")) {
-        // jump out of signature mode
-        signatureMode = 0;
-        line = line.replace("·", "").replace("修改本文", "");
-        line = SMALL_MARK + "<font color=#727272>" + StringUtils.lookupIPLocation(line) + "</font>" + SMALL_MARK;
-        sb.append(line).append("<br />");
+        boolean isSource = line.contains("※ 来源:·");
+        String processed = line.replace("·", "")
+            .replace("http://www.mysmth.net", "").replace("http://www.newsmth.net", "")
+            .replace("http://m.mysmth.net", "").replace("http://m.newsmth.net", "")
+            .replace("http://mysmth.net", "").replace("https://exp.mysmth.net", "")
+            .replace("http://newsmth.net", "").replace("mysmth.net", "")
+            .replace("newsmth.net", "").replace("m.mysmth.net", "").replace("m.newsmth.net", "")
+            .replace("官方应用", "").replace("客户端", "");
+        if (!isSource) processed = processed.replace("修改本文", "");
+        processed = SMALL_MARK + "<font color=#727272>" + StringUtils.lookupIPLocation(processed) + "</font>" + SMALL_MARK;
+        sourceLine.append(processed);
+        if (!isSource) sourceLine.append("<br />");
+        linebreak = 0;
         continue;
       }
 
-      // 签名档内的正文行：全部隐藏，不 append
-      if (signatureMode == 1) {
+      if (signatureMode == 1) continue; // 签名档正文隐藏
+
+      // ===== 引文标题行(可能正文与标题挤在同一行) =====
+      if (line.contains("的大作中提到")) {
+        int qIdx = line.indexOf("【 在");
+        if (qIdx < 0) qIdx = line.indexOf("的大作中提到") - 2; // 兜底
+        if (qIdx < 0) qIdx = 0;
+        if (qIdx > 0) {
+          String bodyPrefix = line.substring(0, qIdx).trim();
+          if (!bodyPrefix.isEmpty()) appendBodyLine(body, bodyPrefix);
+        }
+        String headerLine = line.substring(Math.max(0, qIdx)).trim();
+        quoteHeader.setLength(0);
+        quoteHeader.append("<font color=").append(QUOTE_HEADER_HTML_COLOR).append(">")
+            .append(headerLine).append("</font>");
+        linebreak = 0;
         continue;
       }
 
-      // for other normal line, add it directly
-      sb.append(line).append("<br />");
+      // ===== 引文内容行(: 开头)，收集到折叠区 =====
+      if (line.startsWith(":")) {
+        quoteContent.append("<font color=#00B4AE>").append(line).append("</font><br />");
+        linebreak = 0;
+        continue;
+      }
+
+      // 空行：正文区内全部过滤掉(用户要求正文不留空白行，行与行紧贴)
+      if (line.trim().length() == 0) {
+        continue;
+      }
+      linebreak = 0;
+
+      // 普通正文行
+      appendBodyLine(body, line.trim());
     }
 
-    return sb.toString().trim();
+    // ===== 各块 trim 首尾空行/<br /> =====
+    String bodyStr = trimBr(body.toString());
+    String headerStr = trimBr(quoteHeader.toString());
+    String quoteStr = trimBr(quoteContent.toString());
+    String sourceStr = trimBr(sourceLine.toString());
+
+    // ===== 固定组装：正文 + 一行空行 + 引文标题 + 折叠引文 + 来源 =====
+    // 标题与引文紧贴、引文与来源紧贴(无空行)；只有正文与引文标题之间空一行。
+    StringBuilder out = new StringBuilder();
+    if (!bodyStr.isEmpty()) out.append(bodyStr);
+    boolean hasQuote = !headerStr.isEmpty() || !quoteStr.isEmpty();
+    if (!bodyStr.isEmpty() && hasQuote) {
+      out.append("<br /><br />"); // 正文与引文标题之间空一行
+    }
+    if (!headerStr.isEmpty()) {
+      out.append(headerStr);
+      // 有折叠引文段时，标题后不加 <br />：QUOTE_MARK 会把标题和引文拆成两个独立 TextView，
+      // 段末尾的 <br /> 会在标题段渲染出一个多余空行。无引文时才需要 <br /> 换行。
+      if (quoteStr.isEmpty()) out.append("<br />");
+    }
+    if (!quoteStr.isEmpty()) {
+      out.append(QUOTE_MARK).append(quoteStr).append(QUOTE_MARK);
+    }
+    if (!sourceStr.isEmpty()) {
+      // 同理：有折叠引文段时来源段开头不加 <br />(否则多一个空行)；
+      // 无引文时正文与来源在同一段，需要 <br /> 换行。
+      if (!hasQuote && !bodyStr.isEmpty()) out.append("<br />");
+      out.append(sourceStr);
+    }
+    return out.toString().trim();
+  }
+
+  /** 正文追加一行：非空行直接加，空行转成 <br /> */
+  private static void appendBodyLine(StringBuilder sb, String line) {
+    if (line.isEmpty()) {
+      sb.append("<br />");
+    } else {
+      sb.append(line).append("<br />");
+    }
+  }
+
+  /** 去掉字符串首尾的所有 <br /> 与空白 */
+  private static String trimBr(String s) {
+    if (s == null) return "";
+    String r = s.trim();
+    String br = "<br />";
+    while (r.startsWith(br)) r = r.substring(br.length()).trim();
+    while (r.endsWith(br)) r = r.substring(0, r.length() - br.length()).trim();
+    return r;
   }
 
   public List<ContentSegment> getContentSegments() {
