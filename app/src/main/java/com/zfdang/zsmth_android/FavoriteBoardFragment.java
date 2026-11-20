@@ -110,7 +110,20 @@ public class FavoriteBoardFragment extends Fragment {
       mRecyclerView.addItemDecoration(new DividerItemDecoration(getActivity(), LinearLayoutManager.VERTICAL, 0));
       Context context = mRecyclerView.getContext();
       mRecyclerView.setLayoutManager(new WrapContentLinearLayoutManager(context));
-      mRecyclerView.setAdapter(new BoardRecyclerViewAdapter(BoardListContent.FAVORITE_BOARDS, mListener));
+      final BoardRecyclerViewAdapter adapter =
+          new BoardRecyclerViewAdapter(BoardListContent.FAVORITE_BOARDS, mListener);
+      adapter.setDragMode(true); // 收藏夹页显示拖拽把手
+      mRecyclerView.setAdapter(adapter);
+      // 拖拽把手触发排序：拖动结束后保存当前顺序到本地
+      androidx.recyclerview.widget.ItemTouchHelper helper =
+          com.zfdang.zsmth_android.helpers.BoardDragHelper.create(adapter, new Runnable() {
+            @Override public void run() {
+              com.zfdang.zsmth_android.helpers.FavoriteBoardOrder.save(
+                  getCurrentPathInString(), BoardListContent.FAVORITE_BOARDS);
+            }
+          });
+      helper.attachToRecyclerView(mRecyclerView);
+      adapter.setItemTouchHelper(helper);
     }
 
     if (BoardListContent.FAVORITE_BOARDS.size() == 0) {
@@ -214,6 +227,10 @@ public class FavoriteBoardFragment extends Fragment {
 
       @Override public void onComplete() {
         clearLoadingHints();
+        // 按本地保存的顺序重排收藏夹栏（拖拽排序的结果）
+        com.zfdang.zsmth_android.helpers.FavoriteBoardOrder.applyOrder(
+            finalCurrentPath, BoardListContent.FAVORITE_BOARDS);
+        mRecyclerView.getAdapter().notifyDataSetChanged();
         updateFavoriteTitle();
       }
     });

@@ -11,31 +11,65 @@
     android:paddingTop="2dp"
     >
 
-  <TextView
-      android:id="@+id/CategoryName"
-      android:layout_width="fill_parent"
-      android:layout_height="wrap_content"
-      android:text="Category"
-      android:textColor="@color/board_item_category"
-      />
+  <!-- 收藏夹栏左侧删除按钮(X)：仅收藏夹页显示(adapter 里按 dragMode 控制) -->
+  <ImageView
+      android:id="@+id/board_delete_btn"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:layout_alignParentLeft="true"
+      android:layout_centerVertical="true"
+      android:padding="6dp"
+      android:src="@drawable/ic_delete_red"
+      android:visibility="gone"
+      android:contentDescription="删除收藏" />
 
-  <TextView
-      android:id="@+id/ModeratorID"
+  <!-- 文字内容区：左右留出删除按钮和拖拽把手的空间，避免重叠 -->
+  <LinearLayout
+      android:id="@+id/board_text_area"
       android:layout_width="fill_parent"
       android:layout_height="wrap_content"
-      android:gravity="right"
-      android:maxLength="25"
-      android:text="版主"
-      android:textColor="@color/board_item_moderator"
-      />
+      android:layout_toRightOf="@+id/board_delete_btn"
+      android:layout_toLeftOf="@+id/board_drag_handle"
+      android:orientation="vertical">
 
-  <TextView
-      android:id="@+id/BoardName"
-      android:layout_width="fill_parent"
-      android:layout_height="wrap_content"
-      android:layout_below="@+id/CategoryName"
-      android:text="[engBoard]chsBoard"
-      android:textColor="@color/board_item_boardname"
-      android:textSize="@dimen/zsmth_font_size_medium"
-      />
+    <TextView
+        android:id="@+id/CategoryName"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="Category"
+        android:textColor="@color/board_item_category"
+        />
+
+    <!-- 版主名改为左对齐，避免与右侧把手重叠 -->
+    <TextView
+        android:id="@+id/ModeratorID"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:gravity="left"
+        android:maxLength="25"
+        android:text="版主"
+        android:textColor="@color/board_item_moderator"
+        />
+
+    <TextView
+        android:id="@+id/BoardName"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="[engBoard]chsBoard"
+        android:textColor="@color/board_item_boardname"
+        android:textSize="@dimen/zsmth_font_size_medium"
+        />
+  </LinearLayout>
+
+  <!-- 收藏夹栏的拖拽把手：仅收藏夹页显示(adapter 里按 dragMode 控制) -->
+  <ImageView
+      android:id="@+id/board_drag_handle"
+      android:layout_width="32dp"
+      android:layout_height="32dp"
+      android:layout_alignParentRight="true"
+      android:layout_centerVertical="true"
+      android:padding="4dp"
+      android:src="@drawable/ic_drag_handle"
+      android:visibility="gone"
+      android:contentDescription="拖拽排序" />
 </RelativeLayout>

@@ -26,6 +26,33 @@ public class BoardRecyclerViewAdapter extends RecyclerView.Adapter<BoardRecycler
   private final OnBoardFragmentInteractionListener mListener;
   private BoardFilter mFilter = null;
 
+  /** 拖拽排序回调：仅收藏夹页设置，其它页(全部版面)为 null 不启用拖拽 */
+  public interface OnBoardDragListener {
+    void onBoardMoved(int fromPosition, int toPosition);
+  }
+  private OnBoardDragListener mDragListener;
+  // 拖拽模式(收藏夹页)：长按交给 ItemTouchHelper 做排序，禁用原来的"长按删除"回调
+  private boolean mDragMode = false;
+
+  private androidx.recyclerview.widget.ItemTouchHelper mItemTouchHelper;
+
+  public void setDragMode(boolean enabled) {
+    mDragMode = enabled;
+  }
+
+  /** 由 Fragment 注入 ItemTouchHelper，把手按下时调用 startDrag 触发拖动 */
+  public void setItemTouchHelper(androidx.recyclerview.widget.ItemTouchHelper helper) {
+    mItemTouchHelper = helper;
+  }
+
+  /** 供 ItemTouchHelper 拖动结束后交换数据源中的元素 */
+  public void moveItem(int from, int to) {
+    if (from < 0 || to < 0 || from >= mBoards.size() || to >= mBoards.size()) return;
+    Board item = mBoards.remove(from);
+    mBoards.add(to, item);
+    notifyItemMoved(from, to);
+  }
+
   public BoardRecyclerViewAdapter(List<Board> items, OnBoardFragmentInteractionListener listener) {
     mBoards = items;
     mListener = listener;
@@ -69,16 +96,33 @@ public class BoardRecyclerViewAdapter extends RecyclerView.Adapter<BoardRecycler
       }
     });
 
-    holder.mView.setOnLongClickListener(new View.OnLongClickListener() {
-      @Override public boolean onLongClick(View v) {
-        if (null != mListener) {
-          // Notify the active callbacks interface (the activity, if the
-          // fragment is attached to one) that an item has been selected.
-          mListener.onBoardLongClick(holder.mItem);
+    if (mDragMode) {
+      // 收藏夹页：删除转移到左侧 X 按钮，禁用整行长按(避免按住把手误触发删除)
+      holder.mView.setOnLongClickListener(null);
+      holder.mView.setLongClickable(false);
+      holder.mDeleteBtn.setVisibility(View.VISIBLE);
+      holder.mDeleteBtn.setOnClickListener(v -> {
+        if (mListener != null) mListener.onBoardLongClick(holder.mItem); // 复用原删除确认逻辑
+      });
+      // 拖拽把手：按住触发拖动；返回 true 消费事件，避免长按冒泡
+      holder.mDragHandle.setVisibility(View.VISIBLE);
+      holder.mDragHandle.setOnTouchListener((v, event) -> {
+        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN && mItemTouchHelper != null) {
+          mItemTouchHelper.startDrag(holder);
         }
-        return false;
-      }
-    });
+        return true; // 消费事件，杜绝触发整行点击/长按
+      });
+    } else {
+      // 全部版面页：无删除/把手，保留原长按(添加收藏)
+      holder.mDeleteBtn.setVisibility(View.GONE);
+      holder.mDragHandle.setVisibility(View.GONE);
+      holder.mView.setOnLongClickListener(new View.OnLongClickListener() {
+        @Override public boolean onLongClick(View v) {
+          if (null != mListener) mListener.onBoardLongClick(holder.mItem);
+          return false;
+        }
+      });
+    }
   }
 
   @Override public int getItemCount() {
@@ -140,6 +184,8 @@ public class BoardRecyclerViewAdapter extends RecyclerView.Adapter<BoardRecycler
     public final TextView mCategoryView;
     public final TextView mModeratorView;
     public final TextView mNameView;
+    public final View mDragHandle;
+    public final View mDeleteBtn;
 
     public ViewHolder(View view) {
       super(view);
@@ -147,6 +193,8 @@ public class BoardRecyclerViewAdapter extends RecyclerView.Adapter<BoardRecycler
       mCategoryView = (TextView) view.findViewById(R.id.CategoryName);
       mModeratorView = (TextView) view.findViewById(R.id.ModeratorID);
       mNameView = (TextView) view.findViewById(R.id.BoardName);
+      mDragHandle = view.findViewById(R.id.board_drag_handle);
+      mDeleteBtn = view.findViewById(R.id.board_delete_btn);
     }
 
     @Override public String toString() {

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 拖拽把手：两条横线(汉堡状)，颜色取主题文字色，收藏夹页右侧显示 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#8A8F99"
+        android:pathData="M3,6h18v2H3z" />
+    <path
+        android:fillColor="#8A8F99"
+        android:pathData="M3,11h18v2H3z" />
+    <path
+        android:fillColor="#8A8F99"
+        android:pathData="M3,16h18v2H3z" />
+</vector>

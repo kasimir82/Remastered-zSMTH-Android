@@ -1054,7 +1054,11 @@ public class MainActivity extends SMTHBaseActivity
                   @Override public void onNext(@NonNull AjaxResponse ajaxResponse) {
                     Log.d(TAG, "onNext: " + ajaxResponse.toString());
                     if (ajaxResponse.getAjax_st() == AjaxResponse.AJAX_RESULT_OK) {
-                      Toast.makeText(MainActivity.this, ajaxResponse.getAjax_msg() + "\n" + "请刷新收藏夹！", Toast.LENGTH_SHORT).show();
+                      Toast.makeText(MainActivity.this, ajaxResponse.getAjax_msg(), Toast.LENGTH_SHORT).show();
+                      // 删除成功后自动刷新收藏夹：清缓存并从服务端重新加载(会保留本地拖拽顺序)
+                      if (favoriteBoardFragment != null) {
+                        favoriteBoardFragment.RefreshFavoriteBoardsWithCache();
+                      }
                     } else {
                       Toast.makeText(MainActivity.this, ajaxResponse.toString(), Toast.LENGTH_LONG).show();
                     }
