@@ -854,16 +854,12 @@ public class SMTHHelper {
         }
       }
 
-      // 把「今天」的精确时间写入本地缓存：服务端对今天的时间返回 HH:mm:ss，
-      // 过几天只剩 yyyy-MM-dd，到那时就能从缓存取回精确时间用于排序。
-      // 只有 topicID 有效且至少一个时间字段是纯时刻时才写。
+      // 把帖子的发帖/回复日期与时间写入本地缓存。
+      // 服务端对「今天」的时间返回 HH:mm:ss（精确），对更早的只返回 yyyy-MM-dd；
+      // 缓存把两种都存下来，纯时刻里的精确时间过了今天服务端就不再给。
       if (topic.getTopicID() != null && !topic.getTopicID().isEmpty()) {
-        long pubMs = com.zfdang.zsmth_android.helpers.TopicTimeCache.parseTodayMillis(topic.getPublishDate());
-        long replyMs = com.zfdang.zsmth_android.helpers.TopicTimeCache.parseTodayMillis(topic.getReplyDate());
-        if (pubMs > 0 || replyMs > 0) {
-          com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().save(
-              topic.getTopicID(), pubMs, replyMs);
-        }
+        com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().save(
+            topic.getTopicID(), topic.getPublishDate(), topic.getReplyDate());
       }
 
       // Log.d("ParseBoardTopics", topic.toString());
