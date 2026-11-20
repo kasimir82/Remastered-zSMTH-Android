@@ -86,20 +86,20 @@ public final class PublishMethodHelper {
   }
 
   /**
-   * 竖排诗歌风格：古文顺序，从右上角开始写，列从右往左，每列从上往下读。
+   * 竖排诗歌风格：现代顺序，从左上角开始写，列从左往右，每列从上往下读。
    *
    * 做法：
    *  - 按每列 maxCharsPerColumn 个字把文本分成若干列
-   *  - 最右列是原文开头；纯文本从左到右输出时列序反转（原文开头的列放每行最后/视觉最右）
+   *  - 最左列是原文开头；纯文本从左到右输出时列序与原文一致（原文开头的列放每行最前/视觉最左）
    *  - 每行用汉字「丨」(全角等宽) 包裹成格子
    *
    * 例：原文 "床前明月光疑是地上霜"，每列5字 →
-   *   丨霜丨床丨
-   *   丨上丨前丨
-   *   丨地丨明丨
-   *   丨是丨月丨
-   *   丨疑丨光丨
-   * （竖着从右往左读：右列 床前明月光，左列 疑是地上霜）
+   *   丨床丨疑丨
+   *   丨前丨是丨
+   *   丨明丨地丨
+   *   丨月丨上丨
+   *   丨光丨霜丨
+   * （竖着从左往右读：左列 床前明月光，右列 疑是地上霜）
    */
   public static String toVerticalPoem(String text, int maxCharsPerColumn) {
     if (text == null || text.trim().isEmpty()) return text;
@@ -124,8 +124,7 @@ public final class PublishMethodHelper {
       int end = Math.min(start + maxCharsPerColumn, chars.length());
       columns.add(chars.substring(start, end));
     }
-    // 竖排从右往左读 → 输出列顺序反转（最右侧原文列排在显示最右，纯文本从左到右输出时放最后）
-    // 为了让第一列出现在视觉最右，输出时先输出后面的列
+    // 现代顺序从左到右读 → 输出列顺序与原文一致（第一列出现在视觉最左）
     int maxRows = 0;
     for (String col : columns) maxRows = Math.max(maxRows, col.length());
 
@@ -135,9 +134,9 @@ public final class PublishMethodHelper {
     String cell = "丨";
     for (int row = 0; row < maxRows; row++) {
       List<String> rowCells = new ArrayList<>();
-      // 古文顺序：从右上角开始写，列从右往左。最右列是原文开头(cols[0])。
-      // 纯文本从左到右输出，所以列序反转：原开头的列放在每行最后(视觉最右)。
-      for (int c = colCount - 1; c >= 0; c--) {
+      // 现代顺序：从左上角开始，列从左往右。最左列是原文开头(cols[0])。
+      // 纯文本从左到右输出，列序与原文一致：原开头的列放在每行最前(视觉最左)。
+      for (int c = 0; c < colCount; c++) {
         String col = columns.get(c);
         rowCells.add(row < col.length() ? String.valueOf(col.charAt(row)) : "　");
       }

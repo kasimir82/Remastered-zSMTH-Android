@@ -474,10 +474,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
     doPublishPost();
   }
 
-  /** 敏感词拦截后的发布方式选择弹窗（按钮式，JPG / 竖排） */
+  /** 敏感词拦截后的发布方式选择弹窗（按钮式，PNG / 竖排） */
   private void showPublishMethodDialog() {
-    // 弹窗出现时就把竖排文本写入剪贴板，用户取消也可直接用系统粘贴
-    copyVerticalTextToClipboard();
     View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
     final AlertDialog dialog = new AlertDialog.Builder(this)
         .setView(v)
@@ -500,27 +498,6 @@ public class ComposePostActivity extends SMTHBaseActivity {
     });
     flowLog("===== METHOD DIALOG SHOWN =====");
     dialog.show();
-  }
-
-  /** 把当前正文转成竖排文本并写入剪贴板（弹窗弹出时调用） */
-  private void copyVerticalTextToClipboard() {
-    try {
-      String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
-          ? blockedOriginalContent : mContent.getText().toString();
-      PublishMethodHelper.SplitResult split = PublishMethodHelper.split(content);
-      if (TextUtils.isEmpty(split.userText)) return;
-      String vertical = PublishMethodHelper.toVerticalWithFillers(split.userText);
-      android.content.ClipboardManager cm =
-          (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-      if (cm != null) {
-        cm.setPrimaryClip(android.content.ClipData.newPlainText("竖排文本", vertical));
-        flowLog("===== CLIPBOARD (VERTICAL) =====");
-        flowLog(vertical);
-        Toast.makeText(this, "竖排文本已复制到剪贴板", Toast.LENGTH_SHORT).show();
-      }
-    } catch (Throwable t) {
-      android.util.Log.w(TAG, "copy vertical text failed", t);
-    }
   }
 
   /** 方式①：用户输入转 PNG 图片，作为附件；正文只保留引用块(+简短说明) */
