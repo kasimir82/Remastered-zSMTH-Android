@@ -74,33 +74,16 @@ public class StringUtils {
     return "";
   }
 
+  /**
+   * 已移除本地 IP 属地库(qqwry.db)：来源行只显示水木原始 IP(末位隐藏)，
+   * 不再在后面拼属地。保留方法名以免改动调用点。
+   */
   public static String lookupIPLocation(String content) {
-    Pattern myipPattern = Pattern.compile("FROM[: ]*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)[\\d\\*]+");
-    Matcher myipMatcher = myipPattern.matcher(content);
-    while (myipMatcher.find()) {
-      String ipl = myipMatcher.group(1);
-      if (ipl.length() > 5) {
-        ipl = "$1\\*(" + SMTHApplication.geoDB.getLocation(ipl + "1") + ")";
-      } else {
-        ipl = "$1\\*";
-      }
-      content = myipMatcher.replaceAll(ipl);
-    }
     return content;
   }
 
+  /** 用户资料页最后登录IP：同上，不再拼本地属地 */
   public static String lookupIPLocationInProfile(String content) {
-    Pattern myipPattern = Pattern.compile("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)[\\d\\*]+");
-    Matcher myipMatcher = myipPattern.matcher(content);
-    while (myipMatcher.find()) {
-      String ipl = myipMatcher.group(1);
-      if (ipl.length() > 5) {
-        ipl = "$1\\*(" + SMTHApplication.geoDB.getLocation(ipl + "1") + ")";
-      } else {
-        ipl = "$1\\*";
-      }
-      content = myipMatcher.replaceAll(ipl);
-    }
     return content;
   }
 

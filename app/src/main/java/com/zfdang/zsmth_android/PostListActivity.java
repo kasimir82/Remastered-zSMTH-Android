@@ -909,9 +909,21 @@ public class PostListActivity extends SMTHBaseActivity
       popup.initPopupWindow(this, post);
       popup.showAtLocation(mRecyclerView, Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL, 0, 100);
     } else if (action == ACT_VIEW_IN_BROWSER) {
-      String url = String.format(SMTHHelper.SMTH_MOBILE_URL + "/article/%s/%s?p=%d", mTopic.getBoardEngName(),
-          mTopic.getTopicID(), mCurrentPageNo);
-      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+      // 「查询本帖IP」：从帖子正文的 FROM 行提取 IP(水木隐藏最后一位)，末位补1后用 ip138 查询
+      String raw = post.getRawContent();
+      java.util.regex.Matcher m = java.util.regex.Pattern
+          .compile("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\.(\\d{1,3}|\\*)")
+          .matcher(raw == null ? "" : raw);
+      String ip = null;
+      if (m.find()) {
+        ip = m.group(1) + ".1"; // 末位隐藏，补1
+      }
+      if (ip != null) {
+        String url = "https://www.ip138.com/iplookup.asp?ip=" + ip + "&action=2";
+        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+      } else {
+        Toast.makeText(this, "本帖未找到 IP 信息（可能不是本站发表的帖子）", Toast.LENGTH_SHORT).show();
+      }
     } else if (action == ACT_SHARE) {
       // 「强制敏感词方式回复」：直接构造回复 Context，带 force_sensitive 标记，
       // ComposePostActivity 一进来就弹竖排/JPG 选择弹窗，无需先发一次触发 0405

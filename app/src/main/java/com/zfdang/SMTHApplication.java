@@ -8,7 +8,6 @@ import com.facebook.imagepipeline.backends.okhttp3.OkHttpImagePipelineConfigFact
 import com.facebook.imagepipeline.core.ImagePipelineConfig;
 import com.zfdang.zsmth_android.R;
 import com.zfdang.zsmth_android.Settings;
-import com.zfdang.zsmth_android.helpers.GEODatabase;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
 import com.zfdang.zsmth_android.newsmth.UserStatus;
 import com.zfdang.zsmth_android.services.UserStatusReceiver;
@@ -58,9 +57,6 @@ public class SMTHApplication extends Application {
   public static final int INTERVAL_TO_CHECK_MESSAGE = 2; // 2 minutes for interval to check messages
   public static UserStatusReceiver mUserStatusReceiver = null;
 
-  // IP database
-  public static GEODatabase geoDB;
-
   @Override
   protected void attachBaseContext(Context base) {
     super.attachBaseContext(base);
@@ -84,10 +80,15 @@ public class SMTHApplication extends Application {
     // 真正的限制仍由水木服务端判定，这里只清本地的记住状态。
     com.zfdang.zsmth_android.helpers.LoginThrottle.clearRestriction();
 
-    // init IP lookup database
-    geoDB = new GEODatabase(this);
-
-
+    // 已移除本地IP属地库(qqwry.db)：删除历版 SQLiteAssetHelper 解压在 databases 目录的旧库(约77MB)，
+    // 避免老用户升级后白色占用空间。只删这一个固定文件，不影响其它数据库。
+    try {
+      java.io.File oldGeoDb = getDatabasePath("qqwry.db");
+      if (oldGeoDb != null && oldGeoDb.exists() && !oldGeoDb.delete()) {
+        android.util.Log.w("SMTHApplication", "cannot delete legacy qqwry.db");
+      }
+    } catch (Throwable ignored) {
+    }
 
     com.zfdang.zsmth_android.AnalyticsPrivacy.initialize(this);
 
