@@ -31,6 +31,7 @@ public class AppDataActivity extends SMTHBaseActivity {
   private static final int REQ_IMPORT = 1002;
 
   private TextView statsView;
+  private TextView dbSizeView;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
   @Override protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +45,7 @@ public class AppDataActivity extends SMTHBaseActivity {
     }
 
     statsView = findViewById(R.id.app_data_stats);
+    dbSizeView = findViewById(R.id.app_data_db_size);
 
     findViewById(R.id.btn_export).setOnClickListener(v -> startExport());
     findViewById(R.id.btn_import).setOnClickListener(v -> startImport());
@@ -67,6 +69,7 @@ public class AppDataActivity extends SMTHBaseActivity {
   private void refreshStats() {
     new Thread(() -> {
       final String text;
+      final String sizeText;
       try {
         int timeCount = TopicTimeCache.getInstance().count();
         BlockListManager bm = BlockListManager.getInstance();
@@ -77,11 +80,18 @@ public class AppDataActivity extends SMTHBaseActivity {
             + "· 帖子时间缓存：" + timeCount + " 条\n"
             + "· 本机黑名单：" + blockInfo + "\n"
             + "· 应用设置：" + getSharedPreferences("ZSMTH_Config", MODE_PRIVATE).getAll().size() + " 项";
+
+        java.io.File dbFile = getDatabasePath("topic_time_cache.db");
+        long dbBytes = (dbFile != null && dbFile.exists()) ? dbFile.length() : 0;
+        sizeText = "时间缓存数据库：" + com.zfdang.zsmth_android.helpers.FileSizeUtil.FormatFileSize(dbBytes);
       } catch (Exception e) {
         Log.e(TAG, "refreshStats error", e);
         return;
       }
-      mainHandler.post(() -> statsView.setText(text));
+      mainHandler.post(() -> {
+        statsView.setText(text);
+        dbSizeView.setText(sizeText);
+      });
     }).start();
   }
 

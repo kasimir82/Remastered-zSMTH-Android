@@ -64,6 +64,16 @@
                 android:text="清除1个月前的时间缓存"
                 android:layout_marginTop="8dp" />
 
+            <TextView
+                android:id="@+id/app_data_db_size"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="时间缓存数据库：--"
+                android:textSize="12sp"
+                android:textColor="@color/mine_row_summary"
+                android:gravity="center_horizontal"
+                android:paddingTop="6dp" />
+
         </LinearLayout>
     </ScrollView>
 
