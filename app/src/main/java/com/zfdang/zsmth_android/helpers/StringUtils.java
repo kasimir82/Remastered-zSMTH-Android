@@ -75,16 +75,23 @@ public class StringUtils {
   }
 
   /**
-   * 已移除本地 IP 属地库(qqwry.db)：来源行只显示水木原始 IP(末位隐藏)，
-   * 不再在后面拼属地。保留方法名以免改动调用点。
+   * 来源行 IP 脱敏：水木部分来源 IP 是完整的(最后一位未隐藏)，
+   * 完整 IP 会被 Html.fromHtml 自动识别成可点击链接(下划线)，点按误跳转。
+   * 这里把 FROM: 后完整 IP 的最后一段统一改成 *，既隐藏末位也消除超链接。
    */
   public static String lookupIPLocation(String content) {
-    return content;
+    if (content == null) return content;
+    // 来源行可能残留 <a href> 标签(IP 被水木做成超链接)，剥掉标签只留文本，避免可点击跳转
+    String result = content.replaceAll("(?i)<a\\b[^>]*>", "").replaceAll("(?i)</a\\s*>", "");
+    // 匹配 FROM: 后三段式前缀 + 完整末段(1~3位数字)，替换为 *；已是 * 的不动
+    result = result.replaceAll("(FROM[: ]*\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)\\d{1,3}", "$1*");
+    return result;
   }
 
-  /** 用户资料页最后登录IP：同上，不再拼本地属地 */
+  /** 用户资料页最后登录IP：同样把完整 IP 末段改成 * 避免被识别为链接 */
   public static String lookupIPLocationInProfile(String content) {
-    return content;
+    if (content == null) return content;
+    return content.replaceAll("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)\\d{1,3}", "$1*");
   }
 
   public static boolean isEmptyString(String content) {
