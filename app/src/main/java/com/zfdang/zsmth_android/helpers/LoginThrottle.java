@@ -69,9 +69,13 @@ public class LoginThrottle {
     return Math.max(0, remain);
   }
 
-  /** 是否允许自动登录（Worker 用）。冷却期内、或距上次成功登录太近，都不允许。 */
+  /** 是否允许自动登录（Worker 用）。用户未在线意愿(登录失败后暂停)、冷却期内、或距上次成功登录太近，都不允许。 */
   public static boolean canAutoLogin() {
     Settings s = Settings.getInstance();
+    if (!s.isUserOnline()) {
+      Log.i(TAG, "canAutoLogin=false: user offline (auto login paused after failure)");
+      return false;
+    }
     if (inCooldown()) {
       Log.w(TAG, "canAutoLogin=false: in cooldown until " + s.getLoginCooldownUntil());
       return false;
@@ -92,6 +96,10 @@ public class LoginThrottle {
    */
   public static boolean canRetryAfterCookieLost() {
     Settings s = Settings.getInstance();
+    if (!s.isUserOnline()) {
+      Log.i(TAG, "canRetryAfterCookieLost=false: user offline (auto login paused)");
+      return false;
+    }
     if (inCooldown()) {
       Log.w(TAG, "canRetryAfterCookieLost=false: in cooldown");
       return false;
@@ -104,17 +112,61 @@ public class LoginThrottle {
     return true;
   }
 
-  /** 登录成功：记录时间并清除冷却与受限状态 */
+  /** 登录成功：记录时间、清除冷却与受限状态，并恢复在线意愿（重新开启自动登录/掉线检测） */
   public static void onLoginSuccess() {
     Settings s = Settings.getInstance();
     s.setLastLoginTime(System.currentTimeMillis());
+    s.setLastLoginSuccess(true);
     if (s.getLoginCooldownUntil() != 0) {
       s.setLoginCooldownUntil(0);
     }
     if (s.getLoginRestrictionReason() != null && !s.getLoginRestrictionReason().isEmpty()) {
       s.setLoginRestrictionReason("");
     }
-    Log.i(TAG, "onLoginSuccess: recorded login time, restriction cleared");
+    // 成功完成一次登录后，重新开启自动登录/掉线检测
+    if (!s.isUserOnline()) {
+      s.setUserOnline(true);
+    }
+    Log.i(TAG, "onLoginSuccess: recorded login time, restriction cleared, auto login resumed");
+  }
+
+  /**
+   * 任何登录失败（密码错/账号过多/踢出/超时/验证码）都调用：
+   * 完全退出登录状态（等价于用户点「注销」），并暂停自动登录/掉线检测，
+   * 直到用户手动成功完成一次登录（onLoginSuccess）才恢复。
+   *
+   * 手动登录入口不受影响——用户随时可以再去登录页输密码。
+   */
+  public static void onAnyLoginFailure(String reason) {
+    Settings s = Settings.getInstance();
+    // 关闭在线意愿 → canAutoLogin/canRetryAfterCookieLost 立即返回 false
+    if (s.isUserOnline()) s.setUserOnline(false);
+    s.setLastLoginSuccess(false);
+    s.setLastLoginTime(0);
+    s.setLoginCooldownUntil(0);
+    s.setLoginRestrictionReason("");
+
+    // 清全局登录态
+    com.zfdang.SMTHApplication.activeUser = null;
+    com.zfdang.SMTHApplication.displayedUserId = "guest";
+
+    // 停掉线检测/保活
+    try {
+      com.zfdang.zsmth_android.services.KeepAliveService.stop(
+          com.zfdang.SMTHApplication.getAppContext());
+    } catch (Throwable t) {
+      Log.w(TAG, "stop keepalive failed: " + t.getMessage());
+    }
+
+    // 通知 UI 刷新为未登录态
+    if (com.zfdang.SMTHApplication.mUserStatusReceiver != null) {
+      try {
+        com.zfdang.SMTHApplication.mUserStatusReceiver.onServiceFailed();
+      } catch (Throwable t) {
+        Log.w(TAG, "notify UI failed: " + t.getMessage());
+      }
+    }
+    Log.w(TAG, "onAnyLoginFailure: " + reason + " -> logged out, auto login paused");
   }
 
   /**

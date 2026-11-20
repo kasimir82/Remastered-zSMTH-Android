@@ -141,6 +141,15 @@ public class MaintainUserStatusWorker extends Worker {
                     // Log.d(TAG, "onNext: " + "4.1 cache userStatus as activeUser");
                     updateUserIcon = true;
                 }
+                // 二次验证：json 说已登录还不够，实际访问 NewExpress 版面确认 cookie 真的有效。
+                // 返回异常(未登录页/错误页)则完全登出，退回未登录状态。
+                if (!TextUtils.equals(userStatus.getId(), "guest")
+                        && !SMTHHelper.isSessionValidByBoard()) {
+                    Log.w(TAG, "session invalid by board access -> full logout");
+                    com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("board check failed");
+                    userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录
+                }
+
                 SMTHApplication.activeUser = userStatus;
 
                 String message = "";
@@ -213,7 +222,8 @@ public class MaintainUserStatusWorker extends Worker {
             }
 
             @Override public void onCaptchaRequired() {
-                Log.w(TAG, "silent login needs captcha, notify page to show WebView");
+                Log.w(TAG, "silent login needs captcha -> full logout, pause auto login");
+                com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("captcha");
                 if (receiver != null) {
                     Bundle bundle = new Bundle();
                     bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,
@@ -228,8 +238,8 @@ public class MaintainUserStatusWorker extends Worker {
                 // "cooldown"/"no_credentials" 属于预期内跳过，不必提示。
                 Log.w(TAG, "silent login failed: " + reason);
                 if ("cooldown".equals(reason) || "no_credentials".equals(reason)) return;
-                // 记录受限原因，供「我的」页账号卡片展示「服务器未能登录：XXX」
-                com.zfdang.zsmth_android.helpers.LoginThrottle.onLoginFailed(reason);
+                // 任何真实登录失败：完全登出 + 暂停自动登录，直到手动登录成功
+                com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
                 if (receiver != null) {
                     Bundle bundle = new Bundle();
                     bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,

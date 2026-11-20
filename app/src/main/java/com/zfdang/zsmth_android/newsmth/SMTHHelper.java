@@ -237,6 +237,48 @@ public class SMTHHelper {
   }
 
   // query active user status
+  /**
+   * 通过实际访问 NewExpress 版面 ajax 验证登录态是否真的有效（不能只信 json 的 session 接口）。
+   * 同步阻塞调用，须在 IO 线程执行。
+   * 判定异常：HTTP 非200 / 返回体为空或过短 / 含未登录或错误页的 ASCII 结构特征(GBK编码，中文不可用)。
+   * @return true=登录态有效；false=异常(应视为未登录)
+   */
+  public static boolean isSessionValidByBoard() {
+    try {
+      retrofit2.Response<String> resp = getInstance().wService.keepAlive().execute();
+      if (resp == null || !resp.isSuccessful()) {
+        android.util.Log.w("SMTHHelper", "session check: keepAlive http failed "
+            + (resp == null ? "null" : resp.code()));
+        return false;
+      }
+      String body = resp.body();
+      if (body == null || body.trim().length() < 200) {
+        android.util.Log.w("SMTHHelper", "session check: body too short "
+            + (body == null ? 0 : body.trim().length()));
+        return false;
+      }
+      // 页面是 GBK 编码，中文关键词会乱码，故只用 ASCII 结构特征判断。
+      // 未登录/错误页必有：登录表单(u_login_id/passwd)、page404、uid=guest、错误块。
+      // 用排除法：命中这些异常特征才判无效；正常版面结构因版面而异，不做正向断言以免误伤。
+      String lower = body.toLowerCase(java.util.Locale.US);
+      String[] badMarks = { "id=\"login_form\"", "u_login_id", "name=\"passwd\"",
+          "page404", "uid=guest", "class=\"error\"" };
+      for (String mark : badMarks) {
+        if (lower.contains(mark)) {
+          android.util.Log.w("SMTHHelper", "session check: bad mark '" + mark
+              + "' (len=" + body.length() + ") -> not logged in");
+          return false;
+        }
+      }
+      android.util.Log.d("SMTHHelper", "session check OK (len=" + body.length()
+          + ", head=" + body.substring(0, Math.min(80, body.length())).replace("\n", " ") + ")");
+      return true;
+    } catch (Throwable t) {
+      android.util.Log.w("SMTHHelper", "session check exception: " + t.getMessage());
+      return false;
+    }
+  }
+
   // since wService.queryActiveUserStatus does not return correct faceurl, try to
   // query user information again
   public static Observable<UserStatus> queryActiveUserStatus() {

@@ -33,6 +33,10 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
   static final int LOGIN_ACTIVITY_REQUEST_CODE = 9528;  // The request code
   static final String USERNAME = "USERNAME";
   static final String PASSWORD = "PASSWORD";
+  /** WebView 登录失败时带回的错误类型，第一页据此决定是否清密码 */
+  static final String EXTRA_LOGIN_ERROR_TYPE = "login_error_type";
+  static final String ERR_TYPE_PASSWORD = "password"; // 明确密码错误
+  static final String ERR_TYPE_OTHER = "other";       // 其它失败(账号过多/超时/验证码等)
 
   @Override protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -145,9 +149,10 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
         setResult(Activity.RESULT_OK, resultIntent);
         finish();
       } else {
-        // 登录失败/密码错误从 WebView 返回：清空密码框，让用户直接重新输入，
-        // 不必手动删掉错误的旧密码。账号名保留。
-        if (m_passwordEditText != null) {
+        // 只有明确的「密码错误」才清空密码框让用户重输；
+        // 其它失败(账号过多/踢出/超时/验证码)保留密码，避免误删。
+        String errType = data == null ? null : data.getStringExtra(EXTRA_LOGIN_ERROR_TYPE);
+        if (ERR_TYPE_PASSWORD.equals(errType) && m_passwordEditText != null) {
           m_passwordEditText.setText("");
           m_passwordEditText.requestFocus();
         }

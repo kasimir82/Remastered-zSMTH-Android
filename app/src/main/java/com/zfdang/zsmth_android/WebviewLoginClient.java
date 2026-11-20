@@ -159,17 +159,25 @@ public class WebviewLoginClient extends WebViewClient {
                 handler.removeCallbacks(pollRunnable);
                 activity.runOnUiThread(new Runnable() {
                     @Override public void run() {
+                        Runnable doFail = () -> {
+                            if (activity instanceof com.zfdang.zsmth_android.WebviewLoginActivity) {
+                                ((com.zfdang.zsmth_android.WebviewLoginActivity) activity).failAndFinish(
+                                    com.zfdang.zsmth_android.LoginActivity.ERR_TYPE_OTHER, "login timeout");
+                            } else {
+                                activity.finish();
+                            }
+                        };
                         try {
                             new android.app.AlertDialog.Builder(activity)
                                 .setTitle("登录失败")
-                                .setMessage("未能登录，可能是用户名或密码错误，请返回重新输入。")
-                                .setPositiveButton("返回重输", (dialog, which) -> activity.finish())
-                                .setOnCancelListener(dialog -> activity.finish())
+                                .setMessage("未能登录，请返回重新检查账号密码或稍后重试。")
+                                .setPositiveButton("返回", (dialog, which) -> doFail.run())
+                                .setOnCancelListener(dialog -> doFail.run())
                                 .setCancelable(false)
                                 .show();
                         } catch (Throwable t) {
                             Log.e(TAG, "show login failed dialog error", t);
-                            activity.finish();
+                            doFail.run();
                         }
                     }
                 });

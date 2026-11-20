@@ -20,6 +20,25 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
     private String username;
     private String password;
 
+    /**
+     * 登录失败统一处理：完全登出 + 暂停自动登录，并把错误类型带回第一页。
+     * @param errorType LoginActivity.ERR_TYPE_PASSWORD / ERR_TYPE_OTHER
+     */
+    void failAndFinish(String errorType, String reason) {
+        com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
+        android.content.Intent data = new android.content.Intent();
+        data.putExtra(LoginActivity.EXTRA_LOGIN_ERROR_TYPE, errorType);
+        setResult(Activity.RESULT_CANCELED, data);
+        finish();
+    }
+
+    /** 从水木弹窗文案判断是否明确的密码错误 */
+    static boolean isPasswordError(String message) {
+        if (message == null) return false;
+        return message.contains("密码") && (message.contains("错误") || message.contains("不正确")
+            || message.contains("有误") || message.contains("不对"));
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -138,18 +157,22 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
                 // 记录所有 JS 弹窗原文，便于定位登录页返回的具体错误
                 Log.w(TAG, "JS alert: " + message + " (url=" + url + ")");
                 com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("js_alert", message + " (url=" + url + ")");
-                if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)) {
-                    com.zfdang.zsmth_android.helpers.LoginThrottle.onTooFrequent(message);
-                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("too_frequent", message);
-                    Log.w(TAG, "too frequent login dialog: " + message);
+                if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)
+                        || isPasswordError(message)) {
+                    String errType = isPasswordError(message) ? LoginActivity.ERR_TYPE_PASSWORD : LoginActivity.ERR_TYPE_OTHER;
+                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("login_fail_alert", message);
+                    Log.w(TAG, "login fail alert: " + message);
                     new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
-                            .setTitle("登录受限")
-                            .setMessage(com.zfdang.zsmth_android.helpers.LoginThrottle.getCooldownMessage("水木提示登录过于频繁（" + message + "）"))
-                            .setPositiveButton("知道了", (dialog, which) -> {
+                            .setTitle("登录失败")
+                            .setMessage("水木提示：" + message + "。请返回重新登录。")
+                            .setPositiveButton("返回", (dialog, which) -> {
                                 result.confirm();
-                                finish();
+                                failAndFinish(errType, message);
                             })
-                            .setOnCancelListener(dialog -> result.cancel())
+                            .setOnCancelListener(dialog -> {
+                                result.cancel();
+                                failAndFinish(errType, message);
+                            })
                             .show();
                     return true;
                 }
@@ -161,19 +184,23 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
                 // 记录所有 JS confirm 原文（含「踢掉多余窗口」类提示）
                 Log.w(TAG, "JS confirm: " + message + " (url=" + url + ")");
                 com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("js_confirm", message + " (url=" + url + ")");
-                if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)) {
-                    com.zfdang.zsmth_android.helpers.LoginThrottle.onTooFrequent(message);
-                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("too_frequent", message);
-                    Log.w(TAG, "too frequent login confirm: " + message);
-                    // 用户点的"踢掉多余窗口"会挤掉其它设备的登录，这里直接取消并结束
+                if (com.zfdang.zsmth_android.helpers.LoginThrottle.isTooFrequentDialog(message)
+                        || isPasswordError(message)) {
+                    String errType = isPasswordError(message) ? LoginActivity.ERR_TYPE_PASSWORD : LoginActivity.ERR_TYPE_OTHER;
+                    com.zfdang.zsmth_android.helpers.LoginFailureLogger.log("login_fail_confirm", message);
+                    Log.w(TAG, "login fail confirm: " + message);
+                    // 「踢掉多余窗口」类确认不能点确定（会挤掉其它设备），这里取消并结束
                     new android.app.AlertDialog.Builder(WebviewLoginActivity.this)
-                            .setTitle("登录受限")
-                            .setMessage(com.zfdang.zsmth_android.helpers.LoginThrottle.getCooldownMessage("水木提示：" + message))
-                            .setPositiveButton("知道了", (dialog, which) -> {
+                            .setTitle("登录失败")
+                            .setMessage("水木提示：" + message + "。请返回重新登录。")
+                            .setPositiveButton("返回", (dialog, which) -> {
                                 result.cancel();
-                                finish();
+                                failAndFinish(errType, message);
                             })
-                            .setOnCancelListener(dialog -> result.cancel())
+                            .setOnCancelListener(dialog -> {
+                                result.cancel();
+                                failAndFinish(errType, message);
+                            })
                             .show();
                     return true;
                 }
