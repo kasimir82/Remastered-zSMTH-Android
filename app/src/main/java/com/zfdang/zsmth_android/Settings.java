@@ -547,6 +547,11 @@ public class Settings {
     return ourInstance;
   }
 
+  /** 导入设置后重新从 SharedPreferences 加载全部值到内存 */
+  public void reload() {
+    initSettings();
+  }
+
   private Settings() {
     initSettings();
   }

@@ -210,4 +210,86 @@ public final class TopicTimeCache {
     }
     return n;
   }
+
+  /** 导出全部记录为 JSON 数组字符串 */
+  public synchronized String exportJson() {
+    SQLiteDatabase db = dbHelper.getReadableDatabase();
+    Cursor c = db.query(TABLE,
+        new String[] { COL_ID, COL_PUB_DATE, COL_PUB_TIME, COL_REPLY_DATE, COL_REPLY_TIME },
+        null, null, null, null, null);
+    StringBuilder sb = new StringBuilder("[");
+    boolean first = true;
+    if (c != null) {
+      while (c.moveToNext()) {
+        if (!first) sb.append(",");
+        first = false;
+        sb.append("{\"id\":")
+            .append(org.json.JSONObject.quote(nullToEmpty(c.getString(0))))
+            .append(",\"pd\":").append(org.json.JSONObject.quote(nullToEmpty(c.getString(1))))
+            .append(",\"pt\":").append(org.json.JSONObject.quote(nullToEmpty(c.getString(2))))
+            .append(",\"rd\":").append(org.json.JSONObject.quote(nullToEmpty(c.getString(3))))
+            .append(",\"rt\":").append(org.json.JSONObject.quote(nullToEmpty(c.getString(4))))
+            .append("}");
+      }
+      c.close();
+    }
+    sb.append("]");
+    return sb.toString();
+  }
+
+  private static String nullToEmpty(String s) {
+    return s == null ? "" : s;
+  }
+
+  /** 从 JSON 数组导入记录（覆盖同 id），返回导入条数 */
+  public synchronized int importJson(String json) {
+    if (json == null || json.isEmpty()) return 0;
+    int imported = 0;
+    try {
+      org.json.JSONArray arr = new org.json.JSONArray(json);
+      SQLiteDatabase db = dbHelper.getWritableDatabase();
+      db.beginTransaction();
+      try {
+        for (int i = 0; i < arr.length(); i++) {
+          org.json.JSONObject o = arr.getJSONObject(i);
+          String id = o.optString("id", "");
+          if (id.isEmpty()) continue;
+          ContentValues values = new ContentValues();
+          values.put(COL_ID, id);
+          values.put(COL_PUB_DATE, o.optString("pd", ""));
+          values.put(COL_PUB_TIME, o.optString("pt", ""));
+          values.put(COL_REPLY_DATE, o.optString("rd", ""));
+          values.put(COL_REPLY_TIME, o.optString("rt", ""));
+          db.insertWithOnConflict(TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+          imported++;
+        }
+        db.setTransactionSuccessful();
+      } finally {
+        db.endTransaction();
+      }
+      Log.i(TAG, "importJson: " + imported + " records");
+    } catch (Throwable t) {
+      Log.w(TAG, "importJson failed: " + t.getMessage());
+      return 0;
+    }
+    return imported;
+  }
+
+  /**
+   * 清理 publish_date 早于 cutoffDate(yyyy-MM-dd) 的记录。
+   * 返回删除条数。
+   */
+  public synchronized int cleanBefore(String cutoffDate) {
+    if (cutoffDate == null || cutoffDate.isEmpty()) return 0;
+    try {
+      SQLiteDatabase db = dbHelper.getWritableDatabase();
+      int deleted = db.delete(TABLE, COL_PUB_DATE + " < ? AND " + COL_PUB_DATE + " != ''",
+          new String[] { cutoffDate });
+      Log.i(TAG, "cleanBefore " + cutoffDate + ": deleted " + deleted);
+      return deleted;
+    } catch (Throwable t) {
+      Log.w(TAG, "cleanBefore failed: " + t.getMessage());
+      return 0;
+    }
+  }
 }

@@ -497,8 +497,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
         final boolean byReply = mSortByReply;
         Collections.sort(normal, new Comparator<Topic>() {
             @Override public int compare(Topic lhs, Topic rhs) {
-                long lk = byReply ? lhs.getReplySortKey() : lhs.getPublishSortKey();
-                long rk = byReply ? rhs.getReplySortKey() : rhs.getPublishSortKey();
+                long lk = byReply ? lhs.getReplySortKey() : lhs.getPublishSortKeyCached();
+                long rk = byReply ? rhs.getReplySortKey() : rhs.getPublishSortKeyCached();
                 return Long.compare(rk, lk);
             }
         });
@@ -534,7 +534,7 @@ public class BoardTopicActivity extends SMTHBaseActivity
         // Collections.sort 是稳定排序，同一天的帖子保持服务端返回的先后顺序
         Collections.sort(normal, new Comparator<Topic>() {
             @Override public int compare(Topic lhs, Topic rhs) {
-                return Long.compare(rhs.getPublishSortKey(), lhs.getPublishSortKey());
+                return Long.compare(rhs.getPublishSortKeyCached(), lhs.getPublishSortKeyCached());
             }
         });
         int index = from;

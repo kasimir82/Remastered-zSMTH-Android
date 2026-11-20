@@ -8,8 +8,8 @@ def getDate() {
     return formattedDate
 }
 // 每次改版 versionCode 加一；versionName 手动递增，不用构建日期，便于按版本追踪
-def releaseVersionCode = 1207
-def appVersion = '26.12.7'
+def releaseVersionCode = 1208
+def appVersion = '26.12.8'
 
 android {
     compileSdkVersion rootProject.compileSdkVersion

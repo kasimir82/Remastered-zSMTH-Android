@@ -129,7 +129,7 @@ public class FeedFragment extends Fragment {
         if (mode == Settings.SORT_BY_LAST_REPLY) {
           return Long.compare(rhs.getReplySortKey(), lhs.getReplySortKey());
         }
-        return Long.compare(rhs.getPublishSortKey(), lhs.getPublishSortKey());
+        return Long.compare(rhs.getPublishSortKeyCached(), lhs.getPublishSortKeyCached());
       }
     });
     mAppliedSortMode = mode;

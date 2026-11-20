@@ -150,6 +150,7 @@ public class MineFragment extends Fragment {
     items.add(MineItem.row("signature_content", R.drawable.ic_mine_signature, "设备型号", settings.getSignature()));
 
     items.add(MineItem.section("存储与关于"));
+    items.add(MineItem.row("app_data", R.drawable.ic_mine_info, "App数据管理", "导入/导出/清理"));
     items.add(MineItem.row("clear_image", R.drawable.ic_mine_clean, "清除图片缓存", imageCacheSummary));
     items.add(MineItem.row("clear_http", R.drawable.ic_mine_clean, "清除帖子缓存", httpCacheSummary));
     items.add(MineItem.row("about", R.drawable.ic_mine_info, "关于 RzSMTH", versionSummary()));
@@ -296,6 +297,10 @@ public class MineFragment extends Fragment {
 
       case "feed_settings":
         startActivity(new Intent(activity, FeedSettingsActivity.class));
+        break;
+
+      case "app_data":
+        startActivity(new Intent(activity, AppDataActivity.class));
         break;
 
       case "night":

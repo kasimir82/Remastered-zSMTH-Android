@@ -29,6 +29,10 @@ public class Topic implements Parcelable {
   private String replier;
   private String replyDate;
 
+  // 发表时间排序键的缓存补齐结果（每个 Topic 只查一次库，排序比较会调用多次）
+  private boolean publishKeyCacheResolved = false;
+  private long publishKeyFromCache = 0;
+
   // 是否是置顶的主题
   public boolean isSticky;
 
@@ -224,9 +228,38 @@ public class Topic implements Parcelable {
     return fallback;
   }
 
-  /** 「按发表时间排序」用的排序键 */
+  /** 「按发表时间排序」用的排序键（老方法，不查缓存） */
   public long getPublishSortKey() {
     return parseSortKey(publishDate, 0L);
+  }
+
+  /**
+   * 「按发表时间排序」用的排序键（会查本地时间缓存）。
+   * 仅当发帖时间不是当天（服务端只给了 yyyy-MM-dd 日期、没有时刻）时，
+   * 用 topicID 去缓存查精确发帖日期+时间，查到就按完整时间算 key；
+   * 查不到或本来就是当天的时刻，一律走老方法不变。
+   * 每个 Topic 只解析/查库一次，结果缓存起来（排序比较会反复调用）。
+   */
+  public long getPublishSortKeyCached() {
+    if (publishKeyCacheResolved) {
+      return publishKeyFromCache != 0 ? publishKeyFromCache : getPublishSortKey();
+    }
+    publishKeyCacheResolved = true;
+    publishKeyFromCache = 0;
+
+    com.zfdang.zsmth_android.helpers.TopicTimeCache.DateTime dt =
+        com.zfdang.zsmth_android.helpers.TopicTimeCache.parseDateTime(publishDate);
+    // dt.time 为空 = 服务端只给了日期 = 非当天，才尝试查缓存
+    if (!dt.date.isEmpty() && dt.time.isEmpty() && topicID != null && !topicID.isEmpty()) {
+      com.zfdang.zsmth_android.helpers.TopicTimeCache.TopicTime cached =
+          com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().get(topicID);
+      if (cached != null && cached.publishDate != null && !cached.publishDate.isEmpty()
+          && cached.publishTime != null && !cached.publishTime.isEmpty()) {
+        // 查到精确发帖日期+时间：拼成 "yyyy-MM-dd HH:mm:ss" 走完整解析
+        publishKeyFromCache = parseSortKey(cached.publishDate + " " + cached.publishTime, 0L);
+      }
+    }
+    return publishKeyFromCache != 0 ? publishKeyFromCache : getPublishSortKey();
   }
 
   /**
