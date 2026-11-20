@@ -28,35 +28,35 @@
         android:textSize="13sp" />
 
     <Button
-        android:id="@+id/pm_btn_normal"
+        android:id="@+id/pm_btn_cancel"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="60dp"
         android:layout_marginTop="14dp"
-        android:text="① 正常发送"
+        android:text="取消"
         android:textAllCaps="false" />
 
     <Button
         android:id="@+id/pm_btn_jpg"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="② 转成验证码风格图片发送"
+        android:layout_height="60dp"
+        android:layout_marginTop="8dp"
+        android:text="转成验证码风格图片发送"
         android:textAllCaps="false" />
 
     <Button
         android:id="@+id/pm_btn_vertical"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="③ 竖排诗歌风格发送"
+        android:layout_height="60dp"
+        android:layout_marginTop="8dp"
+        android:text="竖排诗歌风格发送"
         android:textAllCaps="false" />
 
     <Button
-        android:id="@+id/pm_btn_cancel"
+        android:id="@+id/pm_btn_normal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="取消"
+        android:layout_height="60dp"
+        android:layout_marginTop="8dp"
+        android:text="正常发送"
         android:textAllCaps="false" />
 
 </LinearLayout>
