@@ -91,14 +91,14 @@ public final class PublishMethodHelper {
    * 做法：
    *  - 按每列 maxCharsPerColumn 个字把文本分成若干列
    *  - 最左列是原文开头；纯文本从左到右输出时列序与原文一致（原文开头的列放每行最前/视觉最左）
-   *  - 每行用汉字「丨」(全角等宽) 包裹成格子
+   *  - 每行用汉字「丨」(全角等宽) 作为格子间分隔符，两端不加
    *
    * 例：原文 "床前明月光疑是地上霜"，每列5字 →
-   *   丨床丨疑丨
-   *   丨前丨是丨
-   *   丨明丨地丨
-   *   丨月丨上丨
-   *   丨光丨霜丨
+   *   床丨疑
+   *   前丨是
+   *   明丨地
+   *   月丨上
+   *   光丨霜
    * （竖着从左往右读：左列 床前明月光，右列 疑是地上霜）
    */
   public static String toVerticalPoem(String text, int maxCharsPerColumn) {
@@ -129,7 +129,7 @@ public final class PublishMethodHelper {
     for (String col : columns) maxRows = Math.max(maxRows, col.length());
 
     StringBuilder out = new StringBuilder();
-    // 用汉字「丨」(U+4E28)包裹每一行：丨字丨字丨字丨 。
+    // 用汉字「丨」(U+4E28)作为格子之间的分隔符：字丨字丨字（两端不加分隔符）。
     // 它是全角等宽的 CJK 汉字，形状为竖线，比原制表符 │(半角) 更能保证格子对齐
     String cell = "丨";
     for (int row = 0; row < maxRows; row++) {
@@ -145,7 +145,8 @@ public final class PublishMethodHelper {
         rowCells.remove(rowCells.size() - 1);
       }
       if (rowCells.isEmpty()) continue;
-      out.append(cell).append(String.join(cell, rowCells)).append(cell);
+      // 只在格子之间放分隔符，左右两端不加
+      out.append(String.join(cell, rowCells));
       if (row < maxRows - 1) out.append("\n");
     }
     return out.toString();
@@ -279,7 +280,8 @@ public final class PublishMethodHelper {
   public static String toVerticalWithFillers(String text) {
     if (text == null || text.trim().isEmpty()) return text;
     int charCount = text.replace("\n", "").replace("\r", "").length();
-    int perCol = Math.max(3, (int) Math.ceil(charCount / 14.0));
+    // 最宽 7 列（不含分隔符）：每列字数 = ceil(总字数/7)。文本短时列数自然更少。
+    int perCol = Math.max(3, (int) Math.ceil(charCount / 7.0));
     return toVerticalPoem(text, perCol);
   }
 
