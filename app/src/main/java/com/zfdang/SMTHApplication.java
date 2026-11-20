@@ -80,6 +80,31 @@ public class SMTHApplication extends Application {
     // 真正的限制仍由水木服务端判定，这里只清本地的记住状态。
     com.zfdang.zsmth_android.helpers.LoginThrottle.clearRestriction();
 
+    // ===== TEMP CAPTCHA TEST: 保留代码，if(false)禁用；需要测试时改成 true =====
+    if (false) {
+      new Thread(() -> {
+        try {
+          com.zfdang.zsmth_android.helpers.PublishMethodHelper.ImageResult r =
+              com.zfdang.zsmth_android.helpers.PublishMethodHelper.textToCaptchaImages(
+                  getApplicationContext(),
+                  "赢个鸡毛，要翻白眼了还赢吴泳铭阿里2032年全球数据中心规模超20GW目标或下调");
+          if (!r.files.isEmpty()) {
+            java.io.File src = r.files.get(0);
+            java.io.File dst = new java.io.File(getCacheDir(), "captcha-test.jpg");
+            java.io.InputStream in = new java.io.FileInputStream(src);
+            java.io.OutputStream out = new java.io.FileOutputStream(dst);
+            byte[] buf = new byte[4096]; int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close(); out.close();
+            android.util.Log.i("CAPTCHA-TEST", "saved " + dst.getAbsolutePath() + " size=" + dst.length());
+          }
+        } catch (Throwable t) {
+          android.util.Log.e("CAPTCHA-TEST", "failed", t);
+        }
+      }).start();
+    }
+    // ===== END TEMP =====
+
     // 已移除本地IP属地库(qqwry.db)：删除历版 SQLiteAssetHelper 解压在 databases 目录的旧库(约77MB)，
     // 避免老用户升级后白色占用空间。只删这一个固定文件，不影响其它数据库。
     try {

@@ -262,7 +262,7 @@ public final class PublishMethodHelper {
   private static final int CAPTCHA_COLS = 7;
   private static final int CAPTCHA_FONT = 44;
   private static final int CAPTCHA_PAD = 20;
-  private static final int CAPTCHA_LINE_H = CAPTCHA_FONT + 16;
+  private static final int CAPTCHA_LINE_H = CAPTCHA_FONT + 26; // 与 Java 原型一致
 
   public static ImageResult textToCaptchaImages(Context context, String text) {
     ImageResult result = new ImageResult();
@@ -280,12 +280,10 @@ public final class PublishMethodHelper {
 
     Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     paint.setTextSize(CAPTCHA_FONT);
-    Typeface heiti = Typeface.create("sans-serif", Typeface.NORMAL);
-    Typeface kaiti = Typeface.create("serif", Typeface.NORMAL); // 近似楷体/手写感
-    paint.setTypeface(heiti);
+    // 统一用一种字体：混排 serif 会让部分字实际占宽>charW 导致重叠
+    Typeface font = Typeface.create("sans-serif", Typeface.NORMAL);
+    paint.setTypeface(font);
 
-    Rect bounds = new Rect();
-    paint.getTextBounds("测", 0, 1, bounds);
     float charW = paint.measureText("测");
 
     int w = CAPTCHA_PAD * 2 + (int) (charW * CAPTCHA_COLS) + 12;
@@ -307,46 +305,48 @@ public final class PublishMethodHelper {
       float x = CAPTCHA_PAD;
       for (int i = 0; i < line.length(); i++) {
         char c = line.charAt(i);
-        float rot = (rnd.nextFloat() * 2 - 1) * 18f;      // ±18°
-        float scale = 1f + (rnd.nextFloat() * 2 - 1) * 0.18f;
-        float dy = (rnd.nextFloat() * 2 - 1) * 6f;
+        float rot = (rnd.nextFloat() * 2 - 1) * 60f;      // ±60°(测试)
+        float scale = 1f + (rnd.nextFloat() * 2 - 1) * 0.12f;
+        float dy = (rnd.nextFloat() * 2 - 1) * 4f;
 
+        // 用 canvas 原生 rotate/scale（绕字符中心），避免 Matrix.postXXX 与 AffineTransform 顺序差异导致错位
         canvas.save();
-        Matrix m = new Matrix();
-        m.postTranslate(x + charW / 2f, baselineY + dy);
-        m.postRotate(rot);
-        m.postScale(scale, scale);
-        m.postTranslate(-charW / 2f, 0);
-        canvas.concat(m);
-        paint.setTypeface(rnd.nextBoolean() ? kaiti : heiti);
+        canvas.translate(x + charW / 2f, baselineY + dy);
+        canvas.rotate(rot);
+        canvas.scale(scale, scale);
         int shade = 20 + rnd.nextInt(40);
         paint.setColor(Color.rgb(shade, shade, shade));
-        canvas.drawText(String.valueOf(c), 0, 0, paint);
+        // 与原型一致：drawText 的 y 是基线，字画在其上方；x 左移半字宽使字符绕中心旋转
+        canvas.drawText(String.valueOf(c), -charW / 2f, 0, paint);
         canvas.restore();
 
-        x += charW * (0.92f + rnd.nextFloat() * 0.16f); // 字间距轻微波动
+        x += charW * (0.95f + rnd.nextFloat() * 0.12f); // 与原型一致的字距波动
       }
     }
 
     // 3 条二次贝塞尔干扰曲线
     Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     linePaint.setStyle(Paint.Style.STROKE);
-    linePaint.setStrokeWidth(1f);
+    linePaint.setStrokeWidth(1.4f);
     android.graphics.Path path = new android.graphics.Path();
-    for (int i = 0; i < 3; i++) {
+    // 8 条干扰线，颜色更深(alpha 200~235, 深灰到黑)
+    for (int i = 0; i < 8; i++) {
       int y1 = rnd.nextInt(h), y2 = rnd.nextInt(h), yc = rnd.nextInt(h);
       path.reset();
       path.moveTo(CAPTCHA_PAD, y1);
       path.quadTo(w / 2f, yc, w - CAPTCHA_PAD, y2);
-      int shade = 80 + rnd.nextInt(120);
-      linePaint.setColor(Color.argb(160, shade, shade, shade));
+      int shade = rnd.nextInt(90); // 0~90 深灰
+      linePaint.setColor(Color.argb(200 + rnd.nextInt(36), shade, shade, shade));
       canvas.drawPath(path, linePaint);
     }
 
-    // 1000 个噪点
-    for (int i = 0; i < 1000; i++) {
+    // 3000 个噪点，画成 2x2 小块(JPG Q10 会吃掉单像素)，全黑/深灰
+    Paint noisePaint = new Paint();
+    for (int i = 0; i < 3000; i++) {
       int px = rnd.nextInt(w), py = rnd.nextInt(h);
-      bitmap.setPixel(px, py, rnd.nextBoolean() ? Color.BLACK : Color.LTGRAY);
+      int shade = rnd.nextInt(110); // 0~110 深灰到黑
+      noisePaint.setColor(Color.rgb(shade, shade, shade));
+      canvas.drawRect(px, py, px + 2, py + 2, noisePaint);
     }
 
     File file = new File(dir, "captcha-" + java.util.UUID.randomUUID().toString().replace("-", "") + ".jpg");
