@@ -91,14 +91,14 @@ public final class PublishMethodHelper {
    * 做法：
    *  - 按每列 maxCharsPerColumn 个字把文本分成若干列
    *  - 最右列是原文开头；纯文本从左到右输出时列序反转（原文开头的列放每行最后/视觉最右）
-   *  - 每行用 ASCII 制表符 │ 包裹成格子
+   *  - 每行用汉字「丨」(全角等宽) 包裹成格子
    *
    * 例：原文 "床前明月光疑是地上霜"，每列5字 →
-   *   │霜│床│
-   *   │上│前│
-   *   │地│明│
-   *   │是│月│
-   *   │疑│光│
+   *   丨霜丨床丨
+   *   丨上丨前丨
+   *   丨地丨明丨
+   *   丨是丨月丨
+   *   丨疑丨光丨
    * （竖着从右往左读：右列 床前明月光，左列 疑是地上霜）
    */
   public static String toVerticalPoem(String text, int maxCharsPerColumn) {
@@ -108,7 +108,7 @@ public final class PublishMethodHelper {
     // 只处理非换行字符；原文换行视为段落分隔，转成竖排时用分隔符
     String normalized = text.replace("\r\n", "\n").replace("\r", "\n");
     // 去掉换行，并把半角字符(英文/数字/标点/空格)转成全角，
-    // 让每个字符都占一个中文宽度，│格子才能对齐
+    // 让每个字符都占一个中文宽度，丨格子才能对齐
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < normalized.length(); i++) {
       char c = normalized.charAt(i);
@@ -130,8 +130,9 @@ public final class PublishMethodHelper {
     for (String col : columns) maxRows = Math.max(maxRows, col.length());
 
     StringBuilder out = new StringBuilder();
-    // 用 ASCII 制表符包裹每一行：│字│字│字│ ，模拟参考图里的格子边框
-    String cell = "│";
+    // 用汉字「丨」(U+4E28)包裹每一行：丨字丨字丨字丨 。
+    // 它是全角等宽的 CJK 汉字，形状为竖线，比原制表符 │(半角) 更能保证格子对齐
+    String cell = "丨";
     for (int row = 0; row < maxRows; row++) {
       List<String> rowCells = new ArrayList<>();
       // 古文顺序：从右上角开始写，列从右往左。最右列是原文开头(cols[0])。
@@ -273,7 +274,7 @@ public final class PublishMethodHelper {
 
   /**
    * 竖排文本生成（不再插入下划线填充）。
-   * 之前会在字间插入全角下划线试图打断敏感词，但实际无用（竖排的 │ 格子本身已隔开字符），
+   * 之前会在字间插入全角下划线试图打断敏感词，但实际无用（竖排的丨格子本身已隔开字符），
    * 反而让文本变长难读，故去掉。保留原方法名以免改动调用点。
    */
   public static String toVerticalWithFillers(String text) {
