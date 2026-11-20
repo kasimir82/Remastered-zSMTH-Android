@@ -153,9 +153,10 @@ public class SilentLoginHelper {
           Log.w(TAG, "JS alert: " + message + " (url=" + url + ")");
           LoginFailureLogger.log("js_alert", message + " (url=" + url + ")");
           if (LoginThrottle.isTooFrequentDialog(message)) {
-            LoginThrottle.onTooFrequent(message);
-            LoginFailureLogger.log("too_frequent", message);
-            result.cancel(); // 不确认，避免触发踢掉其它设备
+            // 静默登录是后台自动行为：窗口过多时不写本地受限状态，也不弹可见页面，
+            // 只记录日志并取消弹窗（不确认，避免踢掉其它设备）。用户想登录时手动点。
+            LoginFailureLogger.log("too_frequent_silent", message);
+            result.cancel();
           } else {
             result.confirm(); // 普通提示：自动确认，避免静默流程卡住
           }
@@ -166,8 +167,7 @@ public class SilentLoginHelper {
           Log.w(TAG, "JS confirm: " + message + " (url=" + url + ")");
           LoginFailureLogger.log("js_confirm", message + " (url=" + url + ")");
           if (LoginThrottle.isTooFrequentDialog(message)) {
-            LoginThrottle.onTooFrequent(message);
-            LoginFailureLogger.log("too_frequent", message);
+            LoginFailureLogger.log("too_frequent_silent", message);
           }
           // 「踢掉多余窗口」类确认不能点确定（会挤掉其它设备），静默模式下取消
           result.cancel();

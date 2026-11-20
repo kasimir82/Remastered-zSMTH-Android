@@ -204,6 +204,12 @@ public class LoginThrottle {
    */
   public static void onLoginFailed(String reason) {
     if (reason == null) reason = "unknown";
+    // 纯网络类失败（超时/连接错误）不是"受限"，不写 reason，避免误导。
+    // 也不设时间戳——isRestricted 只看时间戳，这些失败本就不该显示受限卡片。
+    if (reason.startsWith("timeout") || reason.startsWith("error:")) {
+      Log.w(TAG, "onLoginFailed: network failure, ignore (not a restriction): " + reason);
+      return;
+    }
     String friendly;
     if (reason.startsWith("timeout")) {
       friendly = "登录超时，服务器响应过慢";
