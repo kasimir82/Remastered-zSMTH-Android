@@ -27,22 +27,46 @@ public class LoginThrottle {
   /** 被判频繁登录后的冷却：5 分钟 */
   public static final long PENALTY_COOLDOWN_MS = 5L * 60 * 1000;
 
-  /** 登录受限弹窗的统一文案：冷却分钟数由常量算出，避免文案与实际时长不一致 */
+  /**
+   * 从服务端文案里提取等待分钟数（如「请 30 分钟后再试」→ 30 分钟），
+   * 提取不到则用默认冷却时长。提取到的时长直接写进时间戳，保证显示与实际一致。
+   */
+  private static long cooldownMsFromReason(String reason) {
+    if (reason != null) {
+      java.util.regex.Matcher m = java.util.regex.Pattern
+          .compile("(\\d+)\\s*(分钟|分|min|minutes?)").matcher(reason);
+      if (m.find()) {
+        try {
+          int mins = Integer.parseInt(m.group(1));
+          if (mins > 0) return mins * 60000L;
+        } catch (NumberFormatException ignored) {
+        }
+      }
+    }
+    return PENALTY_COOLDOWN_MS;
+  }
+
+  /** 受限弹窗文案（无服务端原文）：显示默认冷却时长 */
   public static String getCooldownMessage() {
-    long minutes = PENALTY_COOLDOWN_MS / 60000L;
-    return "由于此前登录过于频繁，水木暂时限制了登录。已暂停自动登录 " + minutes
-        + " 分钟，请稍后再试。";
+    return getCooldownMessage(null);
   }
 
-  /** 带服务端原文前缀的受限文案 */
+  /** 受限弹窗文案：显示本次冷却的总时长（从服务端文案提取或默认值） */
   public static String getCooldownMessage(String serverMessage) {
-    long minutes = PENALTY_COOLDOWN_MS / 60000L;
-    return serverMessage + "。已暂停自动登录 " + minutes + " 分钟，请稍后再试。";
+    long minutes = cooldownMsFromReason(serverMessage) / 60000L;
+    return (serverMessage == null ? "由于此前登录过于频繁，水木暂时限制了登录" : serverMessage)
+        + "。已暂停自动登录 " + minutes + " 分钟，请稍后再试。";
   }
 
-  /** 当前是否处于水木的登录限制冷却期 */
+  /** 当前是否处于水木的登录限制冷却期：完全基于时间戳，时间到自动解除 */
   public static boolean inCooldown() {
     return System.currentTimeMillis() < Settings.getInstance().getLoginCooldownUntil();
+  }
+
+  /** 冷却剩余毫秒数，<=0 表示已解除 */
+  public static long getRemainingCooldownMs() {
+    long remain = Settings.getInstance().getLoginCooldownUntil() - System.currentTimeMillis();
+    return Math.max(0, remain);
   }
 
   /** 是否允许自动登录（Worker 用）。冷却期内、或距上次成功登录太近，都不允许。 */
@@ -131,60 +155,43 @@ public class LoginThrottle {
         || msg.contains("登录的窗口");
   }
 
-  /** 被判频繁登录：进入冷却，停止自动登录，并记录受限原因供 UI 展示 */
+  /** 被判频繁登录：记录受限时间戳与原因，之后一律用「当前时间 vs 时间戳」判断 */
   public static void onTooFrequent(String reason) {
     Settings s = Settings.getInstance();
-    long until = System.currentTimeMillis() + PENALTY_COOLDOWN_MS;
+    long cooldownMs = cooldownMsFromReason(reason);
+    long until = System.currentTimeMillis() + cooldownMs;
     s.setLoginCooldownUntil(until);
-    // 记录服务端原文作为受限原因；UI 会据此展示「问题是：XXX」
     s.setLoginRestrictionReason(reason == null ? "登录受限" : reason);
-    Log.w(TAG, "onTooFrequent: " + reason + ", cooldown until " + until);
+    Log.w(TAG, "onTooFrequent: " + reason + ", cooldown until " + until
+        + " (" + cooldownMs + "ms)");
   }
 
-  /** 当前是否处于受限态（冷却中 或 有未清除的受限原因），供「我的」页展示 */
+  /** 当前是否处于受限态：只看时间戳，时间到自动解除，不受残留 reason 影响 */
   public static boolean isRestricted() {
-    Settings s = Settings.getInstance();
-    if (inCooldown()) return true;
-    String reason = s.getLoginRestrictionReason();
-    return reason != null && !reason.isEmpty();
+    return inCooldown();
   }
 
   /**
    * 生成给「我的」页账号卡片展示的受限提示文案。
-   * 优先用服务端原文里的等待时间(如「请 5 分钟后再试」)，提取不到则显示通用建议。
-   * 返回两行：第一行原因，第二行建议等待时间。
+   * 等待时间一律按「时间戳 - 当前时间」动态计算，退到后台再回来会自动递减。
+   * 返回两行：第一行原因，第二行剩余等待时间。
    */
   public static String[] getRestrictionHint() {
     Settings s = Settings.getInstance();
     String reason = s.getLoginRestrictionReason();
     if (reason == null || reason.isEmpty()) reason = "服务器拒绝了本次登录";
 
-    // 从服务端文案里提取「X 分钟/分/X min」；没有则用冷却剩余时间估算
-    String waitText = null;
-    java.util.regex.Matcher m = java.util.regex.Pattern
-        .compile("(\\d+)\\s*(分钟|分|min|minutes?)").matcher(reason);
-    if (m.find()) {
-      try {
-        int mins = Integer.parseInt(m.group(1));
-        if (mins > 0) waitText = "建议等待 " + mins + " 分钟后再试";
-      } catch (NumberFormatException ignored) {
-      }
-    }
-    if (waitText == null) {
-      // 服务端文案没给具体时间：
-      // - 窗口过多/频繁登录这类是临时限制，给一个务实的短建议(5分钟)，
-      //   惩罚性冷却本身也已设为 5 分钟
-      // - 其它失败(超时等)用冷却剩余时间兜底
-      if (matchesTooFrequentText(reason)) {
-        waitText = "建议等待约 5 分钟后再试";
+    long remainMs = getRemainingCooldownMs();
+    String waitText;
+    if (remainMs <= 0) {
+      waitText = "限制已解除，可点右侧「重试」重新登录";
+    } else {
+      long remainMin = (remainMs + 59999) / 60000;
+      // 不足1分钟时显示秒，让倒计时到末尾仍然准确
+      if (remainMin >= 1) {
+        waitText = "还需等待约 " + remainMin + " 分钟（剩余 " + (remainMs / 1000) + " 秒）";
       } else {
-        long remainMs = s.getLoginCooldownUntil() - System.currentTimeMillis();
-        if (remainMs > 0) {
-          long remainMin = (remainMs + 59999) / 60000;
-          waitText = "建议等待约 " + remainMin + " 分钟后再试";
-        } else {
-          waitText = "建议稍后重试，或点右侧「重试」手动登录";
-        }
+        waitText = "即将解除，剩余 " + (remainMs / 1000) + " 秒";
       }
     }
     return new String[] { reason, waitText };
