@@ -151,8 +151,28 @@ public class WebviewLoginClient extends WebViewClient {
             }
 
             if (++pollCount > MAX_POLL) {
-                Log.w(TAG, "login not confirmed after " + MAX_POLL + "s, stop polling");
+                // 轮询结束仍未登录成功：密码错误/账号异常/网络失败都会走到这里。
+                // 必须结束当前页面并返回，否则用户卡在 WebView 错误页无法重新输入密码。
+                Log.w(TAG, "login not confirmed after " + MAX_POLL + "s, back to login form");
+                done = true;
                 polling = false;
+                handler.removeCallbacks(pollRunnable);
+                activity.runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            new android.app.AlertDialog.Builder(activity)
+                                .setTitle("登录失败")
+                                .setMessage("未能登录，可能是用户名或密码错误，请返回重新输入。")
+                                .setPositiveButton("返回重输", (dialog, which) -> activity.finish())
+                                .setOnCancelListener(dialog -> activity.finish())
+                                .setCancelable(false)
+                                .show();
+                        } catch (Throwable t) {
+                            Log.e(TAG, "show login failed dialog error", t);
+                            activity.finish();
+                        }
+                    }
+                });
                 return;
             }
             handler.postDelayed(this, POLL_INTERVAL_MS);

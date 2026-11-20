@@ -144,6 +144,13 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
         Intent resultIntent = new Intent();
         setResult(Activity.RESULT_OK, resultIntent);
         finish();
+      } else {
+        // 登录失败/密码错误从 WebView 返回：清空密码框，让用户直接重新输入，
+        // 不必手动删掉错误的旧密码。账号名保留。
+        if (m_passwordEditText != null) {
+          m_passwordEditText.setText("");
+          m_passwordEditText.requestFocus();
+        }
       }
     }
   }
