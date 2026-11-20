@@ -405,11 +405,26 @@ public class Post {
       // 「在 XXX 的大作中提到: 」标题行：用与折叠引文提示相同的灰色显示，
       // 视觉上和下面的「▶ 展开引文」归为一组。
       if (line.contains("的大作中提到")) {
+        // 有些帖子正文与引文标题挤在同一行(如"正文【 在 xxx 的大作中提到: 】")，
+        // 把标题前面的正文拆出来单独输出，否则整行会被染成引文色且没换行。
+        String headerLine = line;
+        int qIdx = line.indexOf("【 在");
+        if (qIdx > 0) {
+          String bodyPrefix = line.substring(0, qIdx).trim();
+          if (!bodyPrefix.isEmpty()) {
+            while (sb.toString().endsWith("<br />")) {
+              sb.setLength(sb.length() - "<br />".length());
+            }
+            sb.append(bodyPrefix);
+          }
+          headerLine = line.substring(qIdx);
+        }
         while (sb.toString().endsWith("<br />")) {
           sb.setLength(sb.length() - "<br />".length());
         }
+        if (sb.length() > 0) sb.append("<br /><br />"); // 有正文时，正文与引文之间空一行
         sb.append("<font color=").append(QUOTE_HEADER_HTML_COLOR).append(">")
-            .append(line).append("</font><br />");
+            .append(headerLine).append("</font><br />");
         continue;
       }
 
@@ -429,6 +444,17 @@ public class Post {
         }
         i--; // 外层 for 还会 i++
         sb.append(QUOTE_MARK).append(quoteBlock).append(QUOTE_MARK);
+        // 引文在前、正文在后：引文块被拆成独立段，段首的 <br /> 会在正文 TextView 里
+        // 渲染成空行。探测下一个非空行是否为正文(非来源/修改行、非引文)，是则补一个空行。
+        int next = i + 1;
+        while (next < lines.length && lines[next].trim().isEmpty()) next++;
+        if (next < lines.length) {
+          String nx = lines[next].trim();
+          if (!nx.startsWith(":") && !nx.startsWith("※ 来源") && !nx.startsWith("※ 修改")
+              && !nx.startsWith("--")) {
+            sb.append("<br />");
+          }
+        }
         continue;
       }
 
