@@ -17,7 +17,7 @@ import java.util.List;
  * DEBUG 测试用的「敏感词绕过」发布方式工具：
  *  - 把 EditText 内容切成「用户输入」和「引用块」两段
  *  - 用户输入转成竖排诗歌风格文本
- *  - 用户输入渲染成 JPG 图片（作为附件发送）
+ *  - 用户输入渲染成 PNG 图片（作为附件发送）
  *
  * 引用块格式（ComposePostActivity 生成）：
  *   \n\n【 在 XXX 的大作中提到: 】\n: 引用行1\n: 引用行2\n
@@ -156,9 +156,9 @@ public final class PublishMethodHelper {
   }
 
   /**
-   * 把文本渲染成 JPG 图片（横排正常语序，不竖排、不加制表符），存到 cache/attachments 目录。
+   * 把文本渲染成 PNG 图片（横排正常语序，不竖排、不加制表符），存到 cache/attachments 目录。
    * 每行最多 MAX_COLS 个字符（宽度上限），图片尺寸按实际行数/字宽自适应，正好包住文字。
-   * JPEG 采用最大压缩(quality=10)以减小体积。超长文本分页，每页自适应。
+   * PNG 无损压缩(避免 JPG 有损压缩导致文字模糊/上传异常)。超长文本分页，每页自适应。
    * @param maxLinesPerPage 每页最多行数，防止单张图片过高
    */
   public static ImageResult textToImages(Context context, String text, int maxLinesPerPage) {
@@ -170,7 +170,6 @@ public final class PublishMethodHelper {
     final int paddingV = 16;
     final int fontSize = 34;
     final int lineHeight = 52;
-    final int jpegQuality = 10; // 最大压缩
 
     TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     paint.setColor(Color.rgb(30, 30, 30));
@@ -225,9 +224,9 @@ public final class PublishMethodHelper {
       applySaltPepperNoise(bitmap, 0.15f);
 
       // 文件名必须全局唯一：站方按文件名去重，同名附件第二次上传会报 1205
-      File file = new File(dir, "text-image-" + java.util.UUID.randomUUID().toString().replace("-", "") + "-" + p + ".jpg");
+      File file = new File(dir, "text-image-" + java.util.UUID.randomUUID().toString().replace("-", "") + "-" + p + ".png");
       try (FileOutputStream out = new FileOutputStream(file)) {
-        bitmap.compress(Bitmap.CompressFormat.JPEG, jpegQuality, out);
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
         out.flush();
         result.files.add(file);
         Log.d(TAG, "text image " + p + ": " + imgW + "x" + imgH + " lines=" + lines.size()

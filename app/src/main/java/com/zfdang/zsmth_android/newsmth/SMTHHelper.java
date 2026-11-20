@@ -389,7 +389,13 @@ public class SMTHHelper {
       File outFile = new File(dir, new File(filename).getName());
 
       FileOutputStream fstream = new FileOutputStream(outFile);
-      bitmap.compress(Bitmap.CompressFormat.JPEG, 85, fstream);
+      // 按文件扩展名决定编码格式：.png 用无损 PNG（文字图避免 JPEG 有损模糊/上传异常），
+      // 其它仍用 JPEG。文件名由生成方(textToImages)带 .png，上传链路保持一致。
+      if (filename != null && filename.toLowerCase(java.util.Locale.US).endsWith(".png")) {
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, fstream);
+      } else {
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, fstream);
+      }
       fstream.flush();
       fstream.close();
 

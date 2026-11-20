@@ -404,7 +404,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
 
     // 「强制敏感词方式回复」：从长按菜单进来，正文已按引用格式填好。
     // 此时还不知道用户想回什么内容，不再直接弹方式窗；
-    // 改为让用户先输入回复，点发送时拦截并弹 JPG/竖排选择窗。
+    // 改为让用户先输入回复，点发送时拦截并弹 PNG/竖排选择窗。
     if (getIntent().getBooleanExtra("force_sensitive", false)) {
       forceSensitiveMode = true;
       // 光标定位到引用分界线上方（用户输入区），方便直接打字
@@ -485,7 +485,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
         .create();
 
     v.findViewById(R.id.pm_btn_jpg).setOnClickListener(x -> {
-      flowLog("USER CHOICE = JPG");
+      flowLog("USER CHOICE = PNG");
       dialog.dismiss();
       publishAsJpg();
     });
@@ -523,7 +523,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     }
   }
 
-  /** 方式①：用户输入转 JPG 图片，作为附件；正文只保留引用块(+简短说明) */
+  /** 方式①：用户输入转 PNG 图片，作为附件；正文只保留引用块(+简短说明) */
   private void publishAsJpg() {
     // 转换完成后退出「强制敏感词模式」，使用户再次点发送时真正发布，而不是重复弹方式窗
     forceSensitiveMode = false;
@@ -569,7 +569,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
     // 正文：用户输入替换为简短说明，引用块只保留「大作中提到」行 + …
     String newContent = "(正文见图片附件)\n" + PublishMethodHelper.abbreviateQuote(split.quotePart);
     mContent.setText(newContent);
-    flowLog("===== JPG RESULT =====");
+    flowLog("===== PNG RESULT =====");
     flowLog("images=" + added + " originalUserText=" + split.userText);
     flowLog("newContent=" + newContent);
     Toast.makeText(this, "已生成 " + added + " 张图片附件，请检查后点发送", Toast.LENGTH_LONG).show();
@@ -646,7 +646,10 @@ public class ComposePostActivity extends SMTHBaseActivity {
       }
     }).map(new Function<BytesContainer, AjaxResponse>() {
       @Override public AjaxResponse apply(@NonNull BytesContainer container) throws Exception {
-        RequestBody requestBody = RequestBody.create(MediaType.parse("image/jpeg"), container.bytes);
+        // MIME 与实际编码一致：PNG 用 image/png，其它仍 image/jpeg
+        String mime = container.filename.toLowerCase(java.util.Locale.US).endsWith(".png")
+            ? "image/png" : "image/jpeg";
+        RequestBody requestBody = RequestBody.create(MediaType.parse(mime), container.bytes);
         AjaxResponse resp =
             helper.wService.uploadAttachment(mPostContext.getBoardEngName(), StringUtils.getLastStringSegment(container.filename),
                 requestBody).blockingFirst();
