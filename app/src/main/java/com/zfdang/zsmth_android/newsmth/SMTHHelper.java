@@ -258,21 +258,18 @@ public class SMTHHelper {
         return false;
       }
       // 页面是 GBK 编码，中文关键词会乱码，故只用 ASCII 结构特征判断。
-      // 未登录/错误页必有：登录表单(u_login_id/passwd)、page404、uid=guest、错误块。
-      // 用排除法：命中这些异常特征才判无效；正常版面结构因版面而异，不做正向断言以免误伤。
+      // 关键教训：登录状态下页面模板依然保留登录框 DOM(u_login_id/login_form)，
+      // 不能用这些"登录表单特征"判未登录——那会把已登录误判掉。
+      // 可靠区分：未登录返回约6KB的 page404 错误页，无帖子列表；
+      //          已登录返回几十KB的版面页，含帖子列表 board-list/title_9。
       String lower = body.toLowerCase(java.util.Locale.US);
-      String[] badMarks = { "id=\"login_form\"", "u_login_id", "name=\"passwd\"",
-          "page404", "uid=guest", "class=\"error\"" };
-      for (String mark : badMarks) {
-        if (lower.contains(mark)) {
-          android.util.Log.w("SMTHHelper", "session check: bad mark '" + mark
-              + "' (len=" + body.length() + ") -> not logged in");
-          return false;
-        }
-      }
-      android.util.Log.d("SMTHHelper", "session check OK (len=" + body.length()
-          + ", head=" + body.substring(0, Math.min(80, body.length())).replace("\n", " ") + ")");
-      return true;
+      boolean isErrorPage = lower.contains("page404") || lower.contains("class=\"error\"");
+      boolean hasBoardList = lower.contains("board-list") || lower.contains("title_9");
+      boolean valid = !isErrorPage && hasBoardList;
+      android.util.Log.d("SMTHHelper", "session check: len=" + body.length()
+          + " isErrorPage=" + isErrorPage + " hasBoardList=" + hasBoardList
+          + " -> " + (valid ? "VALID" : "INVALID"));
+      return valid;
     } catch (Throwable t) {
       android.util.Log.w("SMTHHelper", "session check exception: " + t.getMessage());
       return false;

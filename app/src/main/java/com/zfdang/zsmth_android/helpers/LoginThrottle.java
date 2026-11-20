@@ -131,6 +131,22 @@ public class LoginThrottle {
   }
 
   /**
+   * 后台确认「会话有效」（json 已登录 + board 验证通过）时调用：
+   * 恢复在线标志与成功标志，清残留受限状态，但不刷新 lastLoginTime
+   * （避免影响 30 分钟自动登录节流的节奏）。用于自愈之前误判遗留的 user_online=false。
+   */
+  public static void markSessionValid() {
+    Settings s = Settings.getInstance();
+    if (!s.isLastLoginSuccess()) s.setLastLoginSuccess(true);
+    if (!s.isUserOnline()) s.setUserOnline(true);
+    if (s.getLoginCooldownUntil() != 0) s.setLoginCooldownUntil(0);
+    if (s.getLoginRestrictionReason() != null && !s.getLoginRestrictionReason().isEmpty()) {
+      s.setLoginRestrictionReason("");
+    }
+    Log.i(TAG, "markSessionValid: session confirmed valid, online flag restored");
+  }
+
+  /**
    * 任何登录失败（密码错/账号过多/踢出/超时/验证码）都调用：
    * 完全退出登录状态（等价于用户点「注销」），并暂停自动登录/掉线检测，
    * 直到用户手动成功完成一次登录（onLoginSuccess）才恢复。

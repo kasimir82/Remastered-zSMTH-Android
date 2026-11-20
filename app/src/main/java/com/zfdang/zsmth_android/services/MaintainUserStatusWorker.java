@@ -142,12 +142,15 @@ public class MaintainUserStatusWorker extends Worker {
                     updateUserIcon = true;
                 }
                 // 二次验证：json 说已登录还不够，实际访问 NewExpress 版面确认 cookie 真的有效。
-                // 返回异常(未登录页/错误页)则完全登出，退回未登录状态。
-                if (!TextUtils.equals(userStatus.getId(), "guest")
-                        && !SMTHHelper.isSessionValidByBoard()) {
-                    Log.w(TAG, "session invalid by board access -> full logout");
-                    com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("board check failed");
-                    userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录
+                // 返回异常(未登录页/错误页)则完全登出；验证通过则恢复在线标志(自愈误判残留)。
+                if (!TextUtils.equals(userStatus.getId(), "guest")) {
+                    if (SMTHHelper.isSessionValidByBoard()) {
+                        com.zfdang.zsmth_android.helpers.LoginThrottle.markSessionValid();
+                    } else {
+                        Log.w(TAG, "session invalid by board access -> full logout");
+                        com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("board check failed");
+                        userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录
+                    }
                 }
 
                 SMTHApplication.activeUser = userStatus;
