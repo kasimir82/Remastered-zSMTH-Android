@@ -854,6 +854,18 @@ public class SMTHHelper {
         }
       }
 
+      // 把「今天」的精确时间写入本地缓存：服务端对今天的时间返回 HH:mm:ss，
+      // 过几天只剩 yyyy-MM-dd，到那时就能从缓存取回精确时间用于排序。
+      // 只有 topicID 有效且至少一个时间字段是纯时刻时才写。
+      if (topic.getTopicID() != null && !topic.getTopicID().isEmpty()) {
+        long pubMs = com.zfdang.zsmth_android.helpers.TopicTimeCache.parseTodayMillis(topic.getPublishDate());
+        long replyMs = com.zfdang.zsmth_android.helpers.TopicTimeCache.parseTodayMillis(topic.getReplyDate());
+        if (pubMs > 0 || replyMs > 0) {
+          com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().save(
+              topic.getTopicID(), pubMs, replyMs);
+        }
+      }
+
       // Log.d("ParseBoardTopics", topic.toString());
       if (topic.getTitle() != null && topic.getTitle().length() > 0) {
         results.add(topic);
