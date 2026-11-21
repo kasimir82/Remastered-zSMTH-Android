@@ -154,7 +154,7 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         int viewport = recyclerView.getHeight() - recyclerView.getPaddingTop()
             - recyclerView.getPaddingBottom();
         if (viewport > 0) {
-          int markerH = viewport; // 固定视口高
+          int markerH = viewport * 7 / 10; // 固定视口高的70%
           RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
           android.util.Log.d(TAG_TURN, "  END-MARKER fix: viewport=" + viewport
               + " markerH=" + markerH + " oldH=" + (lp == null ? "null" : lp.height));

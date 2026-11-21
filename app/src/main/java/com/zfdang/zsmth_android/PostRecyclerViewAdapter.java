@@ -77,16 +77,17 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
   @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
     if (viewType == TYPE_END) {
       View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.post_list_end, parent, false);
-      // 关键：EndMarker 一创建就把高度写死为视口高，不能等它滚进视口再校准(findViewByPosition 找不到)。
+      // 关键：EndMarker 一创建就把高度写死为视口高的70%，不能等它滚进视口再校准(findViewByPosition 找不到)。
       // 否则翻到倒数第二/三楼时它高度还是 WRAP_CONTENT(-2)，底部空间不够导致楼顶不到顶。
       int viewport = parent.getHeight() - parent.getPaddingTop() - parent.getPaddingBottom();
       if (viewport <= 0) {
         // parent 还没测好，退而用屏幕高度
         viewport = parent.getContext().getResources().getDisplayMetrics().heightPixels;
       }
+      int markerH = viewport * 7 / 10; // 视口高的70%
       RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) view.getLayoutParams();
-      if (lp == null) lp = new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, viewport);
-      else lp.height = viewport;
+      if (lp == null) lp = new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, markerH);
+      else lp.height = markerH;
       view.setLayoutParams(lp);
       return new EndViewHolder(view);
     }
@@ -122,7 +123,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
     if (endView == null) return;
     int viewport = mRecyclerView.getHeight() - mRecyclerView.getPaddingTop() - mRecyclerView.getPaddingBottom();
     if (viewport <= 0) return;
-    int markerH = viewport; // 固定为视口高，不依赖末楼高度
+    int markerH = viewport * 7 / 10; // 固定为视口高的70%，不依赖末楼高度
     RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
     if (lp != null && Math.abs(lp.height - markerH) > dpToPx(endView, 8)) {
       lp.height = markerH;
