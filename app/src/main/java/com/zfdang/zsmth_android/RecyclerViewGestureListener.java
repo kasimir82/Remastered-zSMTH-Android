@@ -57,7 +57,8 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     }
     // 点在「本贴结束」空白区域 → 返回上一界面（仅末楼已顶到标题时）
     if (handleEndMarkerTap(e)) {
-      android.util.Log.d(TAG_TURN, "  -> HIT end marker, return to list");
+      vibrateOnPageTurn(); // 返回也震一下，与翻页反馈一致
+      android.util.Log.d(TAG_TURN, "  -> HIT end marker, return to list + vibrate");
       return true;
     }
     if (touchY < mScreenHeight * 0.40) {
