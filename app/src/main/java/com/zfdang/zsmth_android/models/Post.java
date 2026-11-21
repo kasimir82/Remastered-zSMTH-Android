@@ -483,8 +483,8 @@ public class Post {
     }
     if (!sourceStr.isEmpty()) {
       // 同理：有折叠引文段时来源段开头不加 <br />(否则多一个空行)；
-      // 无引文时正文与来源在同一段，需要 <br /> 换行。
-      if (!hasQuote && !bodyStr.isEmpty()) out.append("<br />");
+      // 无引文时正文与来源在同一段，正文下方总要空一行 → 加两个 <br />。
+      if (!hasQuote && !bodyStr.isEmpty()) out.append("<br /><br />");
       out.append(sourceStr);
     }
     return out.toString().trim();
