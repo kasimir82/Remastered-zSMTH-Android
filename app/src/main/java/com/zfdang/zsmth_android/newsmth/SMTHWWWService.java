@@ -197,6 +197,8 @@ public interface SMTHWWWService {
             @Path("boardEngName") String boardEngName, @Path("postID") String postID,
             @Field("gid") String topicID, @Field("top") String top);
 
-    @GET("/nForum/board/NewExpress?ajax")
+    // 登录检测用 FamilyLife 版：NewExpress 需要较高积分，积分不足的账号访问会返回错误页，
+    // 导致已登录用户被误判为未登录。FamilyLife 是无积分门槛的公共版面，任何已登录账号都能访问。
+    @GET("/nForum/board/FamilyLife?ajax")
     Call<String> keepAlive();
 }

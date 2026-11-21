@@ -238,7 +238,8 @@ public class SMTHHelper {
 
   // query active user status
   /**
-   * 通过实际访问 NewExpress 版面 ajax 验证登录态是否真的有效（不能只信 json 的 session 接口）。
+   * 通过实际访问 FamilyLife 版面 ajax 验证登录态是否真的有效（不能只信 json 的 session 接口）。
+   * 用 FamilyLife 而非 NewExpress：后者有积分门槛，积分不足的已登录账号访问会返回错误页被误判未登录。
    * 同步阻塞调用，须在 IO 线程执行。
    * 判定异常：HTTP 非200 / 返回体为空或过短 / 含未登录或错误页的 ASCII 结构特征(GBK编码，中文不可用)。
    * @return true=登录态有效；false=异常(应视为未登录)
