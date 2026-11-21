@@ -8,8 +8,8 @@ def getDate() {
     return formattedDate
 }
 // 每次改版 versionCode 加一；versionName 手动递增，不用构建日期，便于按版本追踪
-def releaseVersionCode = 1253
-def appVersion = '26.12.53'
+def releaseVersionCode = 1254
+def appVersion = '26.12.54'
 
 android {
     compileSdkVersion rootProject.compileSdkVersion
@@ -130,9 +130,7 @@ dependencies {
     implementation "com.squareup.retrofit2:converter-gson:$RETROFIT_VERSION"
 
 
-    // Pin the current SDK instead of resolving obsolete com.umeng.sdk artifacts.
-    implementation 'com.umeng.umsdk:common:10.0.1'
-    implementation 'com.umeng.umsdk:asms:1.8.7.2'
+    // 友盟统计 SDK 已移除（v26.12.54）
 
     // Official WeChat SDK for user-initiated webpage card sharing.
     implementation 'com.tencent.mm.opensdk:wechat-sdk-android:6.8.40'
