@@ -144,28 +144,22 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         return;
       }
 
-      // 无条件把 EndMarker 高度精确校准为「视口 - 末楼高」：列表底部必须有足够高度，
-      // 否则倒数第二楼/末楼顶不到视口上沿(snapToTop 被底部边界限制)导致点击卡住；
-      // 末楼对齐后 EndMarker 恰好占满下方空白，返回热区与视觉一致。
+      // 无条件把 EndMarker 高度写死为视口高(不再用 视口-末楼高 动态算)：
+      // 动态算依赖末楼高度测量，图片加载前后 lastH 会变，导致偶发倒数第二楼对不齐。
+      // 写死视口高后列表底部空间恒定充足，任何楼都能顶到视口上沿。
       int endMarkerPos = itemCount - 1;
       View endView = lm.findViewByPosition(endMarkerPos);
       if (endView != null && isEndMarker(endView)) {
-        View lastPostView = lm.findViewByPosition(endMarkerPos - 1);
-        if (lastPostView != null) {
-          int viewport = recyclerView.getHeight() - recyclerView.getPaddingTop()
-              - recyclerView.getPaddingBottom();
-          int lastH = lastPostView.getHeight();
-          if (viewport > 0 && lastH > 0) {
-            int minH = Math.round(72 * recyclerView.getResources().getDisplayMetrics().density);
-            int markerH = Math.max(minH, viewport - lastH);
-            RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
-            android.util.Log.d(TAG_TURN, "  END-MARKER calibrate: viewport=" + viewport
-                + " lastH=" + lastH + " markerH=" + markerH
-                + " oldH=" + (lp == null ? "null" : lp.height));
-            if (lp != null && lp.height != markerH) {
-              lp.height = markerH;
-              endView.setLayoutParams(lp);
-            }
+        int viewport = recyclerView.getHeight() - recyclerView.getPaddingTop()
+            - recyclerView.getPaddingBottom();
+        if (viewport > 0) {
+          int markerH = viewport; // 固定视口高
+          RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
+          android.util.Log.d(TAG_TURN, "  END-MARKER fix: viewport=" + viewport
+              + " markerH=" + markerH + " oldH=" + (lp == null ? "null" : lp.height));
+          if (lp != null && lp.height != markerH) {
+            lp.height = markerH;
+            endView.setLayoutParams(lp);
           }
         }
       }
