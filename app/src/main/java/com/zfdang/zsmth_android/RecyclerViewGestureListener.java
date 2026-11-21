@@ -43,28 +43,35 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     mScreenHeight = wm.getDefaultDisplay().getHeight();
   }
 
+  private static final String TAG_TURN = "PageTurn";
+
   @Override public boolean onSingleTapUp(MotionEvent e) {
+    int touchY = (int) e.getRawY();
+    android.util.Log.d(TAG_TURN, "TAP x=" + (int) e.getRawX() + " y=" + touchY
+        + " screenH=" + mScreenHeight + " ratio=" + String.format("%.2f", touchY * 1.0f / mScreenHeight));
     // 先判断是否点在引文的三角上：点是则展开/收起引文，不再翻页。
     // 引文 TextView 的触摸被 RecyclerView 拦截，所以统一在这里按坐标判断。
     if (handleQuoteTriangleTap(e)) {
+      android.util.Log.d(TAG_TURN, "  -> HIT quote triangle, return (no page turn)");
       return true;
     }
     // 点在「本贴结束」空白区域 → 返回上一界面（仅末楼已顶到标题时）
     if (handleEndMarkerTap(e)) {
+      android.util.Log.d(TAG_TURN, "  -> HIT end marker, return to list");
       return true;
     }
-    int touchY = (int) e.getRawY();
-    //        Log.d("Gesture", "onSingleTapUp: " + String.format("%d / %d = %f", touchY, mScreenHeight, touchY * 1.0 / mScreenHeight));
     if (touchY < mScreenHeight * 0.40) {
+      android.util.Log.d(TAG_TURN, "  -> PAGE UP (top zone)");
       vibrateOnPageTurn();
       scrollToAdjacentPost(false);
       return true;
     } else if (touchY > mScreenHeight * 0.60) {
+      android.util.Log.d(TAG_TURN, "  -> PAGE DOWN (bottom zone)");
       vibrateOnPageTurn();
       scrollToAdjacentPost(true);
       return true;
     }
-
+    android.util.Log.d(TAG_TURN, "  -> MIDDLE ZONE, no action (super)");
     return super.onSingleTapUp(e);
   }
 
@@ -95,20 +102,26 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
    */
   public void scrollToAdjacentPost(boolean next) {
     if (recyclerView == null || !(recyclerView.getLayoutManager() instanceof LinearLayoutManager)) {
+      android.util.Log.d(TAG_TURN, "scroll skip: recyclerView null or not LinearLayoutManager");
       return;
     }
     LinearLayoutManager lm = (LinearLayoutManager) recyclerView.getLayoutManager();
     int itemCount = lm.getItemCount();
     if (itemCount == 0) {
+      android.util.Log.d(TAG_TURN, "scroll skip: itemCount=0");
       return;
     }
 
     int first = lm.findFirstVisibleItemPosition();
     if (first == RecyclerView.NO_POSITION) {
+      android.util.Log.d(TAG_TURN, "scroll skip: first=NO_POSITION");
       return;
     }
 
     int viewportHeight = recyclerView.getHeight();
+    android.util.Log.d(TAG_TURN, "scroll " + (next ? "NEXT" : "PREV") + ": itemCount=" + itemCount
+        + " first=" + first + " firstTop=" + firstTop(lm, first)
+        + " lastVisible=" + lm.findLastVisibleItemPosition() + " viewportH=" + viewportHeight);
     if (next) {
       // 以「顶部最贴近视口上沿的楼」为基准翻下一楼，而不是 findFirstVisibleItemPosition+1。
       // 原因：高楼对齐到顶后，前一楼的尾巴仍露在视口顶部，first 会一直停在前一楼，
@@ -123,7 +136,10 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
         if (t < bestTop) { bestTop = t; anchor = p; }
       }
       int target = anchor + 1;
+      android.util.Log.d(TAG_TURN, "  NEXT anchor=" + anchor + " (topOffset=" + bestTop
+          + ") target=" + target + " endMarkerPos=" + (itemCount - 1));
       if (target >= itemCount) {
+        android.util.Log.d(TAG_TURN, "  NEXT target>=itemCount, snapToTop(anchor=" + anchor + ")");
         snapToTop(anchor);
         return;
       }
@@ -143,6 +159,9 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
             int minH = Math.round(72 * recyclerView.getResources().getDisplayMetrics().density);
             int markerH = Math.max(minH, viewport - lastH);
             RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) endView.getLayoutParams();
+            android.util.Log.d(TAG_TURN, "  END-MARKER calibrate: viewport=" + viewport
+                + " lastH=" + lastH + " markerH=" + markerH
+                + " oldH=" + (lp == null ? "null" : lp.height));
             if (lp != null && lp.height != markerH) {
               lp.height = markerH;
               endView.setLayoutParams(lp);
@@ -152,7 +171,11 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
       }
 
       View nextView = lm.findViewByPosition(target);
-      if (nextView != null && nextView.getTop() < viewportHeight) {
+      int nextTop = nextView == null ? Integer.MIN_VALUE : nextView.getTop();
+      android.util.Log.d(TAG_TURN, "  NEXT decision: nextView=" + (nextView == null ? "null" : "pos" + target)
+          + " nextTop=" + nextTop + " viewportH=" + viewportHeight
+          + " -> " + (nextView != null && nextTop < viewportHeight ? "snapToTop" : "smoothScroll 0.8屏"));
+      if (nextView != null && nextTop < viewportHeight) {
         // 下一楼已经露头 → 对齐它的顶部到视口上沿
         snapToTop(target);
       } else {
@@ -166,16 +189,22 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
       if (top > viewportHeight / 3) {
         // 当前楼顶部还离视口上沿很远，先回到本楼顶部
         target = first;
+        android.util.Log.d(TAG_TURN, "  PREV decision: top=" + top + " > 1/3屏, snapToTop(first=" + target + ")");
         snapToTop(target);
       } else if (first - 1 >= 0) {
         target = first - 1;
         View prevView = lm.findViewByPosition(target);
-        if (prevView != null && prevView.getBottom() > 0) {
+        int prevBottom = prevView == null ? Integer.MIN_VALUE : prevView.getBottom();
+        android.util.Log.d(TAG_TURN, "  PREV decision: target=" + target + " prevBottom=" + prevBottom
+            + " -> " + (prevView != null && prevBottom > 0 ? "snapToTop" : "smoothScroll -0.8屏"));
+        if (prevView != null && prevBottom > 0) {
           // 上一楼底部还在视口内 → 对齐上一楼顶部
           snapToTop(target);
         } else {
           recyclerView.smoothScrollBy(0, -(int) (viewportHeight * 0.8));
         }
+      } else {
+        android.util.Log.d(TAG_TURN, "  PREV decision: first=0, at top, no action");
       }
     }
   }
@@ -186,8 +215,16 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
    */
   private boolean handleQuoteTriangleTap(MotionEvent e) {
     // 复用 QuoteTextHelper 的通用判断，邮件页也用同一套逻辑
-    return com.zfdang.zsmth_android.helpers.QuoteTextHelper.handleTapQuote(
+    boolean hit = com.zfdang.zsmth_android.helpers.QuoteTextHelper.handleTapQuote(
         recyclerView, e.getRawX(), e.getRawY());
+    if (hit) android.util.Log.d(TAG_TURN, "quoteTap: HIT at y=" + (int) e.getRawY());
+    return hit;
+  }
+
+  /** 取某个 position 的 view 顶部相对 recyclerView 的偏移，仅用于日志 */
+  private static int firstTop(LinearLayoutManager lm, int pos) {
+    View v = lm.findViewByPosition(pos);
+    return v == null ? Integer.MIN_VALUE : v.getTop();
   }
 
   /**
@@ -195,7 +232,10 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
    * 末楼还没顶到顶时点空白，交给后面的翻页逻辑把末楼顶上去（不返回）。
    */
   private boolean handleEndMarkerTap(MotionEvent e) {
-    if (recyclerView == null || mListener == null) return false;
+    if (recyclerView == null || mListener == null) {
+      android.util.Log.d(TAG_TURN, "endTap skip: rv/listener null");
+      return false;
+    }
     RecyclerView.LayoutManager lm = recyclerView.getLayoutManager();
     if (!(lm instanceof LinearLayoutManager)) return false;
     int itemCount = lm.getItemCount();
@@ -203,9 +243,17 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
 
     // 前提：最后一楼（结束标记的前一项）顶部已对齐视口上沿 = 滚到头了
     View lastPost = lm.findViewByPosition(itemCount - 2);
-    if (lastPost == null) return false;
+    if (lastPost == null) {
+      android.util.Log.d(TAG_TURN, "endTap: lastPost(pos=" + (itemCount-2) + ") NULL, itemCount=" + itemCount);
+      return false;
+    }
     int tolerance = Math.round(8 * recyclerView.getResources().getDisplayMetrics().density);
-    if (lastPost.getTop() > recyclerView.getPaddingTop() + tolerance) {
+    int lastTop = lastPost.getTop();
+    int padTop = recyclerView.getPaddingTop();
+    android.util.Log.d(TAG_TURN, "endTap: itemCount=" + itemCount + " lastPostTop=" + lastTop
+        + " padTop=" + padTop + " tol=" + tolerance + " rawY=" + (int) e.getRawY());
+    if (lastTop > padTop + tolerance) {
+      android.util.Log.d(TAG_TURN, "endTap: REJECT (last not pinned)");
       return false; // 末楼还没顶到标题，本次点击不返回，交给翻页把末楼顶上去
     }
 
@@ -214,7 +262,10 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     float localX = e.getRawX() - loc[0];
     float localY = e.getRawY() - loc[1];
     View v = recyclerView.findChildViewUnder(localX, localY);
-    if (v != null && isEndMarker(v)) {
+    boolean isEnd = v != null && isEndMarker(v);
+    android.util.Log.d(TAG_TURN, "endTap: localX=" + (int) localX + " localY=" + (int) localY
+        + " viewUnder=" + (v == null ? "null" : (isEnd ? "END_MARKER" : "other")));
+    if (isEnd) {
       return mListener.onEndMarkerClicked();
     }
     return false;
@@ -235,6 +286,7 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
    * scrollToPositionWithOffset 精确定位到「该 item 顶部 = 视口顶部」，不受边界影响。
    */
   private void snapToTop(int position) {
+    android.util.Log.d(TAG_TURN, "  >> snapToTop(" + position + ")");
     if (recyclerView.getLayoutManager() instanceof LinearLayoutManager) {
       ((LinearLayoutManager) recyclerView.getLayoutManager()).scrollToPositionWithOffset(position, 0);
     }

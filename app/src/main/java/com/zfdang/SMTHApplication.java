@@ -80,26 +80,37 @@ public class SMTHApplication extends Application {
     // 真正的限制仍由水木服务端判定，这里只清本地的记住状态。
     com.zfdang.zsmth_android.helpers.LoginThrottle.clearRestriction();
 
-    // ===== TEMP CAPTCHA TEST: 保留代码，if(false)禁用；需要测试时改成 true =====
+    // ===== TEMP CAPTCHA TEST: 真机验证长短分流出图，测完改回 false =====
     if (false) {
       new Thread(() -> {
-        try {
-          com.zfdang.zsmth_android.helpers.PublishMethodHelper.ImageResult r =
-              com.zfdang.zsmth_android.helpers.PublishMethodHelper.textToCaptchaImages(
-                  getApplicationContext(),
-                  "赢个鸡毛，要翻白眼了还赢吴泳铭阿里2032年全球数据中心规模超20GW目标或下调");
-          if (!r.files.isEmpty()) {
-            java.io.File src = r.files.get(0);
-            java.io.File dst = new java.io.File(getCacheDir(), "captcha-test.jpg");
-            java.io.InputStream in = new java.io.FileInputStream(src);
-            java.io.OutputStream out = new java.io.FileOutputStream(dst);
-            byte[] buf = new byte[4096]; int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            in.close(); out.close();
-            android.util.Log.i("CAPTCHA-TEST", "saved " + dst.getAbsolutePath() + " size=" + dst.length());
+        String[] samples = {
+            "短句测试",
+            "这个回复不到四十个字，应该走噪音captcha风格出图。",
+            "这是一段刚好超过四十个字符的长回复内容用来测试干净模式出图效果看看每行十四个字换行是否正确清晰",
+            "赢个鸡毛，要翻白眼了还赢吴泳铭阿里2032年全球数据中心规模超20GW目标或下调"
+        };
+        String[] names = {"captcha-test-1.jpg", "captcha-test-2.jpg", "captcha-test-3.jpg", "captcha-test-4.jpg"};
+        for (int k = 0; k < samples.length; k++) {
+          try {
+            com.zfdang.zsmth_android.helpers.PublishMethodHelper.ImageResult r =
+                com.zfdang.zsmth_android.helpers.PublishMethodHelper.textToCaptchaImages(
+                    getApplicationContext(), samples[k]);
+            if (!r.files.isEmpty()) {
+              java.io.File src = r.files.get(0);
+              // 存到外部私有目录，adb shell可直接pull(内部cache目录adb无权限读)
+              java.io.File extDir = getExternalFilesDir(null);
+              java.io.File dst = new java.io.File(extDir != null ? extDir : getCacheDir(), names[k]);
+              java.io.InputStream in = new java.io.FileInputStream(src);
+              java.io.OutputStream out = new java.io.FileOutputStream(dst);
+              byte[] buf = new byte[4096]; int n;
+              while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+              in.close(); out.close();
+              android.util.Log.i("CAPTCHA-TEST", "saved " + dst.getAbsolutePath()
+                  + " len=" + samples[k].length() + " size=" + dst.length());
+            }
+          } catch (Throwable t) {
+            android.util.Log.e("CAPTCHA-TEST", "failed on sample " + k, t);
           }
-        } catch (Throwable t) {
-          android.util.Log.e("CAPTCHA-TEST", "failed", t);
         }
       }).start();
     }

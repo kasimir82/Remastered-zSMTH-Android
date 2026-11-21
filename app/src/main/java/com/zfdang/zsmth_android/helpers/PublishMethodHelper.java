@@ -268,6 +268,12 @@ public final class PublishMethodHelper {
     ImageResult result = new ImageResult();
     if (text == null || text.trim().isEmpty()) return result;
 
+    // 长短分流：>40字用干净模式(正常字体/白底/无噪音/每行14字)，<=40字才走captcha噪音风格
+    String flatForLen = text.replace("\r\n", "").replace("\r", "").replace("\n", "").replace(" ", "");
+    if (flatForLen.length() > 40) {
+      return textToCleanImages(context, flatForLen);
+    }
+
     // 按每行 CAPTCHA_COLS 个中文字切行
     List<String> lines = new ArrayList<>();
     String flat = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "");
@@ -305,7 +311,7 @@ public final class PublishMethodHelper {
       float x = CAPTCHA_PAD;
       for (int i = 0; i < line.length(); i++) {
         char c = line.charAt(i);
-        float rot = (rnd.nextFloat() * 2 - 1) * 60f;      // ±60°(测试)
+        float rot = (rnd.nextFloat() * 2 - 1) * 45f;      // ±45°(真机+原型对比后定稿)
         float scale = 1f + (rnd.nextFloat() * 2 - 1) * 0.12f;
         float dy = (rnd.nextFloat() * 2 - 1) * 4f;
 
@@ -340,12 +346,12 @@ public final class PublishMethodHelper {
       canvas.drawPath(path, linePaint);
     }
 
-    // 3000 个噪点，画成 2x2 小块(JPG Q10 会吃掉单像素)，全黑/深灰
+    // 3000 个噪点，画成 2x2 小块(JPG Q10 会吃掉单像素)。
+    // 真机2x2块比本地原型单像素显黑得多，用中灰(RGB128)平衡视觉强度
     Paint noisePaint = new Paint();
+    noisePaint.setColor(Color.GRAY);
     for (int i = 0; i < 3000; i++) {
       int px = rnd.nextInt(w), py = rnd.nextInt(h);
-      int shade = rnd.nextInt(110); // 0~110 深灰到黑
-      noisePaint.setColor(Color.rgb(shade, shade, shade));
       canvas.drawRect(px, py, px + 2, py + 2, noisePaint);
     }
 
@@ -357,6 +363,62 @@ public final class PublishMethodHelper {
       Log.d(TAG, "captcha image: " + w + "x" + h + " lines=" + lines.size() + " size=" + file.length());
     } catch (Exception e) {
       Log.e(TAG, "save captcha failed", e);
+    }
+    bitmap.recycle();
+    return result;
+  }
+
+  /** 干净模式参数：每行14字、无旋转/无干扰线/无噪点 */
+  private static final int CLEAN_COLS = 14;
+  private static final int CLEAN_FONT = 40;
+  private static final int CLEAN_PAD = 24;
+  private static final int CLEAN_LINE_H = CLEAN_FONT + 18;
+
+  /**
+   * 干净模式图片：正文超过40字时使用。正常字体、白底、无旋转/干扰线/噪点，
+   * 每行 CLEAN_COLS 个字，JPEG quality=10。保证长文可读性。
+   */
+  public static ImageResult textToCleanImages(Context context, String text) {
+    ImageResult result = new ImageResult();
+    if (text == null || text.trim().isEmpty()) return result;
+
+    List<String> lines = new ArrayList<>();
+    for (int i = 0; i < text.length(); i += CLEAN_COLS) {
+      lines.add(text.substring(i, Math.min(i + CLEAN_COLS, text.length())));
+    }
+    if (lines.isEmpty()) return result;
+
+    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    paint.setTextSize(CLEAN_FONT);
+    paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+    paint.setColor(Color.BLACK);
+    float charW = paint.measureText("测");
+
+    int w = CLEAN_PAD * 2 + (int) (charW * CLEAN_COLS) + 8;
+    int h = CLEAN_PAD * 2 + CLEAN_LINE_H * lines.size();
+
+    File dir = new File(context.getCacheDir(), "attachments");
+    if (!dir.exists() && !dir.mkdirs()) {
+      Log.e(TAG, "cannot create clean attachments dir");
+      return result;
+    }
+
+    Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
+    Canvas canvas = new Canvas(bitmap);
+    canvas.drawColor(Color.WHITE);
+    for (int li = 0; li < lines.size(); li++) {
+      int baselineY = CLEAN_PAD + CLEAN_FONT + li * CLEAN_LINE_H;
+      canvas.drawText(lines.get(li), CLEAN_PAD, baselineY, paint);
+    }
+
+    File file = new File(dir, "clean-" + java.util.UUID.randomUUID().toString().replace("-", "") + ".jpg");
+    try (FileOutputStream out = new FileOutputStream(file)) {
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 10, out);
+      out.flush();
+      result.files.add(file);
+      Log.d(TAG, "clean image: " + w + "x" + h + " lines=" + lines.size() + " size=" + file.length());
+    } catch (Exception e) {
+      Log.e(TAG, "save clean failed", e);
     }
     bitmap.recycle();
     return result;
