@@ -2,6 +2,8 @@
 
   <!-- Base application theme. -->
   <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Android 15 edge-to-edge opt-out：见 values/styles.xml 说明 -->
+    <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     <!-- Customize your theme here. -->
     <item name="colorPrimary">@color/colorPrimary</item>
     <item name="colorPrimaryDark">@color/colorPrimaryDark</item>

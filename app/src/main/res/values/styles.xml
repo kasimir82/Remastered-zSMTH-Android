@@ -2,6 +2,10 @@
 
   <!-- Base application theme. -->
   <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Android 15 强制 edge-to-edge 会让 CoordinatorLayout/AppBarLayout 的 scroll|enterAlways 折叠失效，
+         Toolbar 无法随列表滚动收起(Android 13 正常)。targetSdk36 在 Android 15 设备上该 opt-out 仍生效，
+         恢复 Android 13 的 fitsSystemWindows 行为，让 Toolbar 折叠正常。Android 16 上此属性自动失效(无害)。 -->
+    <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     <!-- Customize your theme here. -->
     <item name="colorPrimary">@color/colorPrimary</item>
     <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
