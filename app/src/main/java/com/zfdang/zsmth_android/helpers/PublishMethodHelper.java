@@ -95,7 +95,7 @@ public final class PublishMethodHelper {
    * 做法：
    *  - 按每列 maxCharsPerColumn 个字把文本分成若干列
    *  - 最左列是原文开头；纯文本从左到右输出时列序与原文一致（原文开头的列放每行最前/视觉最左）
-   *  - 每行用汉字「丨」(全角等宽) 作为格子间分隔符，两端不加
+   *  - 每行用「丨」/「｜」随机混用的全角竖线作为格子间分隔符，两端不加
    *
    * 例：原文 "床前明月光疑是地上霜"，每列5字 →
    *   床丨疑
@@ -133,9 +133,11 @@ public final class PublishMethodHelper {
     for (String col : columns) maxRows = Math.max(maxRows, col.length());
 
     StringBuilder out = new StringBuilder();
-    // 用汉字「丨」(U+4E28)作为格子之间的分隔符：字丨字丨字（两端不加分隔符）。
-    // 它是全角等宽的 CJK 汉字，形状为竖线，比原制表符 │(半角) 更能保证格子对齐
-    String cell = "丨";
+    // 格子分隔符：随机混用汉字笔画「丨」(U+4E28) 与全角竖线「｜」(U+FF5C)，
+    // 两者都是全角等宽，混用后列仍严格对齐；不同码位可干扰基于固定字符匹配的检测。
+    // 用 text.hashCode() 播种：同一文本多次生成结果一致(避免预览与实际发布文本不同)。
+    final char[] CELLS = {'丨', '｜'};
+    java.util.Random cellRandom = new java.util.Random(chars.hashCode());
     for (int row = 0; row < maxRows; row++) {
       List<String> rowCells = new ArrayList<>();
       // 现代顺序：从左上角开始，列从左往右。最左列是原文开头(cols[0])。
@@ -149,8 +151,11 @@ public final class PublishMethodHelper {
         rowCells.remove(rowCells.size() - 1);
       }
       if (rowCells.isEmpty()) continue;
-      // 只在格子之间放分隔符，左右两端不加
-      out.append(String.join(cell, rowCells));
+      // 只在格子之间放分隔符，左右两端不加；每个位置独立随机选一种竖线
+      for (int i = 0; i < rowCells.size(); i++) {
+        if (i > 0) out.append(CELLS[cellRandom.nextInt(CELLS.length)]);
+        out.append(rowCells.get(i));
+      }
       if (row < maxRows - 1) out.append("\n");
     }
     return out.toString();
