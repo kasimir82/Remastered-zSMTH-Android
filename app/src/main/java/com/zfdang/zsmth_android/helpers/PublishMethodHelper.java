@@ -449,13 +449,18 @@ public final class PublishMethodHelper {
    * 竖排文本生成（不再插入下划线填充）。
    * 之前会在字间插入全角下划线试图打断敏感词，但实际无用（竖排的丨格子本身已隔开字符），
    * 反而让文本变长难读，故去掉。保留原方法名以免改动调用点。
+   *
+   * 行数优先策略：从 2 行高度起步，每行最多 7 个纯字符(加分隔符共13字符)；
+   * 装不下才扩到 3 行、4 行…。例如4字→2行2列(你丨世/好丨界)，14字→2行7列，
+   * 15字→3行5列。每列字数=行数，传给 toVerticalPoem 按列切分。
    */
   public static String toVerticalWithFillers(String text) {
     if (text == null || text.trim().isEmpty()) return text;
     int charCount = text.replace("\n", "").replace("\r", "").length();
-    // 最宽 7 列（不含分隔符）：每列字数 = ceil(总字数/7)。文本短时列数自然更少。
-    int perCol = Math.max(3, (int) Math.ceil(charCount / 7.0));
-    return toVerticalPoem(text, perCol);
+    final int MAX_COLS = 7; // 每行最多7个纯字符
+    int rows = 2;           // 2行高度起步
+    while ((charCount + rows - 1) / rows > MAX_COLS) rows++;
+    return toVerticalPoem(text, rows); // 每列rows个字 = 总高度rows行
   }
 
   /**
