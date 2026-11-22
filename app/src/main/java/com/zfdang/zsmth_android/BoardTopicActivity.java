@@ -78,6 +78,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
     private boolean mTotalPagesReachedLimit = false;
 
     private SwipeRefreshLayout mSwipeRefreshLayout = null;
+    private long mLastFavoriteTabTap = 0; // 双击收藏夹tab刷新的时间窗
+    private static final long FAVORITE_DOUBLE_TAP_INTERVAL = 500L;
     private EndlessRecyclerOnScrollListener mScrollListener = null;
     private RecyclerView mRecyclerView = null;
 
@@ -133,8 +135,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
 
         mSetting = Settings.getInstance();
 
-        // enable pull down to refresh
-        mSwipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.swipeRefreshLayout);
+        // enable pull down to refresh（原生转圈 SwipeRefreshLayout，与信息流/热门一致）
+        mSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         if (mSwipeRefreshLayout == null) throw new AssertionError();
         mSwipeRefreshLayout.setOnRefreshListener(this);
 
@@ -260,11 +262,28 @@ public class BoardTopicActivity extends SMTHBaseActivity
         return true;
     }
 
+    /**
+     * 双击底栏「收藏夹」tab 刷新当前版面（此处一定是单独版面页，不是所有版面列表）。
+     * 与 MainActivity 双击信息流刷新同款 500ms 时间窗。
+     */
+    @Override protected void onBottomNavItemReselected(int itemId) {
+        if (itemId != R.id.nav_favorite) return;
+        long now = System.currentTimeMillis();
+        if (now - mLastFavoriteTabTap < FAVORITE_DOUBLE_TAP_INTERVAL) {
+            mLastFavoriteTabTap = 0;
+            // SwipeRefreshLayout.setRefreshing 不回调 OnRefreshListener，需显式调 onRefresh()
+            if (mSwipeRefreshLayout != null) mSwipeRefreshLayout.setRefreshing(true);
+            onRefresh();
+        } else {
+            mLastFavoriteTabTap = now;
+        }
+    }
+
     public void clearLoadingHints() {
         dismissProgress();
 
         if (mSwipeRefreshLayout != null && mSwipeRefreshLayout.isRefreshing()) {
-            mSwipeRefreshLayout.setRefreshing(false);  // This hides the spinner
+            mSwipeRefreshLayout.setRefreshing(false);  // 收起转圈
         }
 
         if (mScrollListener != null) {
@@ -274,7 +293,7 @@ public class BoardTopicActivity extends SMTHBaseActivity
 
     // load topics from next page, without alert
     public void loadMoreItems() {
-        if (isSearchMode || mSwipeRefreshLayout.isRefreshing() || pDialog.isShowing()) {
+        if (isSearchMode || (mSwipeRefreshLayout != null && mSwipeRefreshLayout.isRefreshing()) || pDialog.isShowing()) {
             return;
         }
         // 按发帖排序是一次性全局排序(无分页符)，禁用分页加载；
@@ -290,13 +309,12 @@ public class BoardTopicActivity extends SMTHBaseActivity
 
     @Override
     public void onRefresh() {
-        // this method is slightly different with RefreshBoardTopicFromPageOne
-        // this method does not alert since it's triggered by SwipeRefreshLayout
+        // 由 SwipeRefreshLayout 下拉或双击收藏夹tab触发，不弹进度框
         if (!isSearchMode && mSetting.getTopicSortMode() == Settings.SORT_BY_PUBLISH_TIME) {
             // 按发帖排序才需要预读+全局重排
             mTotalPagesReachedLimit = false;
             loadAllPagesAndSortGlobally();
-            if (mSwipeRefreshLayout.isRefreshing()) mSwipeRefreshLayout.setRefreshing(false);
+            if (mSwipeRefreshLayout != null && mSwipeRefreshLayout.isRefreshing()) mSwipeRefreshLayout.setRefreshing(false);
             return;
         }
         mCurrentPageNo = 1;

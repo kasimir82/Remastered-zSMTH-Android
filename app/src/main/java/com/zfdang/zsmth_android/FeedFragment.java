@@ -19,9 +19,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.scwang.smart.refresh.layout.SmartRefreshLayout;
-import com.scwang.smart.refresh.layout.api.RefreshLayout;
-import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.ReadProgressManager;
@@ -64,7 +62,7 @@ public class FeedFragment extends Fragment {
   /** 智能预读的时间范围：最近 N 天（今天=0），超出即停止加载 */
   private static final int FEED_SMART_LOAD_DAYS = 2;
 
-  private SmartRefreshLayout mRefreshLayout;
+  private SwipeRefreshLayout mRefreshLayout;
   private RecyclerView mRecyclerView;
   private TextView mEmptyHint;
   private FeedAdapter mAdapter;
@@ -139,9 +137,8 @@ public class FeedFragment extends Fragment {
     View rootView = inflater.inflate(R.layout.fragment_feed, container, false);
 
     mRefreshLayout = rootView.findViewById(R.id.feed_refresh_layout);
-    mRefreshLayout.setEnableLoadMore(false);
-    mRefreshLayout.setOnRefreshListener(new OnRefreshListener() {
-      @Override public void onRefresh(RefreshLayout refreshLayout) {
+    mRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+      @Override public void onRefresh() {
         loadFeed(true);
       }
     });
@@ -166,13 +163,12 @@ public class FeedFragment extends Fragment {
 
   /** 标题栏的刷新按钮调用 */
   public void refreshFromMenu() {
-    // 主动显示刷新头，和手动下拉的反馈一致（autoRefresh 会回调 OnRefreshListener）。
-    // 若当前页面不在信息流状态（比如没在刷新布局里），直接强制重抓兜底。
+    // 主动显示转圈，和手动下拉的反馈一致。
+    // SwipeRefreshLayout.setRefreshing 不回调 OnRefreshListener，需显式 loadFeed。
     if (mRefreshLayout != null && !mRefreshLayout.isRefreshing()) {
-      mRefreshLayout.autoRefresh();
-    } else {
-      loadFeed(true);
+      mRefreshLayout.setRefreshing(true);
     }
+    loadFeed(true);
   }
 
   private String signatureOf(List<Board> boards) {
@@ -185,7 +181,7 @@ public class FeedFragment extends Fragment {
 
   private void finishRefresh() {
     if (mRefreshLayout != null && mRefreshLayout.isRefreshing()) {
-      mRefreshLayout.finishRefresh();
+      mRefreshLayout.setRefreshing(false);
     }
   }
 

@@ -14,9 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
-import com.scwang.smart.refresh.layout.SmartRefreshLayout;
-import com.scwang.smart.refresh.layout.api.RefreshLayout;
-import com.scwang.smart.refresh.layout.listener.OnRefreshListener;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.RecyclerViewUtil;
 import com.zfdang.zsmth_android.listeners.OnTopicFragmentInteractionListener;
@@ -48,7 +46,7 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
   private OnTopicFragmentInteractionListener mListener;
 
   private RecyclerView mRecyclerView = null;
-  private SmartRefreshLayout mRefreshLayout = null;
+  private SwipeRefreshLayout mRefreshLayout = null;
 
   /**
    * Mandatory empty constructor for the fragment manager to instantiate the
@@ -69,10 +67,9 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
 
     // http://sapandiwakar.in/pull-to-refresh-for-android-recyclerview-or-any-other-vertically-scrolling-view/
     // pull to refresh for android recyclerview
-    mRefreshLayout = (SmartRefreshLayout) rootView;
-    mRefreshLayout.setEnableLoadMore(false);
-    mRefreshLayout.setOnRefreshListener(new OnRefreshListener() {
-      @Override public void onRefresh(RefreshLayout refreshLayout) {
+    mRefreshLayout = (SwipeRefreshLayout) rootView;
+    mRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+      @Override public void onRefresh() {
         RefreshGuidanceFromWWW();
       }
     });
@@ -112,9 +109,9 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
       activity.dismissProgress();
     }
 
-    // disable SmartFreshLayout
+    // 收起原生转圈
     if(mRefreshLayout.isRefreshing()) {
-      mRefreshLayout.finishRefresh(100);
+      mRefreshLayout.setRefreshing(false);
     }
   }
 

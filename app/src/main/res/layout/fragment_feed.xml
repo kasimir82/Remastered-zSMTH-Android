@@ -3,14 +3,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-  <com.scwang.smart.refresh.layout.SmartRefreshLayout
+  <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
       android:id="@+id/feed_refresh_layout"
       android:layout_width="match_parent"
       android:layout_height="match_parent">
-
-    <com.scwang.smart.refresh.header.ClassicsHeader
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/feed_recycler_view"
@@ -20,7 +16,7 @@
         android:paddingBottom="8dp"
         android:scrollbars="none" />
 
-  </com.scwang.smart.refresh.layout.SmartRefreshLayout>
+  </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
   <TextView
       android:id="@+id/feed_topic_empty"
