@@ -123,6 +123,22 @@ public class Settings {
     }
   }
 
+  // 静默登录成功后锁闭自动登录的截止时间（2分钟）。期间只做cookie检查，不再登录。
+  private static final String AUTO_LOGIN_LOCKED_UNTIL = "auto_login_locked_until";
+  private long autoLoginLockedUntil;
+
+  public long getAutoLoginLockedUntil() {
+    return autoLoginLockedUntil;
+  }
+
+  public void setAutoLoginLockedUntil(long time) {
+    if (this.autoLoginLockedUntil != time) {
+      this.autoLoginLockedUntil = time;
+      mEditor.putLong(AUTO_LOGIN_LOCKED_UNTIL, this.autoLoginLockedUntil);
+      mEditor.commit();
+    }
+  }
+
   /**
    * 最近一次登录受限的原因文案(如「登录窗口过多，服务器拒绝了本次登录」)，
    * 供「我的」页账号卡片在未登录时展示。登录成功后清空。
@@ -612,6 +628,7 @@ public class Settings {
     bLastLoginSuccess = mPreference.getBoolean(LAST_LOGIN_SUCCESS, false);
     lastLoginTime = getLongSafe(LAST_LOGIN_TIME, 0L);
     loginCooldownUntil = getLongSafe(LOGIN_COOLDOWN_UNTIL, 0L);
+    autoLoginLockedUntil = getLongSafe(AUTO_LOGIN_LOCKED_UNTIL, 0L);
     loginRestrictionReason = mPreference.getString(LOGIN_RESTRICTION_REASON, "");
     bUserOnline = mPreference.getBoolean(USER_ONLINE, false);
 

@@ -76,6 +76,10 @@ public class LoginThrottle {
       Log.i(TAG, "canAutoLogin=false: user offline (auto login paused after failure)");
       return false;
     }
+    if (isAutoLoginLocked()) {
+      Log.i(TAG, "canAutoLogin=false: auto login locked after silent login success");
+      return false;
+    }
     if (inCooldown()) {
       Log.w(TAG, "canAutoLogin=false: in cooldown until " + s.getLoginCooldownUntil());
       return false;
@@ -94,10 +98,49 @@ public class LoginThrottle {
    * 不用 30 分钟节流——因为 cookie 失效说明必须重新登录了，
    * 不能被「最近登录过」挡住，否则用户会长时间卡在未登录状态。
    */
+  /** 静默登录成功后的锁定期：2分钟。期间禁止任何自动登录，只做cookie检查。 */
+  private static final long SILENT_SUCCESS_LOCK_MS = 2L * 60 * 1000;
+
+  /** 静默登录成功后调用：记录登录时间 + 锁闭自动登录2分钟，避免短时间内二次登录塞满服务端会话。 */
+  public static void onSilentLoginSuccess(String userId) {
+    onLoginSuccess(); // 记录登录时间/恢复在线等原有逻辑
+    Settings s = Settings.getInstance();
+    s.setAutoLoginLockedUntil(System.currentTimeMillis() + SILENT_SUCCESS_LOCK_MS);
+    Log.i(TAG, "onSilentLoginSuccess: " + userId + ", auto login LOCKED for 2min (cookie check only)");
+  }
+
+  /**
+   * 检测到 cookie 失效时立即清锁（任何时刻都调用）：
+   * 即便刚因登录成功上了锁，cookie 一失效也必须允许马上重登。
+   * 注意：只清锁，不改 user_online / 登录态，后续由各入口自己决定重登还是登出。
+   */
+  public static void onCookieLost() {
+    Settings s = Settings.getInstance();
+    if (s.getAutoLoginLockedUntil() != 0) {
+      s.setAutoLoginLockedUntil(0);
+      Log.i(TAG, "onCookieLost: auto login lock CLEARED, re-login allowed");
+    }
+  }
+
+  /** 是否处于静默登录成功后的锁定期（自动登录入口用；cookie检查不受此影响） */
+  public static boolean isAutoLoginLocked() {
+    Settings s = Settings.getInstance();
+    long until = s.getAutoLoginLockedUntil();
+    if (until > System.currentTimeMillis()) {
+      Log.i(TAG, "isAutoLoginLocked=true, remain=" + ((until - System.currentTimeMillis()) / 1000) + "s");
+      return true;
+    }
+    return false;
+  }
+
   public static boolean canRetryAfterCookieLost() {
     Settings s = Settings.getInstance();
     if (!s.isUserOnline()) {
       Log.i(TAG, "canRetryAfterCookieLost=false: user offline (auto login paused)");
+      return false;
+    }
+    if (isAutoLoginLocked()) {
+      Log.i(TAG, "canRetryAfterCookieLost=false: auto login locked after silent login success");
       return false;
     }
     if (inCooldown()) {
@@ -122,6 +165,10 @@ public class LoginThrottle {
     }
     if (s.getLoginRestrictionReason() != null && !s.getLoginRestrictionReason().isEmpty()) {
       s.setLoginRestrictionReason("");
+    }
+    // 手动/普通登录成功：清掉可能残留的静默登录锁（onSilentLoginSuccess会在此之后再设新锁）
+    if (s.getAutoLoginLockedUntil() != 0) {
+      s.setAutoLoginLockedUntil(0);
     }
     // 成功完成一次登录后，重新开启自动登录/掉线检测
     if (!s.isUserOnline()) {
@@ -160,6 +207,7 @@ public class LoginThrottle {
     s.setLastLoginSuccess(false);
     s.setLastLoginTime(0);
     s.setLoginCooldownUntil(0);
+    s.setAutoLoginLockedUntil(0); // 登录失败：解除静默成功锁
     s.setLoginRestrictionReason("");
 
     // 清全局登录态

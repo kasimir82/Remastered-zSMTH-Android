@@ -191,7 +191,8 @@ public class SilentLoginHelper {
           Log.d(TAG, "poll #" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
           if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId)) {
             Log.i(TAG, "silent login success: " + userId);
-            LoginThrottle.onLoginSuccess();
+            // 静默登录成功 → 上锁2分钟，阻止两条路径(Worker周期/点帖子)短时间内重复登录塞满服务端会话
+            LoginThrottle.onSilentLoginSuccess(userId);
             finish(holder, callback, done, true);
             callback.onSuccess(userId);
             return;

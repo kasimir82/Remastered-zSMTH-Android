@@ -617,6 +617,8 @@ public class PostListActivity extends SMTHBaseActivity
    * 只有需要验证码或失败时才弹可见登录页/提示。
    */
   private void trySilentLoginThenReload() {
+    // 点帖子收到「未登录/阅读验证」= 检测到 cookie 失效，立即清登录成功锁，允许重登
+    com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost();
     // 防抖：被踢下线时多个请求/多个页面可能同时失败，30 秒内只走一次登录流程，
     // 避免「正在重新登录」提示排队弹出很多次、以及重复提交登录。
     long now = System.currentTimeMillis();

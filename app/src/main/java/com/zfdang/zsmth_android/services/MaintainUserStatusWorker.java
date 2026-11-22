@@ -148,9 +148,13 @@ public class MaintainUserStatusWorker extends Worker {
                         com.zfdang.zsmth_android.helpers.LoginThrottle.markSessionValid();
                     } else {
                         Log.w(TAG, "session invalid by board access -> full logout");
+                        com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost(); // cookie失效：清登录成功锁
                         com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("board check failed");
                         userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录
                     }
+                } else {
+                    // json 直接返回 guest = cookie 失效，立即清登录成功锁，允许重登
+                    com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost();
                 }
 
                 SMTHApplication.activeUser = userStatus;
