@@ -139,6 +139,17 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
       int target = anchor + 1;
       android.util.Log.d(TAG_TURN, "  NEXT anchor=" + anchor + " (topOffset=" + bestTop
           + ") target=" + target + " endMarkerPos=" + (itemCount - 1));
+      // anchor 楼还没贴到视口顶部(top 明显 >0，在视口内偏下)时，先把 anchor 顶到顶，不要直接翻下一楼。
+      // 场景：超高楼(如含多张大图的楼主)后面紧跟一栋矮楼，翻页选中矮楼做 anchor 但它 top=1300 远未贴顶，
+      // 此时若直接翻下一楼会滚 0.8 屏把矮楼顶出屏幕，出现「第1楼对不齐、下一楼却对齐了」的现象。
+      // 与 PREV 分支「top > 1/3屏 先 snapToTop(first)」对称。
+      View anchorView = lm.findViewByPosition(anchor);
+      int anchorTop = anchorView == null ? 0 : anchorView.getTop();
+      if (anchorTop > viewportHeight / 3) {
+        android.util.Log.d(TAG_TURN, "  NEXT anchor top=" + anchorTop + " > 1/3屏, snapToTop(anchor=" + anchor + ") first");
+        snapToTop(anchor);
+        return;
+      }
       if (target >= itemCount) {
         android.util.Log.d(TAG_TURN, "  NEXT target>=itemCount, snapToTop(anchor=" + anchor + ")");
         snapToTop(anchor);
