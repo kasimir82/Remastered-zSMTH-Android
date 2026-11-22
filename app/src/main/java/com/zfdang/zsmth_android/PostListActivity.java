@@ -642,16 +642,22 @@ public class PostListActivity extends SMTHBaseActivity
         });
       }
       @Override public void onCaptchaRequired() {
-        runOnUiThread(() -> launchLoginPage()); // 需要验证码：弹可见 WebView
+        runOnUiThread(() -> {
+          // 需要验证码=静默登录过不去：设app未登录态，停掉后台自动登录，弹可见WebView让用户手工处理
+          com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("captcha");
+          launchLoginPage();
+        });
       }
       @Override public void onFailed(String reason) {
         runOnUiThread(() -> {
-          if ("cooldown".equals(reason)) {
-            // 冷却期说明近期登录过但 cookie 又失效，直接弹登录页让用户处理
+          // cooldown/no_credentials 是预期内跳过(非真实登录失败)，只提示、不改登录态
+          if ("cooldown".equals(reason) || "no_credentials".equals(reason)) {
             showLoginRequiredDialog("登录已过期，请重新登录");
-          } else {
-            showLoginRequiredDialog("加载失败，请重新登录后再试");
+            return;
           }
+          // 真实失败：设app为未登录状态(停自动登录/清登录态)，退回手动登录
+          com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
+          showLoginRequiredDialog("登录已失效，请手动登录后重试");
         });
       }
     });
