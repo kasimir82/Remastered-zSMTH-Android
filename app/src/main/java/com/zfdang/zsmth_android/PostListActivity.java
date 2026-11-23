@@ -91,9 +91,6 @@ public class PostListActivity extends SMTHBaseActivity
     PopupLikeWindow.OnLikeInterface,
     PopupForwardWindow.OnForwardInterface, PopupBanWindow.OnBanIDInterface {
   private static final int LOGIN_REQUEST_CODE = 130;
-  // 被踢下线时，加载失败会反复回调；用防抖避免重复弹「正在重新登录」和重复触发登录
-  private static long sLastSilentLoginAttempt = 0;
-  private static final long SILENT_LOGIN_DEBOUNCE_MS = 30 * 1000;
 
   // 长按菜单操作标识（代替脆弱的下标）
   private static final int ACT_REPLY_POST = 1;
@@ -190,7 +187,9 @@ public class PostListActivity extends SMTHBaseActivity
 
   @Override
   protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-    if (requestCode == LOGIN_REQUEST_CODE && resultCode == RESULT_OK) {
+    if ((requestCode == LOGIN_REQUEST_CODE
+        || requestCode == com.zfdang.zsmth_android.helpers.LoginRecoveryHelper.LOGIN_REQUEST_CODE)
+        && resultCode == RESULT_OK) {
       reloadPostList();
     }
     if (requestCode == ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE) {
@@ -432,10 +431,9 @@ public class PostListActivity extends SMTHBaseActivity
             mLoadingMore = false;
             clearLoadingHints();
             if (e instanceof com.zfdang.zsmth_android.newsmth.GuestReadVerificationException) {
-              android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "PostList GOT GuestReadVerificationException (服务端说未登录/需验证) -> trySilentLoginThenReload");
-              // 服务端返回「您未登录」或要求阅读验证：先在后台静默重登，
-              // 成功则自动重载本页（用户无感）；需要验证码才弹可见 WebView 让用户处理。
-              trySilentLoginThenReload();
+              // 统一走 LoginRecoveryHelper：方案C(user_online=false直接弹框，true先静默重登)
+              com.zfdang.zsmth_android.helpers.LoginRecoveryHelper.handleGuestError(
+                  PostListActivity.this, "post", PostListActivity.this::reloadPostList);
               return;
             }
             Toast.makeText(SMTHApplication.getAppContext(), "加载失败！\n" + e.toString(), Toast.LENGTH_LONG).show();
@@ -607,115 +605,6 @@ public class PostListActivity extends SMTHBaseActivity
       return true;
     }
     return super.onKeyUp(keyCode, event);
-  }
-
-  /**
-   * 直接拉起 WebView 登录页（自动填已保存的账号密码，用户只需处理验证码）。
-   * 登录成功 setResult(OK)，onActivityResult 收到后会自动重载本页。
-   */
-  /**
-   * 服务端返回「您未登录」时：先在后台静默重登，成功就自动重载本页，用户无感。
-   * 只有需要验证码或失败时才弹可见登录页/提示。
-   */
-  private void trySilentLoginThenReload() {
-    android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "trySilentLoginThenReload ENTER, activityFinishing=" + isFinishing() + " destroyed=" + isDestroyed());
-    com.zfdang.zsmth_android.helpers.LoginThrottle.dumpState("PostList.trySilentLogin-enter");
-    // 点帖子收到「未登录/阅读验证」= 检测到 cookie 失效，立即清登录成功锁，允许重登
-    com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost();
-    // 防抖：被踢下线时多个请求/多个页面可能同时失败，30 秒内只走一次登录流程，
-    // 避免「正在重新登录」提示排队弹出很多次、以及重复提交登录。
-    long now = System.currentTimeMillis();
-    if (now - sLastSilentLoginAttempt < SILENT_LOGIN_DEBOUNCE_MS) {
-      android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "trySilentLoginThenReload SKIP: debounce " + (now - sLastSilentLoginAttempt) + "ms < " + SILENT_LOGIN_DEBOUNCE_MS + "ms");
-      return;
-    }
-    sLastSilentLoginAttempt = now;
-
-    Toast.makeText(getApplicationContext(), "正在重新登录...", Toast.LENGTH_SHORT).show();
-    SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
-      @Override public void onSuccess(String userId) {
-        android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "PostList SilentLogin.onSuccess userId=" + userId + ", activityFinishing=" + isFinishing());
-        runOnUiThread(() -> {
-          // 明确告知重登结果：之前只弹「正在重新登录」Toast，成功后无任何反馈，
-          // 用户不知道是成功了还是卡住了。失败分支已有对话框提示。
-          if (!isFinishing() && !isDestroyed()) {
-            Toast.makeText(getApplicationContext(), "重新登录成功", Toast.LENGTH_SHORT).show();
-          }
-          // 同步登录态到全局，避免其它页面仍认为未登录
-          SMTHApplication.displayedUserId = userId;
-          if (SMTHApplication.activeUser == null) {
-            SMTHApplication.activeUser = new com.zfdang.zsmth_android.newsmth.UserStatus();
-          }
-          SMTHApplication.activeUser.setId(userId);
-          SMTHApplication.activeUser.setIs_login(true);
-          reloadPostList();
-        });
-      }
-      @Override public void onCaptchaRequired() {
-        android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "PostList SilentLogin.onCaptchaRequired");
-        runOnUiThread(() -> {
-          // 需要验证码=静默登录过不去：设app未登录态，停掉后台自动登录，弹可见WebView让用户手工处理
-          com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("captcha");
-          launchLoginPage();
-        });
-      }
-      @Override public void onFailed(String reason) {
-        android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "PostList SilentLogin.onFailed reason=" + reason + ", activityFinishing=" + isFinishing());
-        runOnUiThread(() -> {
-          // cooldown/no_credentials 是预期内跳过(非真实登录失败)，只提示、不改登录态
-          if ("cooldown".equals(reason) || "no_credentials".equals(reason)) {
-            showLoginRequiredDialog("登录已过期，请重新登录");
-            return;
-          }
-          // 真实失败：设app为未登录状态(停自动登录/清登录态)，退回手动登录
-          com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
-          showLoginRequiredDialog("登录已失效，请手动登录后重试");
-        });
-      }
-    });
-  }
-
-  private void launchLoginPage() {
-    // 异步回调可能在 Activity 已销毁后到达，此时 startActivity 会抛异常
-    if (isFinishing() || isDestroyed()) {
-      android.util.Log.w("PostListActivity", "launchLoginPage skipped: activity destroyed");
-      return;
-    }
-    // 底部短暂提示：正在自动重新登录（Toast 用 app context，跳到登录页后仍会显示）
-    Toast.makeText(getApplicationContext(), "正在重新登录...", Toast.LENGTH_LONG).show();
-
-    String username = Settings.getInstance().getUsername();
-    String password = Settings.getInstance().getPassword();
-    Intent intent = new Intent(this, WebviewLoginActivity.class);
-    intent.putExtra(LoginActivity.USERNAME, username);
-    intent.putExtra(LoginActivity.PASSWORD, password);
-    try {
-      startActivityForResult(intent, LOGIN_REQUEST_CODE);
-    } catch (Throwable t) {
-      // 万一登录页起不来，退回手动登录弹窗
-      showLoginRequiredDialog("请登录水木账号后重试");
-    }
-  }
-
-  /** 静默重登也救不回来时，回退到手动登录弹窗 */
-  private void showLoginRequiredDialog(String message) {
-    // 静默登录是异步回调(WebView onPageFinished)，可能在 Activity 已退出/切后台后才返回。
-    // 此时弹 Dialog 会因 window token 失效抛 BadTokenException 崩溃(实测07:58崩溃堆栈)。
-    if (isFinishing() || isDestroyed()) {
-      android.util.Log.w("PostListActivity", "showLoginRequiredDialog skipped: activity destroyed");
-      return;
-    }
-    try {
-      new androidx.appcompat.app.AlertDialog.Builder(PostListActivity.this)
-          .setTitle("需要登录或阅读验证")
-          .setMessage(message)
-          .setPositiveButton("登录", (dialog, which) ->
-              startActivityForResult(new Intent(PostListActivity.this, LoginActivity.class), LOGIN_REQUEST_CODE))
-          .setNegativeButton("取消", null)
-          .show();
-    } catch (android.view.WindowManager.BadTokenException e) {
-      android.util.Log.w("PostListActivity", "showLoginRequiredDialog BadToken ignored", e);
-    }
   }
 
   /**

@@ -65,9 +65,6 @@ public class BoardTopicActivity extends SMTHBaseActivity
 
     private final String TAG = "BoardTopicActivity";
 
-    /** 未登录引导登录页返回后刷新版面 */
-    private static final int LOGIN_REQUEST_CODE = 9002;
-
     private Board mBoard = null;
 
     private int mCurrentPageNo = 1;
@@ -108,8 +105,8 @@ public class BoardTopicActivity extends SMTHBaseActivity
             // returned from compose activity
             // ideally, we should also check the resultCode
             refreshBoard();
-        } else if (requestCode == LOGIN_REQUEST_CODE) {
-            // 从登录页返回(无论成功取消)：重新加载版面，登录成功则不再报"需要登录"
+        } else if (com.zfdang.zsmth_android.helpers.LoginRecoveryHelper.isLoginResult(requestCode)) {
+            // 从统一登录恢复页返回(无论成功取消)：重新加载版面
             refreshBoard();
         }
         super.onActivityResult(requestCode, resultCode, data);
@@ -409,9 +406,10 @@ public class BoardTopicActivity extends SMTHBaseActivity
                     public void onError(@NonNull Throwable e) {
                         clearLoadingHints();
 
-                        // 未登录/需阅读验证：弹对话框引导手动登录，而不是甩一段英文异常Toast
+                        // 未登录/需阅读验证：统一走 LoginRecoveryHelper(方案C)
                         if (e instanceof com.zfdang.zsmth_android.newsmth.GuestReadVerificationException) {
-                            showLoginRequiredDialog();
+                            com.zfdang.zsmth_android.helpers.LoginRecoveryHelper.handleGuestError(
+                                    BoardTopicActivity.this, "board", BoardTopicActivity.this::refreshBoard);
                         } else {
                             Toast.makeText(SMTHApplication.getAppContext(), String.format("获取第%d页的帖子失败!\n", mCurrentPageNo) + e.toString(),
                                     Toast.LENGTH_LONG).show();
@@ -426,35 +424,6 @@ public class BoardTopicActivity extends SMTHBaseActivity
                         // 这里的普通分页加载不再做分段排序（该模式下不触发分页加载）
                     }
                 });
-    }
-
-    /** 未登录时点版面：弹对话框引导手动登录(带保存的账号密码跳 WebView 登录页) */
-    private void showLoginRequiredDialog() {
-        if (isFinishing() || isDestroyed()) return;
-        try {
-            new androidx.appcompat.app.AlertDialog.Builder(BoardTopicActivity.this)
-                .setTitle("需要登录")
-                .setMessage("当前未登录，水木要求登录后才能浏览版面。是否现在登录？")
-                .setPositiveButton("去登录", (dialog, which) -> launchLoginPage())
-                .setNegativeButton("取消", null)
-                .show();
-        } catch (android.view.WindowManager.BadTokenException e) {
-            android.util.Log.w(TAG, "showLoginRequiredDialog BadToken ignored", e);
-        }
-    }
-
-    private void launchLoginPage() {
-        if (isFinishing() || isDestroyed()) return;
-        String username = com.zfdang.zsmth_android.Settings.getInstance().getUsername();
-        String password = com.zfdang.zsmth_android.Settings.getInstance().getPassword();
-        Intent intent = new Intent(this, WebviewLoginActivity.class);
-        intent.putExtra(com.zfdang.zsmth_android.LoginActivity.USERNAME, username);
-        intent.putExtra(com.zfdang.zsmth_android.LoginActivity.PASSWORD, password);
-        try {
-            startActivityForResult(intent, LOGIN_REQUEST_CODE);
-        } catch (Throwable t) {
-            Toast.makeText(getApplicationContext(), "无法打开登录页: " + t.getMessage(), Toast.LENGTH_LONG).show();
-        }
     }
 
     /**
