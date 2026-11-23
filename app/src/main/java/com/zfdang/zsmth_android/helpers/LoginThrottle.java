@@ -49,8 +49,8 @@ public class LoginThrottle {
    * 30 分钟间隔不会触发水木的账号过多限制。
    */
   public static final long NORMAL_INTERVAL_MS = 30L * 60 * 1000;
-  /** 被判频繁登录后的冷却：5 分钟 */
-  public static final long PENALTY_COOLDOWN_MS = 5L * 60 * 1000;
+  /** 被判频繁登录后的冷却：1 分钟。所有登录锁止统一不超过1分钟。 */
+  public static final long PENALTY_COOLDOWN_MS = 1L * 60 * 1000;
 
   /**
    * 从服务端文案里提取等待分钟数（如「请 30 分钟后再试」→ 30 分钟），
@@ -63,7 +63,9 @@ public class LoginThrottle {
       if (m.find()) {
         try {
           int mins = Integer.parseInt(m.group(1));
-          if (mins > 0) return mins * 60000L;
+          // 服务端说"请30分钟后再试"也最多只等1分钟：所有登录锁止统一上限1分钟，
+          // 避免长时间卡住无法自动恢复(代价是可能更早重试撞限制，但用户明确要求)。
+          if (mins > 0) return Math.min(mins, 1) * 60000L;
         } catch (NumberFormatException ignored) {
         }
       }
@@ -384,11 +386,16 @@ public class LoginThrottle {
     Log.w(TAG, "onLoginFailed: " + reason + " -> " + friendly);
   }
 
-  /** 登录成功后清除受限状态 */
+  /**
+   * app冷启动时清理「记住的受限文案」。
+   * 关键：不清 cooldownUntil 时间戳——那是服务端"窗口过多/请N分钟后再试"的强制冷却，
+   * 存在 SharedPreferences 里本就该跨重启生效。之前冷启动把它清0，导致重启后立刻
+   * 绕开冷却去登录、又撞窗口过多，形成"反复弹正在重新登录"的死循环(实测小米)。
+   */
   public static void clearRestriction() {
     Settings s = Settings.getInstance();
     s.setLoginRestrictionReason("");
-    s.setLoginCooldownUntil(0);
+    // 保留 cooldownUntil：冷却时间到会自动失效，无需在这里清零
   }
 
   /** WebView 登录页出现"账号过多/踢掉多余窗口/窗口过多"弹窗时调用 */

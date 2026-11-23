@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.widget.Toast;
 
-import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.Settings;
 import com.zfdang.zsmth_android.WebviewLoginActivity;
 
@@ -56,44 +55,11 @@ public final class LoginRecoveryHelper {
       return;
     }
 
-    // user_online=true → 先静默重登
-    android.util.Log.d(LoginThrottle.TAG_DBG, "LoginRecovery[" + where + "] user_online=true -> try silent login");
-    Toast.makeText(activity.getApplicationContext(), "正在重新登录...", Toast.LENGTH_SHORT).show();
-    SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
-      @Override public void onSuccess(String userId) {
-        activity.runOnUiThread(() -> {
-          android.util.Log.d(LoginThrottle.TAG_DBG, "LoginRecovery[" + where + "] silent SUCCESS " + userId);
-          if (!activity.isFinishing() && !activity.isDestroyed()) {
-            Toast.makeText(activity.getApplicationContext(), "重新登录成功", Toast.LENGTH_SHORT).show();
-          }
-          // 同步全局登录态
-          SMTHApplication.displayedUserId = userId;
-          if (SMTHApplication.activeUser == null) {
-            SMTHApplication.activeUser = new com.zfdang.zsmth_android.newsmth.UserStatus();
-          }
-          SMTHApplication.activeUser.setId(userId);
-          SMTHApplication.activeUser.setIs_login(true);
-          if (onReload != null) onReload.run();
-        });
-      }
-      @Override public void onCaptchaRequired() {
-        activity.runOnUiThread(() -> {
-          android.util.Log.d(LoginThrottle.TAG_DBG, "LoginRecovery[" + where + "] captcha required");
-          LoginThrottle.onAnyLoginFailure("captcha");
-          launchLoginPage(activity);
-        });
-      }
-      @Override public void onFailed(String reason) {
-        activity.runOnUiThread(() -> {
-          android.util.Log.e(LoginThrottle.TAG_DBG, "LoginRecovery[" + where + "] onFailed " + reason);
-          if ("cooldown".equals(reason) || "no_credentials".equals(reason)) {
-            showLoginDialog(activity, "登录已过期，请重新登录");
-            return;
-          }
-          LoginThrottle.onAnyLoginFailure(reason);
-          showLoginDialog(activity, "登录已失效，请手动登录后重试");
-        });
-      }
+    // 统一走 LoginManager.autoLogin： Toast / 判断 / 全局态同步都在那里，
+    // 这里只保留"成功后刷新当前页面"的业务回调(点帖子/版面专属)。
+    LoginManager.autoLogin(where, userId -> {
+      if (activity.isFinishing() || activity.isDestroyed()) return;
+      if (onReload != null) onReload.run();
     });
   }
 

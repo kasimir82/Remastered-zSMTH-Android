@@ -201,83 +201,29 @@ public class MaintainUserStatusWorker extends Worker {
     }
 
     /**
-     * 后台静默登录：用离屏 WebView 自动填表提交，成功则无感恢复登录态。
-     * 只有水木要求验证码时才发通知让页面层弹可见 WebView 给用户处理。
-     * 用 canRetryAfterCookieLost() 判断，cookie 失效后能及时重登，又受冷却期保护。
+     * 后台静默登录：统一走 LoginManager.autoLogin（判断/Toast/全局态同步都在那里）。
+     * 这里只保留 Worker 专属的"成功后刷新登录态并通知 UI 更新头像"。
      */
     private void trySilentLogin() {
         android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.trySilentLogin ENTER");
-        com.zfdang.zsmth_android.helpers.LoginThrottle.dumpState("Worker.trySilentLogin-enter");
-        // app在前台时给可见反馈，跟点帖子/版面的前台路径行为一致；后台则静默不打扰。
-        // 注意：本方法跑在Worker后台线程，Toast必须post到主线程，否则抛
-        // "Can't toast on a thread that has not called Looper.prepare()"中断整个登录流程。
-        if (com.zfdang.zsmth_android.MainActivity.isAppInForeground()) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                android.widget.Toast.makeText(com.zfdang.SMTHApplication.getAppContext(),
-                    "正在重新登录...", android.widget.Toast.LENGTH_SHORT).show());
-        }
-        // 用「cookie 失效」的专用判断：只受冷却期和 1 分钟保护，
-        // 不再被「30 分钟内登录过」挡住（那是防止主动频繁登录的节流，不适用失效重登）。
-        if (!LoginThrottle.canRetryAfterCookieLost()) {
-            Log.d(TAG, "skip silent login: throttled (cookie lost retry)");
-            android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.trySilentLogin SKIPPED by canRetryAfterCookieLost");
-            return;
-        }
-        UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
-        SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
-            @Override public void onSuccess(String userId) {
-                android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker SilentLogin.onSuccess userId=" + userId);
-                Log.i(TAG, "silent login success: " + userId + ", refresh status");
-                // 重新拉一次登录态，更新全局 activeUser 与 UI
-                // 注意：本回调在主线程，网络请求必须切到 IO 线程
-                SMTHHelper.getInstance().wService.queryActiveUserStatus()
-                        .subscribeOn(Schedulers.io())
-                        .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
-                        .subscribe(status -> {
-                            if (status != null && status.getId() != null
-                                    && !"guest".equals(status.getId())) {
-                                SMTHApplication.activeUser = status;
-                                SMTHApplication.displayedUserId = status.getId();
-                                if (com.zfdang.zsmth_android.MainActivity.isAppInForeground()) {
-                                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                                        android.widget.Toast.makeText(com.zfdang.SMTHApplication.getAppContext(),
-                                            "重新登录成功", android.widget.Toast.LENGTH_SHORT).show());
-                                }
-                                if (receiver != null) {
-                                    receiver.send(Activity.RESULT_OK, new Bundle());
-                                }
+        com.zfdang.zsmth_android.helpers.LoginManager.autoLogin("worker", userId -> {
+            Log.i(TAG, "autoLogin success: " + userId + ", refresh status");
+            UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
+            // 重新拉一次登录态，更新全局 activeUser 与 UI
+            // 本回调在主线程，网络请求必须切到 IO 线程
+            SMTHHelper.getInstance().wService.queryActiveUserStatus()
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+                    .subscribe(status -> {
+                        if (status != null && status.getId() != null
+                                && !"guest".equals(status.getId())) {
+                            SMTHApplication.activeUser = status;
+                            SMTHApplication.displayedUserId = status.getId();
+                            if (receiver != null) {
+                                receiver.send(Activity.RESULT_OK, new Bundle());
                             }
-                        }, e -> Log.e(TAG, "refresh status after silent login failed", e));
-            }
-
-            @Override public void onCaptchaRequired() {
-                Log.w(TAG, "silent login needs captcha -> full logout, pause auto login");
-                android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker SilentLogin.onCaptchaRequired");
-                com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("captcha");
-                if (receiver != null) {
-                    Bundle bundle = new Bundle();
-                    bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,
-                        SMTHApplication.NOTIFICATION_LOGIN_CAPTCHA);
-                    receiver.send(Activity.RESULT_OK, bundle);
-                }
-            }
-
-            @Override public void onFailed(String reason) {
-                // 静默失败（密码错/网络/超时）：通知用户重新登录。
-                // 受登录冷却期保护，不会频繁打扰。
-                // "cooldown"/"no_credentials" 属于预期内跳过，不必提示。
-                Log.w(TAG, "silent login failed: " + reason);
-                android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker SilentLogin.onFailed reason=" + reason);
-                if ("cooldown".equals(reason) || "no_credentials".equals(reason)) return;
-                // 任何真实登录失败：完全登出 + 暂停自动登录，直到手动登录成功
-                com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
-                if (receiver != null) {
-                    Bundle bundle = new Bundle();
-                    bundle.putString(SMTHApplication.SERVICE_NOTIFICATION_MESSAGE,
-                        SMTHApplication.NOTIFICATION_LOGIN_LOST);
-                    receiver.send(Activity.RESULT_OK, bundle);
-                }
-            }
+                        }
+                    }, e -> Log.e(TAG, "refresh status after autoLogin failed", e));
         });
     }
 
