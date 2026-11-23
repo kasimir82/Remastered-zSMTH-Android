@@ -143,6 +143,11 @@ public class SilentLoginHelper {
       webView.setWebViewClient(new WebViewClient() {
         @Override public void onPageFinished(WebView view, String url) {
           super.onPageFinished(view, url);
+          // TEMP DEBUG: 离屏登录WebView每加载完一页，记录cookie快照，看WebView写/改了什么
+          try {
+            String ck = CookieManager.getInstance().getCookie(COOKIE_URL);
+            android.util.Log.w("CookieJar", "COOKIE-SNAPSHOT[SilentWebView pageFinished] url=" + url + " cookies=" + ck);
+          } catch (Throwable ignored) {}
           if (done[0]) return;
           Log.d(TAG, "onPageFinished: " + url);
           // 页面加载完后注入账号密码并提交

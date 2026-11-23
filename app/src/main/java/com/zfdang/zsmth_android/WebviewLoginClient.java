@@ -82,6 +82,11 @@ public class WebviewLoginClient extends WebViewClient {
     @Override
     public void onPageFinished(WebView view, String url) {
         super.onPageFinished(view, url);
+        // TEMP DEBUG: WebView页面加载完成后，记录当前cookie快照，看WebView写/改了什么
+        try {
+            String ck = android.webkit.CookieManager.getInstance().getCookie("https://www.newsmth.net/");
+            android.util.Log.w("CookieJar", "COOKIE-SNAPSHOT[WebView pageFinished] url=" + url + " cookies=" + ck);
+        } catch (Throwable ignored) {}
         if (done || url == null || !url.contains("newsmth.net")) {
             return;
         }

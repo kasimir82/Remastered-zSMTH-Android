@@ -27,16 +27,28 @@ public final class WebviewCookieHandler implements CookieJar {
     public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
         String urlString = url.toString();
 
+        // TEMP DEBUG: 详细记录"谁写的cookie、写了什么"。
+        // 来源=HTTP响应(服务端Set-Cookie)，调用栈定位是哪个请求触发的。
+        if (!cookies.isEmpty()) {
+          for (Cookie c : cookies) {
+            // TEMP DEBUG: value做脱敏——UTMPUSERID/UTMPKEY/UTMPNUM等认证cookie打完整值以外，
+            // 其它cookie只打前8字符，避免打印可能的敏感内容
+            String value = c.value();
+            boolean authCookie = c.name().contains("UTMP");
+            String shownValue = authCookie ? value : (value == null ? "" :
+                (value.length() > 8 ? value.substring(0, 8) + "..." : value));
+            Log.w(TAG, "COOKIE-WRITE[HTTP] name=" + c.name()
+                + " value=" + shownValue
+                + " domain=" + c.domain() + " path=" + c.path()
+                + " expiresAt=" + c.expiresAt()
+                + " hostOnly=" + c.hostOnly() + " secure=" + c.secure()
+                + " | responseFrom=" + urlString
+                + " | caller=" + getCallerTag());
+          }
+        }
+
         for (Cookie cookie : cookies) {
             webviewCookieManager.setCookie(urlString, cookie.toString());
-        }
-        // 诊断用：只打 cookie 名和域，不打印值，避免泄露登录凭据
-        if (!cookies.isEmpty()) {
-            StringBuilder names = new StringBuilder();
-            for (Cookie c : cookies) {
-                names.append(c.name()).append('@').append(c.domain()).append(' ');
-            }
-            Log.d(TAG, "save " + cookies.size() + " cookies: " + names + " from " + url.host());
         }
         // setCookie 是异步的，登录后立即 flush 落盘，避免进程被系统回收后
         // cookie 丢失、下次启动又触发一次登录（水木对频繁登录有限制）
@@ -47,6 +59,26 @@ public final class WebviewCookieHandler implements CookieJar {
                 // 部分老版本 WebView 不支持，忽略
             }
         }
+    }
+
+    /** TEMP DEBUG: 从调用栈里提取发起网络请求的类，判断cookie是被哪个业务写入的 */
+    private static String getCallerTag() {
+      try {
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        StringBuilder sb = new StringBuilder();
+        for (StackTraceElement e : stack) {
+          String cls = e.getClassName();
+          if (cls.startsWith("com.zfdang.") && !cls.contains("WebviewCookieHandler")
+              && !cls.contains("okhttp") && !cls.contains("retrofit")) {
+            String simple = cls.substring(cls.lastIndexOf('.') + 1);
+            if (sb.length() > 0) sb.append("<-");
+            sb.append(simple).append(":").append(e.getLineNumber());
+          }
+        }
+        return sb.length() > 0 ? sb.toString() : "unknown";
+      } catch (Throwable t) {
+        return "stack-error";
+      }
     }
 
     @Override
@@ -68,10 +100,19 @@ public final class WebviewCookieHandler implements CookieJar {
             }
         }
 
+        // TEMP DEBUG: 盯UTMPUSERID读出值，定位何时变guest
+        if (cookiesString != null && cookiesString.contains("UTMPUSERID")) {
+          for (String part : cookiesString.split(";")) {
+            if (part.trim().startsWith("main[UTMPUSERID]")) {
+              Log.w(TAG, "LOAD UTMPUSERID='" + part.trim() + "' for " + path);
+              break;
+            }
+          }
+        }
         if (cookiesString != null && !cookiesString.isEmpty()) {
-            //We can split on the ';' char as the cookie manager only returns cookies
-            //that match the url and haven't expired, so the cookie attributes aren't included
-            String[] cookieHeaders = cookiesString.split(";");
+          //We can split on the ';' char as the cookie manager only returns cookies
+          //that match the url and haven't expired, so the cookie attributes aren't included
+          String[] cookieHeaders = cookiesString.split(";");
             List<Cookie> cookies = new ArrayList<>(cookieHeaders.length);
 
             for (String header : cookieHeaders) {

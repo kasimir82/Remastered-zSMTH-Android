@@ -19,9 +19,6 @@ public class LoginThrottle {
   private static final String TAG = "LoginThrottle";
   /** TEMP DEBUG: 登录诊断统一tag，一次 adb logcat -s LOGINDBG 抓全部关键节点 */
   public static final String TAG_DBG = "LOGINDBG";
-  /** TEMP FIX: cookie刚失效的标志。onCookieLost设置，用于跳过60秒重登保护。
-   *  cookie都失效了还卡60秒保护是自相矛盾——onCookieLost注释明确要"允许马上重登"。*/
-  private static volatile long sCookieLostAt = 0;
 
   /** TEMP DEBUG: 打印全部登录状态标志快照，供定位登录失效/重登被挡问题 */
   public static void dumpState(String where) {
@@ -142,18 +139,13 @@ public class LoginThrottle {
   }
 
   /**
-   * 检测到 cookie 失效时立即清锁（任何时刻都调用）：
-   * 即便刚因登录成功上了锁，cookie 一失效也必须允许马上重登。
-   * 注意：只清锁，不改 user_online / 登录态，后续由各入口自己决定重登还是登出。
+   * 检测到 cookie 失效时调用。
+   * 关键：不清1分钟成功锁、不绕过60秒保护——cookie失效往往就是"窗口过多"被踢，
+   * 此时立即重登只会再被踢，形成恶性循环(实测vivo会话只活20-27秒)。
+   * 让锁自然到期间隔≥1分钟，打破循环。本方法只记录日志，不改任何状态。
    */
   public static void onCookieLost() {
-    Settings s = Settings.getInstance();
-    dumpState("onCookieLost-enter");
-    sCookieLostAt = System.currentTimeMillis(); // 标记cookie刚失效，放行60秒保护
-    if (s.getAutoLoginLockedUntil() != 0) {
-      s.setAutoLoginLockedUntil(0);
-      Log.i(TAG, "onCookieLost: auto login lock CLEARED, re-login allowed");
-    }
+    dumpState("onCookieLost");
   }
 
   /** 是否处于静默登录成功后的锁定期（自动登录入口用；cookie检查不受此影响） */
@@ -182,16 +174,13 @@ public class LoginThrottle {
       Log.w(TAG, "canRetryAfterCookieLost=false: in cooldown");
       return false;
     }
-    // cookie刚失效(<10s内)时跳过60秒保护：cookie都没了还卡"刚登录过"是自相矛盾
-    boolean cookieJustLost = sCookieLostAt > 0 && System.currentTimeMillis() - sCookieLostAt < 10L * 1000;
+    // 距上次真实登录至少1分钟才允许重登：cookie失效多为"窗口过多"被踢，
+    // 马上重登只会再被踢。不再因为"cookie刚失效"就绕过这个保护。
     long last = s.getLastLoginTime();
-    if (last > 0 && System.currentTimeMillis() - last < 60L * 1000 && !cookieJustLost) {
+    if (last > 0 && System.currentTimeMillis() - last < 60L * 1000) {
       Log.i(TAG, "canRetryAfterCookieLost=false: logged in <1min ago");
       Log.d(TAG_DBG, "canRetryAfterCookieLost=FALSE (logged in " + ((System.currentTimeMillis()-last)/1000) + "s ago, <60s)");
       return false;
-    }
-    if (cookieJustLost) {
-      Log.d(TAG_DBG, "canRetryAfterCookieLost: cookie just lost, bypass 60s guard -> allow");
     }
     Log.d(TAG_DBG, "canRetryAfterCookieLost=TRUE -> allow re-login");
     return true;

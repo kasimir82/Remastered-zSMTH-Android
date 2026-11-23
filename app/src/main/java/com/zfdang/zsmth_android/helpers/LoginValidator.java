@@ -51,9 +51,12 @@ public final class LoginValidator {
   /** 清掉假的 UTMPUSERID cookie(设为guest)，让下次验证不再被假cookie骗 */
   private static void clearFakeCookie() {
     try {
+      String setCookieValue = "main[UTMPUSERID]=guest; path=/";
       android.webkit.CookieManager.getInstance().setCookie(
-          SilentLoginHelper.COOKIE_URL, "main[UTMPUSERID]=guest; path=/");
-      Log.w(LoginThrottle.TAG_DBG, "LoginVerify: fake cookie cleared (UTMPUSERID=guest)");
+          SilentLoginHelper.COOKIE_URL, setCookieValue);
+      Log.w("CookieJar", "COOKIE-WRITE[APP] writer=LoginValidator.clearFakeCookie"
+          + " value=" + setCookieValue + " url=" + SilentLoginHelper.COOKIE_URL
+          + " reason=board verify failed (fake session)");
     } catch (Throwable t) {
       Log.w(LoginThrottle.TAG_DBG, "clearFakeCookie failed", t);
     }
