@@ -30,7 +30,7 @@ import org.json.JSONObject;
 public class SilentLoginHelper {
   private static final String TAG = "SilentLogin";
   private static final String LOGIN_URL = "https://www.newsmth.net/index.html";
-  private static final String COOKIE_URL = "https://www.newsmth.net/";
+  public static final String COOKIE_URL = "https://www.newsmth.net/";
   private static final String COOKIE_USER_KEY = "main[UTMPUSERID]=";
   private static final int POLL_INTERVAL_MS = 1000;
   private static final int MAX_POLL = 20; // 最多等 20 秒
@@ -52,10 +52,18 @@ public class SilentLoginHelper {
 
   /** 在后台静默登录。调用方可在任意线程调用，内部切主线程。 */
   public void login(final Callback callback) {
-    mainHandler.post(() -> doLogin(callback));
+    login(callback, null);
   }
 
-  private void doLogin(final Callback callback) {
+  /**
+   * 带"真正开始登录"回调的版本：onStart 只在通过所有前置检查(running/账号/冷却)、
+   * 真正要提交登录时触发。登录门面可据此弹"正在重新登录"，避免并发时被SKIP还误弹提示。
+   */
+  public void login(final Callback callback, final Runnable onStart) {
+    mainHandler.post(() -> doLogin(callback, onStart));
+  }
+
+  private void doLogin(final Callback callback, final Runnable onStart) {
     LoginThrottle.dumpState("SilentLogin.doLogin-enter");
     android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin.doLogin thread=" + Thread.currentThread().getName());
     if (running) {
@@ -72,12 +80,22 @@ public class SilentLoginHelper {
       callback.onFailed("no_credentials");
       return;
     }
-    // 已经有有效登录态，无需登录
+    // cookie显示已登录：必须版面验证通过才算真成功，不能只凭cookie(窗口过多时cookie会假写入用户名)
     String current = readUserId();
     if (current != null && !current.isEmpty() && !"guest".equalsIgnoreCase(current)) {
-      Log.i(TAG, "already logged in: " + current);
-      android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT: cookie says logged in='" + current + "' -> onSuccess WITHOUT real login (潜在bug点:cookie假有效)");
-      callback.onSuccess(current);
+      Log.i(TAG, "cookie says logged in: " + current + ", verifying board session before SHORTCUT");
+      android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFYING " + current);
+      LoginValidator.verify(verifiedUser -> {
+        if (verifiedUser != null) {
+          // cookie + 版面都通过 = 真已登录
+          android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFIED " + verifiedUser);
+          callback.onSuccess(verifiedUser);
+        } else {
+          // 验证失败 = 假cookie(会话没建立)：LoginValidator内部已清假cookie，这里报失败
+          android.util.Log.w(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFY FAILED");
+          callback.onFailed("verify_failed");
+        }
+      });
       return;
     }
     // 冷却期内不提交，避免触发水木限制
@@ -89,11 +107,16 @@ public class SilentLoginHelper {
       return;
     }
 
+    // 通过所有前置检查，真正要提交登录了 → 通知调用方弹"正在重新登录"
+    if (onStart != null) {
+      try { onStart.run(); } catch (Throwable t) { Log.w(TAG, "onStart callback error", t); }
+    }
     running = true;
     final Context appContext = SMTHApplication.getAppContext();
     final WebView[] holder = new WebView[1];
     final int[] pollCount = {0};
     final boolean[] done = {false};
+    final boolean[] verifying = {false}; // 版面验证进行中，避免重复发起
     final Runnable[] pollRunnable = new Runnable[1];
     // TEMP FIX: 看门狗——25秒后若本轮仍未结束(done=false)，强制复位running并回调失败，
     // 防止poll链异常中断(如WebView被销毁/消息被清)导致 running 永久卡true、后续登录全被SKIP。
@@ -215,13 +238,34 @@ public class SilentLoginHelper {
           // 每次 poll 都记录读到的登录 ID（guest/null/真实用户名），便于定位为何判定未登录
           Log.d(TAG, "poll #" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
           if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId)) {
-            Log.i(TAG, "silent login success: " + userId);
-            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS userId=" + userId + " poll#" + pollCount[0]);
-            // 静默登录成功 → 上锁2分钟，阻止两条路径(Worker周期/点帖子)短时间内重复登录塞满服务端会话
-            LoginThrottle.onSilentLoginSuccess(userId);
-            finish(holder, callback, done, true, pollRunnable, watchdog);
-            callback.onSuccess(userId);
-            return;
+            if (verifying[0]) return; // 验证进行中，不重复发起
+            verifying[0] = true;
+            Log.i(TAG, "cookie says logged in: " + userId + ", verifying board session...");
+            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin VERIFYING userId=" + userId + " poll#" + pollCount[0]);
+            // 关键：cookie有用户名还不够，必须版面验证通过才算真登录成功
+            LoginValidator.verify(verifiedUser -> {
+              if (verifiedUser != null) {
+                // cookie + 版面都通过 = 真成功
+                Log.i(TAG, "silent login success (verified): " + verifiedUser);
+                android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS(verified) userId=" + verifiedUser);
+                LoginThrottle.onSilentLoginSuccess(verifiedUser);
+                finish(holder, callback, done, true, pollRunnable, watchdog);
+                callback.onSuccess(verifiedUser);
+              } else {
+                // 验证失败 = cookie是假的(会话没建立)，继续poll等待真登录
+                android.util.Log.w(LoginThrottle.TAG_DBG, "SilentLogin VERIFY FAILED for " + userId + ", keep polling");
+                verifying[0] = false;
+                if (++pollCount[0] > MAX_POLL) {
+                  String detail = "cookie user=" + userId + " but verify failed after " + MAX_POLL + " polls";
+                  LoginFailureLogger.log("verify_failed", detail);
+                  finish(holder, callback, done, false, pollRunnable, watchdog);
+                  callback.onFailed("verify_failed");
+                  return;
+                }
+                mainHandler.postDelayed(pollRunnable[0], POLL_INTERVAL_MS);
+              }
+            });
+            return; // 验证异步进行，本次poll不再postDelayed
           }
           if (++pollCount[0] > MAX_POLL) {
             String detail = "timeout after " + MAX_POLL + "s, last userId="

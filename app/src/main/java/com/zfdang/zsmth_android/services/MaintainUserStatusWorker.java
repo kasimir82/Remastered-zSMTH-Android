@@ -141,23 +141,17 @@ public class MaintainUserStatusWorker extends Worker {
                     // Log.d(TAG, "onNext: " + "4.1 cache userStatus as activeUser");
                     updateUserIcon = true;
                 }
-                // 二次验证：json 说已登录还不够，实际访问 FamilyLife 版面确认 cookie 真的有效。
-                // 返回异常(未登录页/错误页)则完全登出；验证通过则恢复在线标志(自愈误判残留)。
-                if (!TextUtils.equals(userStatus.getId(), "guest")) {
-                    if (SMTHHelper.isSessionValidByBoard()) {
-                        android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: json已登录 + board验证VALID");
-                        com.zfdang.zsmth_android.helpers.LoginThrottle.markSessionValid();
-                    } else {
-                        Log.w(TAG, "session invalid by board access -> full logout");
-                        android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: json已登录但board验证INVALID -> full logout");
-                        com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost(); // cookie失效：清登录成功锁
-                        com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("board check failed");
-                        userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录
-                    }
+                // 统一验证：cookie + 版面访问都通过才算真登录(LoginValidator 是全局唯一验证入口)。
+                // 本 onNext 在 IO 线程，直接调 verifySync；不再各自拼 json/board 判断。
+                String verifiedUser = com.zfdang.zsmth_android.helpers.LoginValidator.verifySync();
+                if (verifiedUser != null) {
+                    android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: LoginValidator VERIFIED " + verifiedUser);
+                    com.zfdang.zsmth_android.helpers.LoginThrottle.markSessionValid();
                 } else {
-                    // json 直接返回 guest = cookie 失效，立即清登录成功锁，允许重登
-                    android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: SERVER RETURNED GUEST (cookie失效硬证据)");
+                    // 验证失败(cookie无效或版面验证失败) = 登录态失效，清锁允许重登
+                    android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: LoginValidator FAILED (jsonId=" + userStatus.getId() + ")");
                     com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost();
+                    userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录 + 触发自动重登
                 }
 
                 SMTHApplication.activeUser = userStatus;

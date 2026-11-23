@@ -49,8 +49,8 @@ public final class LoginManager {
     }
 
     android.util.Log.d(LoginThrottle.TAG_DBG, "autoLogin[" + reason + "] start silent login");
-    toast("正在重新登录...");
-
+    // "正在重新登录"Toast 放到 SilentLoginHelper 真正开始提交时(onStart)再弹：
+    // 多个Worker并发时，被 running 挡掉的那次不会弹，避免重复提示。
     SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
       @Override public void onSuccess(String userId) {
         android.util.Log.d(LoginThrottle.TAG_DBG, "autoLogin[" + reason + "] SUCCESS " + userId);
@@ -81,6 +81,12 @@ public final class LoginManager {
           toast("登录受限（窗口过多），请稍后再试");
           return;
         }
+        if ("verify_failed".equals(reason2)) {
+          // cookie有用户名但版面验证失败(假成功)：已清掉假cookie，下次能重新登录，
+          // 不改登录态(不设user_online=false)，避免临时问题导致永久停摆
+          toast("登录未生效，请稍后重试");
+          return;
+        }
         if ("no_credentials".equals(reason2)) {
           toast("未保存账号，请手动登录");
           return;
@@ -88,6 +94,6 @@ public final class LoginManager {
         LoginThrottle.onAnyLoginFailure(reason2);
         toast("登录失败，请手动登录");
       }
-    });
+    }, () -> toast("正在重新登录..."));
   }
 }
