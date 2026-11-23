@@ -201,7 +201,8 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
     holder.mPost = mPosts.get(position);
     Post post = holder.mPost;
 
-    holder.mPostAuthor.setText(post.getAuthor());
+    // 只显示纯用户ID，不显示 "ID(昵称)" 的括号昵称部分（太长）
+    holder.mPostAuthor.setText(post.getRawAuthor());
     holder.mPostPublishDate.setText(post.getFormatedDate());
     holder.mPostIndex.setText(post.getPosition());
 
