@@ -17,6 +17,28 @@ import com.zfdang.zsmth_android.newsmth.AjaxResponse;
  */
 public class LoginThrottle {
   private static final String TAG = "LoginThrottle";
+  /** TEMP DEBUG: 登录诊断统一tag，一次 adb logcat -s LOGINDBG 抓全部关键节点 */
+  public static final String TAG_DBG = "LOGINDBG";
+
+  /** TEMP DEBUG: 打印全部登录状态标志快照，供定位登录失效/重登被挡问题 */
+  public static void dumpState(String where) {
+    try {
+      Settings s = Settings.getInstance();
+      long now = System.currentTimeMillis();
+      long last = s.getLastLoginTime();
+      long lock = s.getAutoLoginLockedUntil();
+      long cd = s.getLoginCooldownUntil();
+      android.util.Log.d(TAG_DBG, "STATE[" + where + "] userOnline=" + s.isUserOnline()
+          + " lastLoginSuccess=" + s.isLastLoginSuccess()
+          + " lastLoginAgo=" + (last > 0 ? ((now - last) / 1000) + "s" : "never")
+          + " lockRemain=" + (lock > now ? ((lock - now) / 1000) + "s" : "none")
+          + " cooldownRemain=" + (cd > now ? ((cd - now) / 1000) + "s" : "none")
+          + " restriction='" + s.getLoginRestrictionReason() + "'"
+          + " cookieUser='" + SilentLoginHelper.readUserId() + "'");
+    } catch (Throwable t) {
+      android.util.Log.e(TAG_DBG, "dumpState error at " + where, t);
+    }
+  }
 
   /**
    * 后台 Worker 两次自动登录之间的最小间隔：30 分钟。
@@ -72,6 +94,7 @@ public class LoginThrottle {
   /** 是否允许自动登录（Worker 用）。用户未在线意愿(登录失败后暂停)、冷却期内、或距上次成功登录太近，都不允许。 */
   public static boolean canAutoLogin() {
     Settings s = Settings.getInstance();
+    dumpState("canAutoLogin-enter");
     if (!s.isUserOnline()) {
       Log.i(TAG, "canAutoLogin=false: user offline (auto login paused after failure)");
       return false;
@@ -89,6 +112,7 @@ public class LoginThrottle {
       Log.i(TAG, "canAutoLogin=false: logged in recently, skip to preserve cookie");
       return false;
     }
+    Log.d(TAG_DBG, "canAutoLogin=TRUE -> allow");
     return true;
   }
 
@@ -103,6 +127,7 @@ public class LoginThrottle {
 
   /** 静默登录成功后调用：记录登录时间 + 锁闭自动登录2分钟，避免短时间内二次登录塞满服务端会话。 */
   public static void onSilentLoginSuccess(String userId) {
+    Log.d(TAG_DBG, "onSilentLoginSuccess ENTER userId=" + userId);
     onLoginSuccess(); // 记录登录时间/恢复在线等原有逻辑
     Settings s = Settings.getInstance();
     s.setAutoLoginLockedUntil(System.currentTimeMillis() + SILENT_SUCCESS_LOCK_MS);
@@ -116,6 +141,7 @@ public class LoginThrottle {
    */
   public static void onCookieLost() {
     Settings s = Settings.getInstance();
+    dumpState("onCookieLost-enter");
     if (s.getAutoLoginLockedUntil() != 0) {
       s.setAutoLoginLockedUntil(0);
       Log.i(TAG, "onCookieLost: auto login lock CLEARED, re-login allowed");
@@ -135,6 +161,7 @@ public class LoginThrottle {
 
   public static boolean canRetryAfterCookieLost() {
     Settings s = Settings.getInstance();
+    dumpState("canRetryAfterCookieLost-enter");
     if (!s.isUserOnline()) {
       Log.i(TAG, "canRetryAfterCookieLost=false: user offline (auto login paused)");
       return false;
@@ -150,13 +177,16 @@ public class LoginThrottle {
     long last = s.getLastLoginTime();
     if (last > 0 && System.currentTimeMillis() - last < 60L * 1000) {
       Log.i(TAG, "canRetryAfterCookieLost=false: logged in <1min ago");
+      Log.d(TAG_DBG, "canRetryAfterCookieLost=FALSE (logged in " + ((System.currentTimeMillis()-last)/1000) + "s ago, <60s)");
       return false;
     }
+    Log.d(TAG_DBG, "canRetryAfterCookieLost=TRUE -> allow re-login");
     return true;
   }
 
   /** 登录成功：记录时间、清除冷却与受限状态，并恢复在线意愿（重新开启自动登录/掉线检测） */
   public static void onLoginSuccess() {
+    Log.d(TAG_DBG, "onLoginSuccess ENTER");
     Settings s = Settings.getInstance();
     s.setLastLoginTime(System.currentTimeMillis());
     s.setLastLoginSuccess(true);
@@ -183,6 +213,7 @@ public class LoginThrottle {
    * （避免影响 30 分钟自动登录节流的节奏）。用于自愈之前误判遗留的 user_online=false。
    */
   public static void markSessionValid() {
+    Log.d(TAG_DBG, "markSessionValid ENTER (json已登录+board验证通过)");
     Settings s = Settings.getInstance();
     if (!s.isLastLoginSuccess()) s.setLastLoginSuccess(true);
     if (!s.isUserOnline()) s.setUserOnline(true);
@@ -201,6 +232,8 @@ public class LoginThrottle {
    * 手动登录入口不受影响——用户随时可以再去登录页输密码。
    */
   public static void onAnyLoginFailure(String reason) {
+    Log.e(TAG_DBG, "onAnyLoginFailure ENTER reason=" + reason);
+    dumpState("onAnyLoginFailure-enter");
     Settings s = Settings.getInstance();
     // 关闭在线意愿 → canAutoLogin/canRetryAfterCookieLost 立即返回 false
     if (s.isUserOnline()) s.setUserOnline(false);

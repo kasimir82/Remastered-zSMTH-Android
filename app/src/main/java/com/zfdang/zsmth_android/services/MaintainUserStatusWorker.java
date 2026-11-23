@@ -145,15 +145,18 @@ public class MaintainUserStatusWorker extends Worker {
                 // 返回异常(未登录页/错误页)则完全登出；验证通过则恢复在线标志(自愈误判残留)。
                 if (!TextUtils.equals(userStatus.getId(), "guest")) {
                     if (SMTHHelper.isSessionValidByBoard()) {
+                        android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: json已登录 + board验证VALID");
                         com.zfdang.zsmth_android.helpers.LoginThrottle.markSessionValid();
                     } else {
                         Log.w(TAG, "session invalid by board access -> full logout");
+                        android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: json已登录但board验证INVALID -> full logout");
                         com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost(); // cookie失效：清登录成功锁
                         com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("board check failed");
                         userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录
                     }
                 } else {
                     // json 直接返回 guest = cookie 失效，立即清登录成功锁，允许重登
+                    android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: SERVER RETURNED GUEST (cookie失效硬证据)");
                     com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost();
                 }
 
@@ -203,15 +206,19 @@ public class MaintainUserStatusWorker extends Worker {
      * 用 canRetryAfterCookieLost() 判断，cookie 失效后能及时重登，又受冷却期保护。
      */
     private void trySilentLogin() {
+        android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.trySilentLogin ENTER");
+        com.zfdang.zsmth_android.helpers.LoginThrottle.dumpState("Worker.trySilentLogin-enter");
         // 用「cookie 失效」的专用判断：只受冷却期和 1 分钟保护，
         // 不再被「30 分钟内登录过」挡住（那是防止主动频繁登录的节流，不适用失效重登）。
         if (!LoginThrottle.canRetryAfterCookieLost()) {
             Log.d(TAG, "skip silent login: throttled (cookie lost retry)");
+            android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.trySilentLogin SKIPPED by canRetryAfterCookieLost");
             return;
         }
         UserStatusReceiver receiver = SMTHApplication.mUserStatusReceiver;
         SilentLoginHelper.getInstance().login(new SilentLoginHelper.Callback() {
             @Override public void onSuccess(String userId) {
+                android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker SilentLogin.onSuccess userId=" + userId);
                 Log.i(TAG, "silent login success: " + userId + ", refresh status");
                 // 重新拉一次登录态，更新全局 activeUser 与 UI
                 // 注意：本回调在主线程，网络请求必须切到 IO 线程
@@ -232,6 +239,7 @@ public class MaintainUserStatusWorker extends Worker {
 
             @Override public void onCaptchaRequired() {
                 Log.w(TAG, "silent login needs captcha -> full logout, pause auto login");
+                android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker SilentLogin.onCaptchaRequired");
                 com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure("captcha");
                 if (receiver != null) {
                     Bundle bundle = new Bundle();
@@ -246,6 +254,7 @@ public class MaintainUserStatusWorker extends Worker {
                 // 受登录冷却期保护，不会频繁打扰。
                 // "cooldown"/"no_credentials" 属于预期内跳过，不必提示。
                 Log.w(TAG, "silent login failed: " + reason);
+                android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker SilentLogin.onFailed reason=" + reason);
                 if ("cooldown".equals(reason) || "no_credentials".equals(reason)) return;
                 // 任何真实登录失败：完全登出 + 暂停自动登录，直到手动登录成功
                 com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);

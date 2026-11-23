@@ -249,6 +249,8 @@ public class MainActivity extends SMTHBaseActivity
   private static final String USER_STATUS_CHECK_NOW = "user_status_check_now";
 
   private void updateUserStatusNow() {
+    android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "MainActivity.updateUserStatusNow (触发实时登录态检查)");
+    com.zfdang.zsmth_android.helpers.LoginThrottle.dumpState("MainActivity.updateUserStatusNow");
     OneTimeWorkRequest check =
             new OneTimeWorkRequest.Builder(MaintainUserStatusWorker.class).build();
     WorkManager.getInstance(getApplicationContext())

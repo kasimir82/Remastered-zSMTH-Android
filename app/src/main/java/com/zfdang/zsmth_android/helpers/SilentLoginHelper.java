@@ -56,7 +56,10 @@ public class SilentLoginHelper {
   }
 
   private void doLogin(final Callback callback) {
+    LoginThrottle.dumpState("SilentLogin.doLogin-enter");
+    android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin.doLogin thread=" + Thread.currentThread().getName());
     if (running) {
+      android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SKIP: running=true");
       Log.d(TAG, "login already running, skip");
       return;
     }
@@ -64,6 +67,7 @@ public class SilentLoginHelper {
     String password = Settings.getInstance().getPassword();
     if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
       Log.w(TAG, "no saved credentials, skip silent login");
+      android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SKIP: no saved credentials");
       LoginFailureLogger.log("no_credentials", "saved username/password missing");
       callback.onFailed("no_credentials");
       return;
@@ -72,12 +76,14 @@ public class SilentLoginHelper {
     String current = readUserId();
     if (current != null && !current.isEmpty() && !"guest".equalsIgnoreCase(current)) {
       Log.i(TAG, "already logged in: " + current);
+      android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT: cookie says logged in='" + current + "' -> onSuccess WITHOUT real login (潜在bug点:cookie假有效)");
       callback.onSuccess(current);
       return;
     }
     // 冷却期内不提交，避免触发水木限制
     if (LoginThrottle.inCooldown()) {
       Log.w(TAG, "in cooldown, skip silent login");
+      android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SKIP: in cooldown");
       LoginFailureLogger.log("cooldown", "silent login skipped, in penalty cooldown");
       callback.onFailed("cooldown");
       return;
@@ -119,6 +125,7 @@ public class SilentLoginHelper {
           detectCaptcha(view, () -> {
             if (done[0]) return;
             Log.w(TAG, "captcha required");
+            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin CAPTCHA required");
             LoginFailureLogger.log("captcha", "captcha detected on login page");
             finish(holder, callback, done, false);
             callback.onCaptchaRequired();
@@ -151,6 +158,7 @@ public class SilentLoginHelper {
       webView.setWebChromeClient(new WebChromeClient() {
         @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
           Log.w(TAG, "JS alert: " + message + " (url=" + url + ")");
+          android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin JS_ALERT: " + message);
           LoginFailureLogger.log("js_alert", message + " (url=" + url + ")");
           if (LoginThrottle.isTooFrequentDialog(message)) {
             // 静默登录是后台自动行为：窗口过多时不写本地受限状态，也不弹可见页面，
@@ -165,6 +173,7 @@ public class SilentLoginHelper {
 
         @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
           Log.w(TAG, "JS confirm: " + message + " (url=" + url + ")");
+          android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin JS_CONFIRM: " + message);
           LoginFailureLogger.log("js_confirm", message + " (url=" + url + ")");
           if (LoginThrottle.isTooFrequentDialog(message)) {
             LoginFailureLogger.log("too_frequent_silent", message);
@@ -191,6 +200,7 @@ public class SilentLoginHelper {
           Log.d(TAG, "poll #" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
           if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId)) {
             Log.i(TAG, "silent login success: " + userId);
+            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS userId=" + userId + " poll#" + pollCount[0]);
             // 静默登录成功 → 上锁2分钟，阻止两条路径(Worker周期/点帖子)短时间内重复登录塞满服务端会话
             LoginThrottle.onSilentLoginSuccess(userId);
             finish(holder, callback, done, true);
@@ -201,6 +211,7 @@ public class SilentLoginHelper {
             String detail = "timeout after " + MAX_POLL + "s, last userId="
                 + (userId == null ? "null" : "'" + userId + "'");
             Log.w(TAG, "silent login " + detail + ", fallback to user interaction");
+            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin TIMEOUT: " + detail);
             LoginFailureLogger.log("timeout", detail);
             finish(holder, callback, done, false);
             callback.onFailed("timeout");
@@ -244,13 +255,19 @@ public class SilentLoginHelper {
   public static String readUserId() {
     try {
       String cookies = CookieManager.getInstance().getCookie(COOKIE_URL);
-      if (cookies == null) return null;
+      if (cookies == null) {
+        android.util.Log.d(LoginThrottle.TAG_DBG, "readUserId: cookies=NULL");
+        return null;
+      }
       for (String part : cookies.split(";")) {
         String p = part.trim();
         if (p.startsWith(COOKIE_USER_KEY)) {
-          return p.substring(COOKIE_USER_KEY.length());
+          String uid = p.substring(COOKIE_USER_KEY.length());
+          android.util.Log.d(LoginThrottle.TAG_DBG, "readUserId=" + uid + " (from local WebView cookie)");
+          return uid;
         }
       }
+      android.util.Log.d(LoginThrottle.TAG_DBG, "readUserId: no UTMPUSERID in cookies (len=" + cookies.length() + ")");
     } catch (Throwable t) {
       Log.e(TAG, "readUserId failed", t);
     }
