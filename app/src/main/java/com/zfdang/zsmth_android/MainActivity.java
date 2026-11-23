@@ -394,6 +394,11 @@ public class MainActivity extends SMTHBaseActivity
   /** MainActivity 是否在前台：后台重登失败时决定用对话框还是通知栏提示用户 */
   private static boolean sIsForeground = false;
 
+  /** 供 Worker 判断 app 是否在前台：决定是否弹"正在重新登录"等 Toast */
+  public static boolean isAppInForeground() {
+    return sIsForeground;
+  }
+
   @Override protected void onPause() {
     super.onPause();
     AnalyticsPrivacy.onPause(this);

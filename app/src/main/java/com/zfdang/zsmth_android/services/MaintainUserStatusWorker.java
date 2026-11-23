@@ -33,6 +33,8 @@ public class MaintainUserStatusWorker extends Worker {
 
     public static final String REPEAT = "REPEAT";
     private static final String TAG = "MUSWorker";
+    /** 后台静默登录提示的节流时间戳：5分钟内只提示一次，避免会话频繁过期时反复弹Toast */
+    private static long sLastSilentLoginToast = 0;
 
     public static final String WORKER_ID=MaintainUserStatusWorker.class.getName();
 
@@ -208,6 +210,14 @@ public class MaintainUserStatusWorker extends Worker {
     private void trySilentLogin() {
         android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.trySilentLogin ENTER");
         com.zfdang.zsmth_android.helpers.LoginThrottle.dumpState("Worker.trySilentLogin-enter");
+        // app在前台时给可见反馈，跟点帖子/版面的前台路径行为一致；后台则静默不打扰。
+        // 频次限制：水木会话几分钟就过期一次，每次都弹太吵，5分钟内只提示一次。
+        if (com.zfdang.zsmth_android.MainActivity.isAppInForeground()
+                && System.currentTimeMillis() - sLastSilentLoginToast > 5L * 60 * 1000) {
+            sLastSilentLoginToast = System.currentTimeMillis();
+            android.widget.Toast.makeText(com.zfdang.SMTHApplication.getAppContext(),
+                "正在重新登录...", android.widget.Toast.LENGTH_SHORT).show();
+        }
         // 用「cookie 失效」的专用判断：只受冷却期和 1 分钟保护，
         // 不再被「30 分钟内登录过」挡住（那是防止主动频繁登录的节流，不适用失效重登）。
         if (!LoginThrottle.canRetryAfterCookieLost()) {
@@ -230,6 +240,10 @@ public class MaintainUserStatusWorker extends Worker {
                                     && !"guest".equals(status.getId())) {
                                 SMTHApplication.activeUser = status;
                                 SMTHApplication.displayedUserId = status.getId();
+                                if (com.zfdang.zsmth_android.MainActivity.isAppInForeground()) {
+                                    android.widget.Toast.makeText(com.zfdang.SMTHApplication.getAppContext(),
+                                        "重新登录成功", android.widget.Toast.LENGTH_SHORT).show();
+                                }
                                 if (receiver != null) {
                                     receiver.send(Activity.RESULT_OK, new Bundle());
                                 }

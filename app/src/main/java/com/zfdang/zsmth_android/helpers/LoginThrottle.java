@@ -19,6 +19,9 @@ public class LoginThrottle {
   private static final String TAG = "LoginThrottle";
   /** TEMP DEBUG: 登录诊断统一tag，一次 adb logcat -s LOGINDBG 抓全部关键节点 */
   public static final String TAG_DBG = "LOGINDBG";
+  /** TEMP FIX: cookie刚失效的标志。onCookieLost设置，用于跳过60秒重登保护。
+   *  cookie都失效了还卡60秒保护是自相矛盾——onCookieLost注释明确要"允许马上重登"。*/
+  private static volatile long sCookieLostAt = 0;
 
   /** TEMP DEBUG: 打印全部登录状态标志快照，供定位登录失效/重登被挡问题 */
   public static void dumpState(String where) {
@@ -142,6 +145,7 @@ public class LoginThrottle {
   public static void onCookieLost() {
     Settings s = Settings.getInstance();
     dumpState("onCookieLost-enter");
+    sCookieLostAt = System.currentTimeMillis(); // 标记cookie刚失效，放行60秒保护
     if (s.getAutoLoginLockedUntil() != 0) {
       s.setAutoLoginLockedUntil(0);
       Log.i(TAG, "onCookieLost: auto login lock CLEARED, re-login allowed");
@@ -174,11 +178,16 @@ public class LoginThrottle {
       Log.w(TAG, "canRetryAfterCookieLost=false: in cooldown");
       return false;
     }
+    // cookie刚失效(<10s内)时跳过60秒保护：cookie都没了还卡"刚登录过"是自相矛盾
+    boolean cookieJustLost = sCookieLostAt > 0 && System.currentTimeMillis() - sCookieLostAt < 10L * 1000;
     long last = s.getLastLoginTime();
-    if (last > 0 && System.currentTimeMillis() - last < 60L * 1000) {
+    if (last > 0 && System.currentTimeMillis() - last < 60L * 1000 && !cookieJustLost) {
       Log.i(TAG, "canRetryAfterCookieLost=false: logged in <1min ago");
       Log.d(TAG_DBG, "canRetryAfterCookieLost=FALSE (logged in " + ((System.currentTimeMillis()-last)/1000) + "s ago, <60s)");
       return false;
+    }
+    if (cookieJustLost) {
+      Log.d(TAG_DBG, "canRetryAfterCookieLost: cookie just lost, bypass 60s guard -> allow");
     }
     Log.d(TAG_DBG, "canRetryAfterCookieLost=TRUE -> allow re-login");
     return true;
