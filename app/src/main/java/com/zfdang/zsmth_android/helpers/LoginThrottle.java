@@ -125,16 +125,18 @@ public class LoginThrottle {
    * 不用 30 分钟节流——因为 cookie 失效说明必须重新登录了，
    * 不能被「最近登录过」挡住，否则用户会长时间卡在未登录状态。
    */
-  /** 静默登录成功后的锁定期：2分钟。期间禁止任何自动登录，只做cookie检查。 */
-  private static final long SILENT_SUCCESS_LOCK_MS = 2L * 60 * 1000;
+  /** 静默登录成功后的锁定期：1分钟。期间禁止自动登录，只做cookie检查。
+   *  从2分钟缩短到1分钟：所有登录锁止不超过1分钟，避免cookie失效后长时间卡住。
+   *  cookie一旦真失效，onCookieLost会立即清掉此锁，不必等锁到期。*/
+  private static final long SILENT_SUCCESS_LOCK_MS = 1L * 60 * 1000;
 
-  /** 静默登录成功后调用：记录登录时间 + 锁闭自动登录2分钟，避免短时间内二次登录塞满服务端会话。 */
+  /** 静默登录成功后调用：记录登录时间 + 锁闭自动登录1分钟，避免短时间内二次登录塞满服务端会话。 */
   public static void onSilentLoginSuccess(String userId) {
     Log.d(TAG_DBG, "onSilentLoginSuccess ENTER userId=" + userId);
     onLoginSuccess(); // 记录登录时间/恢复在线等原有逻辑
     Settings s = Settings.getInstance();
     s.setAutoLoginLockedUntil(System.currentTimeMillis() + SILENT_SUCCESS_LOCK_MS);
-    Log.i(TAG, "onSilentLoginSuccess: " + userId + ", auto login LOCKED for 2min (cookie check only)");
+    Log.i(TAG, "onSilentLoginSuccess: " + userId + ", auto login LOCKED for 1min (cookie check only)");
   }
 
   /**
