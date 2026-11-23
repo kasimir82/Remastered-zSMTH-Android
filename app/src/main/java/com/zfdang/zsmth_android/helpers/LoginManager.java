@@ -73,8 +73,16 @@ public final class LoginManager {
       }
       @Override public void onFailed(String reason2) {
         android.util.Log.e(LoginThrottle.TAG_DBG, "autoLogin[" + reason + "] onFailed " + reason2);
-        // cooldown/no_credentials 是预期内跳过(服务端限流或无保存账号)，不改登录态、不提示
-        if ("cooldown".equals(reason2) || "no_credentials".equals(reason2)) {
+        // 只要弹过"正在重新登录"，任何结果都必须给提示，不能让用户悬着。
+        // cooldown(窗口过多/频繁)、no_credentials(没存账号)过去被当"预期跳过"静默处理，
+        // 但它们其实是真实失败，需要明确告知用户。
+        if ("cooldown".equals(reason2)) {
+          // 窗口过多=服务端限流：不改登录态(冷却已由onTooFrequent设置)，但要提示结果
+          toast("登录受限（窗口过多），请稍后再试");
+          return;
+        }
+        if ("no_credentials".equals(reason2)) {
+          toast("未保存账号，请手动登录");
           return;
         }
         LoginThrottle.onAnyLoginFailure(reason2);
