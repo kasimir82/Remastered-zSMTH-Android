@@ -252,8 +252,17 @@ public class Topic implements Parcelable {
 
     com.zfdang.zsmth_android.helpers.TopicTimeCache.DateTime dt =
         com.zfdang.zsmth_android.helpers.TopicTimeCache.parseDateTime(publishDate);
-    // dt.time 为空 = 服务端只给了日期 = 非当天，才尝试查缓存
-    if (!dt.date.isEmpty() && dt.time.isEmpty() && topicID != null && !topicID.isEmpty()) {
+    // 服务端时间格式：
+    //  - 纯日期(yyyy-MM-dd)：非当天，dt.time为空
+    //  - 纯时刻(HH:mm:ss)：服务端认为"今天"，但跨零点后这些其实是昨天/更早的帖子
+    // 两种情况都要查本地缓存——缓存里存的是"抓取当天补全的真实日期+时刻"。
+    // 之前只查纯日期，导致跨零点后纯时刻帖子用SORT_KEY_TODAY(99999999)哨兵值排到最前。
+    // 注意：服务端时间尾部可能带 U+2003(EM SPACE)等Unicode空格，Java的trim()去不掉，
+    // 必须用replaceAll去掉所有Unicode分隔符后才能正确matches。
+    String rawForCheck = publishDate == null ? "" : publishDate.replaceAll("\\p{Z}", "");
+    boolean isTimeOnly = TIME_ONLY.matcher(rawForCheck).matches();
+    boolean needCacheLookup = (!dt.date.isEmpty() && dt.time.isEmpty()) || isTimeOnly;
+    if (needCacheLookup && topicID != null && !topicID.isEmpty()) {
       com.zfdang.zsmth_android.helpers.TopicTimeCache.TopicTime cached =
           com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().get(topicID);
       if (cached != null && cached.publishDate != null && !cached.publishDate.isEmpty()

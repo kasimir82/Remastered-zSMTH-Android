@@ -55,7 +55,7 @@ public class FeedFragment extends Fragment {
   private static long sLastLoadTime = 0L;
   private static String sCachedSignature = "";
   private static final long CACHE_TTL = 10 * 60 * 1000L;
-  /** 同时请求的版面数量，别把水木打挂了 */
+  /** 信息流并发抓取的版数：4路并发 + 期间UTMP写保护(见WebviewCookieHandler) */
   private static final int MAX_CONCURRENCY = 4;
   /** 单个版面智能预读的页数上限 */
   private static final int FEED_SMART_LOAD_MAX_PAGES = 50;
@@ -243,6 +243,10 @@ public class FeedFragment extends Fragment {
       mEmptyHint.setVisibility(View.GONE);
     }
 
+    // 4路并发抓取 + UTMP写保护：并发期间WebviewCookieHandler完全不接受服务端改UTMP三件套，
+    // 避免多个响应的Set-Cookie并发写乱导致鉴权失效。刷新结束(成功/失败)后解除保护，
+    // 保证退出登录等场景仍能通过服务端Set-Cookie正常改cookie。
+    com.zfdang.zsmth_android.WebviewCookieHandler.setBlockUtmpWrite(true);
     Observable.fromIterable(boards)
         .flatMap(new Function<Board, ObservableSource<List<Topic>>>() {
           @Override public ObservableSource<List<Topic>> apply(Board board) {
@@ -255,6 +259,7 @@ public class FeedFragment extends Fragment {
         .subscribe(new Consumer<List<List<Topic>>>() {
           @Override public void accept(List<List<Topic>> parts) {
             mLoading = false;
+            com.zfdang.zsmth_android.WebviewCookieHandler.setBlockUtmpWrite(false);
 
             List<Topic> merged = new ArrayList<>();
             for (List<Topic> part : parts) {
@@ -297,6 +302,7 @@ public class FeedFragment extends Fragment {
         }, new Consumer<Throwable>() {
           @Override public void accept(Throwable throwable) {
             mLoading = false;
+            com.zfdang.zsmth_android.WebviewCookieHandler.setBlockUtmpWrite(false);
             Log.e(TAG, "loadFeed: " + Log.getStackTraceString(throwable));
             showEmpty("信息流加载失败，下拉可以重试");
             finishRefresh();
