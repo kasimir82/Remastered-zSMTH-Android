@@ -113,6 +113,9 @@ public class FeedFragment extends Fragment {
             if (mRecyclerView != null) {
               mRecyclerView.scrollToPosition(0);
             }
+            // 切换排序后强制自刷新一次：本地重排只基于旧数据，
+            // 重新抓取各版面第一页拿到最新帖子/时间后再按新排序展示
+            loadFeed(true);
           }
         })
         .setNegativeButton("取消", null)
