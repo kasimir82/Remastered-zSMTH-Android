@@ -95,6 +95,9 @@ public class SilentLoginHelper {
     final int[] pollCount = {0};
     final boolean[] done = {false};
     final Runnable[] pollRunnable = new Runnable[1];
+    // TEMP FIX: 看门狗——25秒后若本轮仍未结束(done=false)，强制复位running并回调失败，
+    // 防止poll链异常中断(如WebView被销毁/消息被清)导致 running 永久卡true、后续登录全被SKIP。
+    final Runnable[] watchdog = new Runnable[1];
 
     try {
       WebView webView = new WebView(appContext);
@@ -127,7 +130,7 @@ public class SilentLoginHelper {
             Log.w(TAG, "captcha required");
             android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin CAPTCHA required");
             LoginFailureLogger.log("captcha", "captcha detected on login page");
-            finish(holder, callback, done, false);
+            finish(holder, callback, done, false, pollRunnable, watchdog);
             callback.onCaptchaRequired();
           });
           pollRunnable[0].run();
@@ -169,7 +172,7 @@ public class SilentLoginHelper {
             // reason 用 "cooldown" 让调用方跳过 onAnyLoginFailure(不误判为掉线登出)。
             LoginThrottle.onTooFrequent(message);
             result.cancel();
-            finish(holder, callback, done, false);
+            finish(holder, callback, done, false, pollRunnable, watchdog);
             callback.onFailed("cooldown");
             return true;
           } else {
@@ -187,7 +190,7 @@ public class SilentLoginHelper {
             android.util.Log.e(LoginThrottle.TAG_DBG, "SilentLogin ABORT immediately: too frequent windows (confirm), cooldown set");
             LoginThrottle.onTooFrequent(message);
             result.cancel();
-            finish(holder, callback, done, false);
+            finish(holder, callback, done, false, pollRunnable, watchdog);
             callback.onFailed("cooldown");
             return true;
           }
@@ -216,7 +219,7 @@ public class SilentLoginHelper {
             android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS userId=" + userId + " poll#" + pollCount[0]);
             // 静默登录成功 → 上锁2分钟，阻止两条路径(Worker周期/点帖子)短时间内重复登录塞满服务端会话
             LoginThrottle.onSilentLoginSuccess(userId);
-            finish(holder, callback, done, true);
+            finish(holder, callback, done, true, pollRunnable, watchdog);
             callback.onSuccess(userId);
             return;
           }
@@ -226,13 +229,22 @@ public class SilentLoginHelper {
             Log.w(TAG, "silent login " + detail + ", fallback to user interaction");
             android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin TIMEOUT: " + detail);
             LoginFailureLogger.log("timeout", detail);
-            finish(holder, callback, done, false);
+            finish(holder, callback, done, false, pollRunnable, watchdog);
             callback.onFailed("timeout");
             return;
           }
           mainHandler.postDelayed(this, POLL_INTERVAL_MS);
         }
       };
+
+      watchdog[0] = () -> {
+        if (done[0]) return;
+        android.util.Log.e(LoginThrottle.TAG_DBG, "SilentLogin WATCHDOG timeout: force reset running, pollCount=" + pollCount[0]);
+        LoginFailureLogger.log("watchdog_timeout", "silent login watchdog fired after 25s, pollCount=" + pollCount[0]);
+        finish(holder, callback, done, false, pollRunnable, watchdog);
+        callback.onFailed("watchdog_timeout");
+      };
+      mainHandler.postDelayed(watchdog[0], 25000);
 
       webView.loadUrl(LOGIN_URL);
     } catch (Throwable t) {
@@ -244,12 +256,17 @@ public class SilentLoginHelper {
     }
   }
 
-  /** 结束：停轮询、销毁 WebView、复位运行状态 */
-  private void finish(WebView[] holder, Callback callback, boolean[] done, boolean success) {
+  /** 结束：停轮询、销毁 WebView、复位运行状态
+   *  TEMP FIX: 增加pollRunnable参数，只移除本轮的poll回调。
+   *  原来用 removeCallbacksAndMessages(null) 会清空主线程Handler上所有消息，
+   *  包括其它组件/后续登录的doLogin，导致竞态下 running 永久卡 true。*/
+  private void finish(WebView[] holder, Callback callback, boolean[] done, boolean success,
+                      Runnable[] pollRunnable, Runnable[] watchdog) {
     if (done[0]) return;
     done[0] = true;
     running = false;
-    mainHandler.removeCallbacksAndMessages(null);
+    if (pollRunnable != null && pollRunnable[0] != null) mainHandler.removeCallbacks(pollRunnable[0]);
+    if (watchdog != null && watchdog[0] != null) mainHandler.removeCallbacks(watchdog[0]);
     destroyWebView(holder[0]);
   }
 
