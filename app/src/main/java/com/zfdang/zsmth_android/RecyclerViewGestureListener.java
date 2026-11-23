@@ -139,14 +139,15 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
       int target = anchor + 1;
       android.util.Log.d(TAG_TURN, "  NEXT anchor=" + anchor + " (topOffset=" + bestTop
           + ") target=" + target + " endMarkerPos=" + (itemCount - 1));
-      // anchor 楼还没贴到视口顶部(top 明显 >0，在视口内偏下)时，先把 anchor 顶到顶，不要直接翻下一楼。
-      // 场景：超高楼(如含多张大图的楼主)后面紧跟一栋矮楼，翻页选中矮楼做 anchor 但它 top=1300 远未贴顶，
-      // 此时若直接翻下一楼会滚 0.8 屏把矮楼顶出屏幕，出现「第1楼对不齐、下一楼却对齐了」的现象。
-      // 与 PREV 分支「top > 1/3屏 先 snapToTop(first)」对称。
+      // anchor 楼还没贴到视口顶部时，先把 anchor 顶到顶，不要直接翻下一楼。
+      // 场景：超高楼(如含多张大图的楼主)后面紧跟矮楼，翻页选中矮楼做 anchor 但它远未贴顶，
+      // 此时若直接翻下一楼会跳过矮楼，出现「第1楼对不齐、下一楼却对齐了」的现象。
+      // 阈值用固定 40px(而非 1/3屏)：snapToTop 后正常 top≈14，1/3屏在高屏机上(如vivo 1653/3=551)
+      // 会把 top=547 的未贴顶矮楼误判为"已贴顶"直接翻过去。固定小阈值与屏幕尺寸无关，更可靠。
       View anchorView = lm.findViewByPosition(anchor);
       int anchorTop = anchorView == null ? 0 : anchorView.getTop();
-      if (anchorTop > viewportHeight / 3) {
-        android.util.Log.d(TAG_TURN, "  NEXT anchor top=" + anchorTop + " > 1/3屏, snapToTop(anchor=" + anchor + ") first");
+      if (anchorTop > 40) {
+        android.util.Log.d(TAG_TURN, "  NEXT anchor top=" + anchorTop + " > 40px, snapToTop(anchor=" + anchor + ") first");
         snapToTop(anchor);
         return;
       }
