@@ -131,6 +131,19 @@ public class FeedFragment extends Fragment {
       }
     });
     mAppliedSortMode = mode;
+    // TEMP DEBUG: 排序后输出完整列表(前25条)，定位跨零点排序错乱
+    StringBuilder sb = new StringBuilder();
+    int n = Math.min(25, topics.size());
+    for (int i = 0; i < n; i++) {
+      Topic t = topics.get(i);
+      long key = (mode == Settings.SORT_BY_LAST_REPLY) ? t.getReplySortKey() : t.getPublishSortKeyCached();
+      sb.append(i).append(":id=").append(t.getTopicID()).append(",pub='").append(t.getPublishDate())
+        .append("',reply='").append(t.getReplyDate()).append("',key=").append(key)
+        .append(",day=").append(key / 100000L).append(" | ");
+    }
+    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US);
+    android.util.Log.d("FEEDDBG", "=== SORTED mode=" + mode + " count=" + topics.size()
+        + " now=" + sdf.format(new java.util.Date()) + " ===\n" + sb);
   }
 
   @Override public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {

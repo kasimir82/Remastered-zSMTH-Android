@@ -230,7 +230,10 @@ public class Topic implements Parcelable {
 
   /** 「按发表时间排序」用的排序键（老方法，不查缓存） */
   public long getPublishSortKey() {
-    return parseSortKey(publishDate, 0L);
+    long key = parseSortKey(publishDate, 0L);
+    android.util.Log.d("FEEDDBG", "getPublishSortKey id=" + topicID + " raw='" + publishDate
+        + "' -> key=" + key + " day=" + (key / SORT_KEY_SCALE));
+    return key;
   }
 
   /**
@@ -257,9 +260,17 @@ public class Topic implements Parcelable {
           && cached.publishTime != null && !cached.publishTime.isEmpty()) {
         // 查到精确发帖日期+时间：拼成 "yyyy-MM-dd HH:mm:ss" 走完整解析
         publishKeyFromCache = parseSortKey(cached.publishDate + " " + cached.publishTime, 0L);
+        android.util.Log.d("FEEDDBG", "getPublishSortKeyCached id=" + topicID + " CACHE HIT raw='" + publishDate
+            + "' cached='" + cached.publishDate + " " + cached.publishTime + "' -> key=" + publishKeyFromCache
+            + " day=" + (publishKeyFromCache / SORT_KEY_SCALE));
+      } else {
+        android.util.Log.d("FEEDDBG", "getPublishSortKeyCached id=" + topicID + " CACHE MISS raw='" + publishDate + "'");
       }
     }
-    return publishKeyFromCache != 0 ? publishKeyFromCache : getPublishSortKey();
+    long result = publishKeyFromCache != 0 ? publishKeyFromCache : getPublishSortKey();
+    android.util.Log.d("FEEDDBG", "sortKey id=" + topicID + " title='" + (title==null?"":title.substring(0,Math.min(12,title.length())))
+        + "' raw='" + publishDate + "' FINAL=" + result + " day=" + (result / SORT_KEY_SCALE));
+    return result;
   }
 
   /**

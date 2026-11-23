@@ -906,6 +906,9 @@ public class SMTHHelper {
       if (topic.getTopicID() != null && !topic.getTopicID().isEmpty()) {
         com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().save(
             topic.getTopicID(), topic.getPublishDate(), topic.getReplyDate());
+        // TEMP DEBUG: 记录服务端原始时间格式，定位跨零点排序错乱
+        android.util.Log.d("FEEDDBG", "PARSED id=" + topic.getTopicID()
+            + " pub='" + topic.getPublishDate() + "' reply='" + topic.getReplyDate() + "'");
       }
 
       // Log.d("ParseBoardTopics", topic.toString());
