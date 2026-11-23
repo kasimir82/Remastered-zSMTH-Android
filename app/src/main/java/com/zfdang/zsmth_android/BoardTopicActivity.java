@@ -370,7 +370,10 @@ public class BoardTopicActivity extends SMTHBaseActivity
                             return Observable.fromIterable(topics);
                         } catch (Exception e) {
                             Log.e(TAG, "call: " + Log.getStackTraceString(e));
-                            return null;
+                            // 不能 return null：RxJava flatMap 返回 null 会抛 NullPointerException，
+                            // 且异常被吞导致 onError 不触发、用户看不到任何提示(如"需要登录")。
+                            // 把异常作为 Observable.error 传播，交给 onError 统一处理。
+                            return Observable.error(e);
                         }
                     }
                 })
