@@ -39,27 +39,10 @@ public final class LoginValidator {
     }
     boolean boardValid = SMTHHelper.isSessionValidByBoard();
     Log.d(LoginThrottle.TAG_DBG, "LoginVerify: userId=" + userId + " boardValid=" + boardValid);
-    if (!boardValid) {
-      // cookie有用户名但版面验证失败 = 假会话(水木窗口过多时会假写入cookie)，
-      // 统一清掉假cookie，避免后续所有判定都被它误导成"已登录"。
-      clearFakeCookie();
-      return null;
-    }
-    return userId;
-  }
-
-  /** 清掉假的 UTMPUSERID cookie(设为guest)，让下次验证不再被假cookie骗 */
-  private static void clearFakeCookie() {
-    try {
-      String setCookieValue = "main[UTMPUSERID]=guest; path=/";
-      android.webkit.CookieManager.getInstance().setCookie(
-          SilentLoginHelper.COOKIE_URL, setCookieValue);
-      Log.w("CookieJar", "COOKIE-WRITE[APP] writer=LoginValidator.clearFakeCookie"
-          + " value=" + setCookieValue + " url=" + SilentLoginHelper.COOKIE_URL
-          + " reason=board verify failed (fake session)");
-    } catch (Throwable t) {
-      Log.w(LoginThrottle.TAG_DBG, "clearFakeCookie failed", t);
-    }
+    // 版面验证失败就判定未登录，让上层走正常重登流程。
+    // 不动cookie：历史上这里曾加过clearFakeCookie()把UTMPUSERID写guest，
+    // 但实测从未触发(失败时cookie本就是guest)，且只改一个字段会制造三件套不匹配的脏状态，已删除。
+    return boardValid ? userId : null;
   }
 
   /**
