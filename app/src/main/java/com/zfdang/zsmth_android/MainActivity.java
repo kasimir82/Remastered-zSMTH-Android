@@ -271,6 +271,15 @@ public class MainActivity extends SMTHBaseActivity
           if (message != null && message.contains(SMTHApplication.NOTIFICATION_LOGIN_CAPTCHA)) {
             // 后台静默登录遇到验证码：直接弹可见 WebView 让用户处理，不走通知栏
             launchCaptchaLoginPage();
+          } else if (message != null && message.contains(SMTHApplication.NOTIFICATION_LOGIN_LOST)) {
+            // 后台静默重登失败：app在前台时直接弹对话框引导手动登录。
+            // 以前只发通知栏，Android13+ 未授权通知权限时 showNotification 直接 return，
+            // 用户完全看不到「登录已失效」→ 表现为「弹了正在登录却没有任何结果反馈」。
+            if (sIsForeground && !isFinishing() && !isDestroyed()) {
+              showLoginLostDialog();
+            } else {
+              showNotification(message); // 后台才走通知栏
+            }
           } else if (message != null) {
             showNotification(message);
           }
@@ -295,6 +304,26 @@ public class MainActivity extends SMTHBaseActivity
 
   private void init_keep_alive_service() {
     KeepAliveService.start(this);
+  }
+
+  /** 后台重登失败且app在前台时，直接弹对话框引导手动登录（不依赖通知栏权限） */
+  private static long sLastLoginLostDialog = 0;
+  private void showLoginLostDialog() {
+    // 30秒内不重复弹：后台检查周期短，避免连续弹窗骚扰
+    long now = System.currentTimeMillis();
+    if (now - sLastLoginLostDialog < 30_000L) return;
+    sLastLoginLostDialog = now;
+    try {
+      new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
+          .setTitle("登录已失效")
+          .setMessage("自动重新登录失败，请手动登录后再继续。")
+          .setPositiveButton("去登录", (dialog, which) -> onLogin())
+          .setNegativeButton("稍后", null)
+          .show();
+    } catch (android.view.WindowManager.BadTokenException e) {
+      android.util.Log.w("MainActivity", "showLoginLostDialog BadToken ignored", e);
+      showNotification(SMTHApplication.NOTIFICATION_LOGIN_LOST); // 兜底回通知栏
+    }
   }
 
   private void showNotification(String text) {
@@ -362,9 +391,13 @@ public class MainActivity extends SMTHBaseActivity
     return super.onKeyUp(keyCode, event);
   }
 
+  /** MainActivity 是否在前台：后台重登失败时决定用对话框还是通知栏提示用户 */
+  private static boolean sIsForeground = false;
+
   @Override protected void onPause() {
     super.onPause();
     AnalyticsPrivacy.onPause(this);
+    sIsForeground = false;
   }
 
   /** 从其他页面的底栏跳转回来时，切到指定的标签 */
@@ -451,6 +484,7 @@ public class MainActivity extends SMTHBaseActivity
   @Override protected void onResume() {
     super.onResume();
     AnalyticsPrivacy.onResume(this);
+    sIsForeground = true;
     syncGuidanceFragment();
     updateReplyBadge();
     // 回到前台（含冷启动、从后台切回、休眠唤醒）都检查一次登录态：

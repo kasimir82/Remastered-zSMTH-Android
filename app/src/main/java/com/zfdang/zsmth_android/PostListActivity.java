@@ -636,6 +636,11 @@ public class PostListActivity extends SMTHBaseActivity
       @Override public void onSuccess(String userId) {
         android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "PostList SilentLogin.onSuccess userId=" + userId + ", activityFinishing=" + isFinishing());
         runOnUiThread(() -> {
+          // 明确告知重登结果：之前只弹「正在重新登录」Toast，成功后无任何反馈，
+          // 用户不知道是成功了还是卡住了。失败分支已有对话框提示。
+          if (!isFinishing() && !isDestroyed()) {
+            Toast.makeText(getApplicationContext(), "重新登录成功", Toast.LENGTH_SHORT).show();
+          }
           // 同步登录态到全局，避免其它页面仍认为未登录
           SMTHApplication.displayedUserId = userId;
           if (SMTHApplication.activeUser == null) {
