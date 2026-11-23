@@ -161,10 +161,17 @@ public class SilentLoginHelper {
           android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin JS_ALERT: " + message);
           LoginFailureLogger.log("js_alert", message + " (url=" + url + ")");
           if (LoginThrottle.isTooFrequentDialog(message)) {
-            // 静默登录是后台自动行为：窗口过多时不写本地受限状态，也不弹可见页面，
-            // 只记录日志并取消弹窗（不确认，避免踢掉其它设备）。用户想登录时手动点。
+            // 窗口过多：立即终止本次静默登录，不再让页面反复弹窗(实测cancel后服务端每0.5s重弹7次，
+            // 白等20秒超时且可能加剧服务端限制)。不写本地受限状态、不弹可见页、不点确定(避免踢掉其它设备)。
             LoginFailureLogger.log("too_frequent_silent", message);
+            android.util.Log.e(LoginThrottle.TAG_DBG, "SilentLogin ABORT immediately: too frequent windows, cooldown set");
+            // 窗口过多=服务端限流：设5分钟冷却(由服务端文案提取)，阻止短时间内再次提交登录。
+            // reason 用 "cooldown" 让调用方跳过 onAnyLoginFailure(不误判为掉线登出)。
+            LoginThrottle.onTooFrequent(message);
             result.cancel();
+            finish(holder, callback, done, false);
+            callback.onFailed("cooldown");
+            return true;
           } else {
             result.confirm(); // 普通提示：自动确认，避免静默流程卡住
           }
@@ -177,8 +184,14 @@ public class SilentLoginHelper {
           LoginFailureLogger.log("js_confirm", message + " (url=" + url + ")");
           if (LoginThrottle.isTooFrequentDialog(message)) {
             LoginFailureLogger.log("too_frequent_silent", message);
+            android.util.Log.e(LoginThrottle.TAG_DBG, "SilentLogin ABORT immediately: too frequent windows (confirm), cooldown set");
+            LoginThrottle.onTooFrequent(message);
+            result.cancel();
+            finish(holder, callback, done, false);
+            callback.onFailed("cooldown");
+            return true;
           }
-          // 「踢掉多余窗口」类确认不能点确定（会挤掉其它设备），静默模式下取消
+          // 其它确认：静默模式下取消
           result.cancel();
           return true;
         }
