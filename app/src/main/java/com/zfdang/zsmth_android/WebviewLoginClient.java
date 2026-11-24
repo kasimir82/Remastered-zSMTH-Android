@@ -31,12 +31,15 @@ public class WebviewLoginClient extends WebViewClient {
     private static final String TAG = "WebviewLoginClient";
     private static final String COOKIE_URL = "https://www.newsmth.net/";
     private static final String COOKIE_USER_KEY = "main[UTMPUSERID]=";
+    private static final String COOKIE_KEY_KEY = "main[UTMPKEY]=";
     private static final int POLL_INTERVAL_MS = 1000;
     private static final int MAX_POLL = 25;
 
     private final Activity activity;
     private final String username;
     private final String password;
+    /** 进入登录页时的UTMPKEY基线：表单提交后必须变化才算真登录成功 */
+    private final String baselineKey;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int pollCount;
@@ -47,6 +50,8 @@ public class WebviewLoginClient extends WebViewClient {
         this.activity = activity;
         this.username = username;
         this.password = password;
+        this.baselineKey = readUtmpKey();
+        Log.i(TAG, "baseline UTMPKEY=" + baselineKey + " (登录成功后必须变化)");
     }
 
     /** 读取当前 Cookie 里的登录用户 ID, 未登录时返回 "guest" 或 null */
@@ -62,6 +67,23 @@ public class WebviewLoginClient extends WebViewClient {
             }
         } catch (Throwable t) {
             Log.e(TAG, "readUserId failed", t);
+        }
+        return null;
+    }
+
+    /** 读取当前cookie里的UTMPKEY(会话密钥)，用于判断登录是否真的重建了会话 */
+    private static String readUtmpKey() {
+        try {
+            String cookies = CookieManager.getInstance().getCookie(COOKIE_URL);
+            if (cookies == null) return null;
+            for (String part : cookies.split(";")) {
+                String p = part.trim();
+                if (p.startsWith(COOKIE_KEY_KEY)) {
+                    return p.substring(COOKIE_KEY_KEY.length());
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "readUtmpKey failed", t);
         }
         return null;
     }
@@ -82,11 +104,6 @@ public class WebviewLoginClient extends WebViewClient {
     @Override
     public void onPageFinished(WebView view, String url) {
         super.onPageFinished(view, url);
-        // TEMP DEBUG: WebView页面加载完成后，记录当前cookie快照，看WebView写/改了什么
-        try {
-            String ck = android.webkit.CookieManager.getInstance().getCookie("https://www.newsmth.net/");
-            android.util.Log.w("CookieJar", "COOKIE-SNAPSHOT[WebView pageFinished] url=" + url + " cookies=" + ck);
-        } catch (Throwable ignored) {}
         if (done || url == null || !url.contains("newsmth.net")) {
             return;
         }
@@ -149,10 +166,19 @@ public class WebviewLoginClient extends WebViewClient {
             if (done) return;
 
             String userId = readUserId();
-            if (userId != null && userId.length() > 0 && !"guest".equalsIgnoreCase(userId)) {
-                Log.i(TAG, "login success, UTMPUSERID=" + userId);
+            String currentKey = readUtmpKey();
+            boolean keyChanged = currentKey != null && !currentKey.equals(baselineKey);
+            if (userId != null && userId.length() > 0 && !"guest".equalsIgnoreCase(userId)
+                    && keyChanged) {
+                Log.i(TAG, "login success, UTMPUSERID=" + userId
+                    + " UTMPKEY " + baselineKey + " -> " + currentKey + " (changed)");
                 finishWithResultOk();
                 return;
+            }
+            // 用户名还在但UTMPKEY没变 = 表单提交后服务端没下发新会话(可能是旧cookie残留/登录被拒)
+            if (userId != null && !"guest".equalsIgnoreCase(userId) && !keyChanged
+                    && pollCount % 3 == 0) {
+                Log.d(TAG, "poll: user=" + userId + " but UTMPKEY not changed yet (" + currentKey + ")");
             }
 
             if (++pollCount > MAX_POLL) {

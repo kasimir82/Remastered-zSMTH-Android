@@ -25,7 +25,12 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
      * @param errorType LoginActivity.ERR_TYPE_PASSWORD / ERR_TYPE_OTHER
      */
     void failAndFinish(String errorType, String reason) {
-        com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
+        // 密码错误：撤销自动登录意愿（用错密码自动重试无意义），其它失败走常规处理
+        if (LoginActivity.ERR_TYPE_PASSWORD.equals(errorType)) {
+            com.zfdang.zsmth_android.helpers.LoginStateManager.onPasswordError();
+        } else {
+            com.zfdang.zsmth_android.helpers.LoginThrottle.onAnyLoginFailure(reason);
+        }
         android.content.Intent data = new android.content.Intent();
         data.putExtra(LoginActivity.EXTRA_LOGIN_ERROR_TYPE, errorType);
         setResult(Activity.RESULT_CANCELED, data);
@@ -57,11 +62,13 @@ public class WebviewLoginActivity extends SMTHBaseActivity {
             username = extras.getString(LoginActivity.USERNAME);
             password = extras.getString(LoginActivity.PASSWORD);
         }
+        boolean forceLogin = extras != null && extras.getBoolean(LoginActivity.FORCE_LOGIN, false);
 
         // cookie 里已经有有效登录用户时，不要重复打开登录页提交表单——
         // 水木对短时间内重复登录有限制（"账号过多/请勿频繁登录"）。
+        // 但用户主动点"登录"时(FORCE_LOGIN)必须走真登录，绕过此短路。
         String existingUser = WebviewLoginClient.readUserId();
-        if (existingUser != null && !existingUser.isEmpty()
+        if (!forceLogin && existingUser != null && !existingUser.isEmpty()
                 && !"guest".equalsIgnoreCase(existingUser)) {
             Log.i(TAG, "already logged in as " + existingUser + ", skip login form");
             com.zfdang.zsmth_android.helpers.LoginThrottle.onLoginSuccess();

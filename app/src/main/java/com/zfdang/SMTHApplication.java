@@ -67,7 +67,10 @@ public class SMTHApplication extends Application {
   public static UserStatus activeUser;
   public static String displayedUserId = "guest";
   public static boolean isValidUser() {
-    return activeUser != null && !activeUser.getId().equals("guest");
+    // 状态机为准(LOGGED_IN)，同时要求activeUser已加载——进程重启后内存清空但状态仍是LOGGED_IN，
+    // 必须等Worker回调把activeUser填回来，否则UI拿null去getId()会崩。
+    return com.zfdang.zsmth_android.helpers.LoginStateManager.isLoggedIn()
+        && activeUser != null && !"guest".equals(activeUser.getId());
   }
 
 

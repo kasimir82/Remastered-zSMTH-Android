@@ -159,6 +159,20 @@ public class Settings {
     }
   }
 
+  // 登录状态机三态(LOGGED_IN/USER_LOGGED_OUT/SESSION_LOST)，唯一状态来源。
+  private static final String LOGIN_STATE = "login_state";
+  private String loginState;
+
+  public String getLoginState() { return loginState; }
+  public void setLoginState(String state) {
+    String value = state == null ? "SESSION_LOST" : state;
+    if (!value.equals(this.loginState)) {
+      this.loginState = value;
+      mEditor.putString(LOGIN_STATE, value);
+      mEditor.commit();
+    }
+  }
+
   // after user init login action, set online = true;
   // after user init logout action, set online = false;
   // this value will impact autoLogin behaviour of service
@@ -631,6 +645,17 @@ public class Settings {
     autoLoginLockedUntil = getLongSafe(AUTO_LOGIN_LOCKED_UNTIL, 0L);
     loginRestrictionReason = mPreference.getString(LOGIN_RESTRICTION_REASON, "");
     bUserOnline = mPreference.getBoolean(USER_ONLINE, false);
+    // 状态机：优先读新字段；没有则按旧字段派生(升级兼容)
+    String savedState = mPreference.getString(LOGIN_STATE, null);
+    if (savedState == null) {
+      // 旧版本升级：由旧标志派生初始状态
+      savedState = (bUserOnline && bLastLoginSuccess) ? "LOGGED_IN" : "SESSION_LOST";
+      loginState = savedState;
+      mEditor.putString(LOGIN_STATE, savedState);
+      mEditor.commit();
+    } else {
+      loginState = savedState;
+    }
 
     bUseSignature = mPreference.getBoolean(USE_DEVICE_SIGNATURE, true);
     mSignature = mPreference.getString(DEVICE_SIGNATURE, "");

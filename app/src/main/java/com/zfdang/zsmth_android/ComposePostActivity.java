@@ -572,7 +572,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
       return;
     }
     if (isChildSafetyReport()
-        && (!Settings.getInstance().isUserOnline() || !Settings.getInstance().isLastLoginSuccess())) {
+        && (!com.zfdang.zsmth_android.helpers.LoginStateManager.isLoggedIn())) {
       new AlertDialog.Builder(this)
           .setMessage(R.string.child_safety_login_required)
           .setPositiveButton(R.string.action_login,

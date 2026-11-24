@@ -182,32 +182,6 @@ public class SMTHHelper {
         Request request = chain.request().newBuilder().header("User-Agent", USER_AGENT).build();
         Response response = chain.proceed(request);
 
-        // TEMP DEBUG: 抓版面/信息流请求的HTTP状态码，非200时打印原始body(封禁/频繁提示是纯文本)
-        if (BuildConfig.DEBUG) {
-          String durl = request.url().toString();
-          if (durl.contains("/nForum/board/") || durl.contains("/nForum/article/")) {
-            int code = response.code();
-            String preview = "";
-            try {
-              if (response.body() != null) {
-                okio.BufferedSource src = response.body().source();
-                src.request(Long.MAX_VALUE);
-                okio.Buffer buf = src.getBuffer().clone();
-                byte[] bytes = buf.readByteArray();
-                String body = new String(bytes, java.nio.charset.Charset.forName("UTF-8"));
-                preview = body.length() > 300 ? body.substring(0, 300) : body;
-                preview = preview.replace("\n", "\\n");
-                // 重建response，因为body已被读取
-                response = response.newBuilder().body(okhttp3.ResponseBody.create(
-                    response.body().contentType(), bytes)).build();
-              }
-            } catch (Throwable t) {
-              preview = "read body failed: " + t.getMessage();
-            }
-            android.util.Log.d("FEEDDBG", "HTTP board url=" + durl + " code=" + code + " body=" + preview);
-          }
-        }
-
         // DEBUG: 记录发帖/回帖/发信相关接口的原始响应体，用于分析站方敏感词/审核拦截
         if (BuildConfig.DEBUG) {
           String url = request.url().toString();
@@ -816,13 +790,6 @@ public class SMTHHelper {
       return results;
     }
 
-    // TEMP DEBUG: 打印版面列表原始响应，定位"封禁/访问过于频繁"纯文本导致版面空白
-    if (BuildConfig.DEBUG) {
-      String rawPreview = content.length() > 300 ? content.substring(0, 300) : content;
-      android.util.Log.d("FEEDDBG", "PARSE BOARD raw(len=" + content.length() + "): "
-          + rawPreview.replace("\n", "\\n"));
-    }
-
     Document doc = Jsoup.parse(content);
     // 未登录时服务端可能返回「您未登录」提示页而非版面列表，及早抛出避免把它当正文显示
     GuestReadVerificationException.check(doc);
@@ -939,9 +906,6 @@ public class SMTHHelper {
       if (topic.getTopicID() != null && !topic.getTopicID().isEmpty()) {
         com.zfdang.zsmth_android.helpers.TopicTimeCache.getInstance().save(
             topic.getTopicID(), topic.getPublishDate(), topic.getReplyDate());
-        // TEMP DEBUG: 记录服务端原始时间格式，定位跨零点排序错乱
-        android.util.Log.d("FEEDDBG", "PARSED id=" + topic.getTopicID()
-            + " pub='" + topic.getPublishDate() + "' reply='" + topic.getReplyDate() + "'");
       }
 
       // Log.d("ParseBoardTopics", topic.toString());

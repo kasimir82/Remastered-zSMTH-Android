@@ -869,10 +869,8 @@ public class MainActivity extends SMTHBaseActivity
   }
 
   public void onLogout() {
-    Settings.getInstance().setUserOnline(false);
-    if (SMTHApplication.activeUser != null) {
-      SMTHApplication.activeUser.setId("guest");
-    }
+    // 状态机：用户主动注销 → USER_LOGGED_OUT（禁止自动登录）
+    com.zfdang.zsmth_android.helpers.LoginStateManager.onUserLogout();
     UpdateNavigationViewHeader();
 
     SMTHHelper helper = SMTHHelper.getInstance();
@@ -893,7 +891,6 @@ public class MainActivity extends SMTHBaseActivity
           }
 
           @Override public void onComplete() {
-
           }
         });
   }

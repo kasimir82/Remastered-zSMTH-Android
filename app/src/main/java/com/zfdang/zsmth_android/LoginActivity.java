@@ -33,6 +33,8 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
   static final int LOGIN_ACTIVITY_REQUEST_CODE = 9528;  // The request code
   static final String USERNAME = "USERNAME";
   static final String PASSWORD = "PASSWORD";
+  /** 用户主动点登录：强制走真登录页，不因cookie已有用户名而短路 */
+  static final String FORCE_LOGIN = "force_login";
   /** WebView 登录失败时带回的错误类型，第一页据此决定是否清密码 */
   static final String EXTRA_LOGIN_ERROR_TYPE = "login_error_type";
   static final String ERR_TYPE_PASSWORD = "password"; // 明确密码错误
@@ -130,6 +132,7 @@ public class LoginActivity extends SMTHBaseActivity implements OnClickListener {
         Intent intent = new Intent(this, WebviewLoginActivity.class);
         intent.putExtra(USERNAME, username);
         intent.putExtra(PASSWORD, password);
+        intent.putExtra(FORCE_LOGIN, true);
         startActivityForResult(intent, LOGIN_ACTIVITY_REQUEST_CODE);
       }
     }

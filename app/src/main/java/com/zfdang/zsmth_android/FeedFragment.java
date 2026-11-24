@@ -134,19 +134,6 @@ public class FeedFragment extends Fragment {
       }
     });
     mAppliedSortMode = mode;
-    // TEMP DEBUG: 排序后输出完整列表(前25条)，定位跨零点排序错乱
-    StringBuilder sb = new StringBuilder();
-    int n = Math.min(25, topics.size());
-    for (int i = 0; i < n; i++) {
-      Topic t = topics.get(i);
-      long key = (mode == Settings.SORT_BY_LAST_REPLY) ? t.getReplySortKey() : t.getPublishSortKeyCached();
-      sb.append(i).append(":id=").append(t.getTopicID()).append(",pub='").append(t.getPublishDate())
-        .append("',reply='").append(t.getReplyDate()).append("',key=").append(key)
-        .append(",day=").append(key / 100000L).append(" | ");
-    }
-    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US);
-    android.util.Log.d("FEEDDBG", "=== SORTED mode=" + mode + " count=" + topics.size()
-        + " now=" + sdf.format(new java.util.Date()) + " ===\n" + sb);
   }
 
   @Override public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -243,10 +230,8 @@ public class FeedFragment extends Fragment {
       mEmptyHint.setVisibility(View.GONE);
     }
 
-    // 4路并发抓取 + UTMP写保护：并发期间WebviewCookieHandler完全不接受服务端改UTMP三件套，
-    // 避免多个响应的Set-Cookie并发写乱导致鉴权失效。刷新结束(成功/失败)后解除保护，
-    // 保证退出登录等场景仍能通过服务端Set-Cookie正常改cookie。
-    com.zfdang.zsmth_android.WebviewCookieHandler.setBlockUtmpWrite(true);
+    // 4路并发抓取：cookie保护统一由WebviewCookieHandler按"服务端是否下发guest"判断，
+    // 不再用刷新期开关。
     Observable.fromIterable(boards)
         .flatMap(new Function<Board, ObservableSource<List<Topic>>>() {
           @Override public ObservableSource<List<Topic>> apply(Board board) {
@@ -259,7 +244,6 @@ public class FeedFragment extends Fragment {
         .subscribe(new Consumer<List<List<Topic>>>() {
           @Override public void accept(List<List<Topic>> parts) {
             mLoading = false;
-            com.zfdang.zsmth_android.WebviewCookieHandler.setBlockUtmpWrite(false);
 
             List<Topic> merged = new ArrayList<>();
             for (List<Topic> part : parts) {
@@ -302,7 +286,6 @@ public class FeedFragment extends Fragment {
         }, new Consumer<Throwable>() {
           @Override public void accept(Throwable throwable) {
             mLoading = false;
-            com.zfdang.zsmth_android.WebviewCookieHandler.setBlockUtmpWrite(false);
             Log.e(TAG, "loadFeed: " + Log.getStackTraceString(throwable));
             showEmpty("信息流加载失败，下拉可以重试");
             finishRefresh();

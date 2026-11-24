@@ -141,16 +141,13 @@ public class MaintainUserStatusWorker extends Worker {
                     // Log.d(TAG, "onNext: " + "4.1 cache userStatus as activeUser");
                     updateUserIcon = true;
                 }
-                // 统一验证：cookie + 版面访问都通过才算真登录(LoginValidator 是全局唯一验证入口)。
-                // 本 onNext 在 IO 线程，直接调 verifySync；不再各自拼 json/board 判断。
-                String verifiedUser = com.zfdang.zsmth_android.helpers.LoginValidator.verifySync();
-                if (verifiedUser != null) {
-                    android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: LoginValidator VERIFIED " + verifiedUser);
-                    com.zfdang.zsmth_android.helpers.LoginThrottle.markSessionValid();
-                } else {
-                    // 验证失败(cookie无效或版面验证失败) = 登录态失效，清锁允许重登
-                    android.util.Log.e(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG, "Worker.onNext: LoginValidator FAILED (jsonId=" + userStatus.getId() + ")");
-                    com.zfdang.zsmth_android.helpers.LoginThrottle.onCookieLost();
+                // 状态机统一验证：访问NewExpress版面实际验证，结果直接修正三态。
+                // 本 onNext 在 IO 线程，用同步版验证（内部有网络请求）。
+                com.zfdang.zsmth_android.helpers.LoginState verifiedState =
+                    com.zfdang.zsmth_android.helpers.LoginStateManager.refreshStateSync();
+                android.util.Log.d(com.zfdang.zsmth_android.helpers.LoginThrottle.TAG_DBG,
+                    "Worker.onNext: state=" + verifiedState + " (jsonId=" + userStatus.getId() + ")");
+                if (verifiedState != com.zfdang.zsmth_android.helpers.LoginState.LOGGED_IN) {
                     userStatus.setId("guest"); // 走未登录分支，UI 刷新为未登录 + 触发自动重登
                 }
 

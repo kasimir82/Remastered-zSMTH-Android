@@ -89,6 +89,8 @@ public class SilentLoginHelper {
         if (verifiedUser != null) {
           // cookie + 版面都通过 = 真已登录
           android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFIED " + verifiedUser);
+          // 上1分钟锁：否则SHORTCUT反复成功但不上锁，导致并发autoLogin反复触发、反复弹"登录成功"
+          LoginThrottle.onSilentLoginSuccess(verifiedUser);
           callback.onSuccess(verifiedUser);
         } else {
           // 验证失败 = 假cookie(会话没建立)：LoginValidator内部已清假cookie，这里报失败
@@ -143,11 +145,6 @@ public class SilentLoginHelper {
       webView.setWebViewClient(new WebViewClient() {
         @Override public void onPageFinished(WebView view, String url) {
           super.onPageFinished(view, url);
-          // TEMP DEBUG: 离屏登录WebView每加载完一页，记录cookie快照，看WebView写/改了什么
-          try {
-            String ck = CookieManager.getInstance().getCookie(COOKIE_URL);
-            android.util.Log.w("CookieJar", "COOKIE-SNAPSHOT[SilentWebView pageFinished] url=" + url + " cookies=" + ck);
-          } catch (Throwable ignored) {}
           if (done[0]) return;
           Log.d(TAG, "onPageFinished: " + url);
           // 页面加载完后注入账号密码并提交

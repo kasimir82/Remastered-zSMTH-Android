@@ -80,6 +80,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     final TextView userName;
     final TextView userHint;
     final TextView loginAction;
+    String loginActionKey = "user_login"; // 按钮当前该执行的动作，渲染时确定，点击时直接用(不走isValidUser瞬时判断)
     final TextView postValue;
     final TextView scoreValue;
     final TextView loginValue;
@@ -105,6 +106,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         userName.setText(user.getId());
         userHint.setText(user.is_online() ? "水木社区 · 在线" : "水木社区 · 已登录");
         loginAction.setText("注销");
+        loginActionKey = "user_logout";
 
         String faceUrl = user.getFace_url();
         if (!TextUtils.isEmpty(faceUrl)) {
@@ -134,6 +136,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         userHint.setTextColor(userHint.getContext().getResources()
             .getColor(com.zfdang.zsmth_android.R.color.login_restricted_warn));
         loginAction.setText("重试");
+        loginActionKey = "user_login";
         avatar.setImageResource(R.drawable.ic_person_black_48dp);
         postValue.setText("-");
         scoreValue.setText("-");
@@ -148,6 +151,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         userHint.setTextColor(userHint.getContext().getResources()
             .getColor(com.zfdang.zsmth_android.R.color.mine_row_summary));
         loginAction.setText("登录");
+        loginActionKey = "user_login";
         avatar.setImageResource(R.drawable.ic_person_black_48dp);
         postValue.setText("-");
         scoreValue.setText("-");
@@ -156,7 +160,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
       }
 
       itemView.setOnClickListener(v -> listener.onMineItemClick(MineItem.action("user_card")));
-      loginAction.setOnClickListener(v -> listener.onMineItemClick(MineItem.action("user_action")));
+      loginAction.setOnClickListener(v -> listener.onMineItemClick(MineItem.action(loginActionKey)));
     }
   }
 

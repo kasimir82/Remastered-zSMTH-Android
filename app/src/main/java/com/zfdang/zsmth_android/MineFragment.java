@@ -263,17 +263,19 @@ public class MineFragment extends Fragment {
         }
         break;
 
-      case "user_action":
-        if (SMTHApplication.isValidUser()) {
-          new AlertDialog.Builder(activity)
-              .setTitle("退出登录")
-              .setMessage("确定要退出当前帐号吗？")
-              .setPositiveButton("退出", (dialog, which) -> activity.onLogout())
-              .setNegativeButton("取消", null)
-              .show();
-        } else {
-          activity.onLogin();
-        }
+      case "user_logout":
+        // 按钮显示"注销"时点击：弹注销确认框
+        new AlertDialog.Builder(activity)
+            .setTitle("退出登录")
+            .setMessage("确定要退出当前帐号吗？")
+            .setPositiveButton("退出", (dialog, which) -> activity.onLogout())
+            .setNegativeButton("取消", null)
+            .show();
+        break;
+
+      case "user_login":
+        // 按钮显示"登录/重试"时点击：无条件走真登录流程，不看isValidUser瞬时状态
+        activity.onLogin();
         break;
 
       case "mail":

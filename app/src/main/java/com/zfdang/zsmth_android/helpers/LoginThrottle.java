@@ -22,22 +22,7 @@ public class LoginThrottle {
 
   /** TEMP DEBUG: 打印全部登录状态标志快照，供定位登录失效/重登被挡问题 */
   public static void dumpState(String where) {
-    try {
-      Settings s = Settings.getInstance();
-      long now = System.currentTimeMillis();
-      long last = s.getLastLoginTime();
-      long lock = s.getAutoLoginLockedUntil();
-      long cd = s.getLoginCooldownUntil();
-      android.util.Log.d(TAG_DBG, "STATE[" + where + "] userOnline=" + s.isUserOnline()
-          + " lastLoginSuccess=" + s.isLastLoginSuccess()
-          + " lastLoginAgo=" + (last > 0 ? ((now - last) / 1000) + "s" : "never")
-          + " lockRemain=" + (lock > now ? ((lock - now) / 1000) + "s" : "none")
-          + " cooldownRemain=" + (cd > now ? ((cd - now) / 1000) + "s" : "none")
-          + " restriction='" + s.getLoginRestrictionReason() + "'"
-          + " cookieUser='" + SilentLoginHelper.readUserId() + "'");
-    } catch (Throwable t) {
-      android.util.Log.e(TAG_DBG, "dumpState error at " + where, t);
-    }
+    LoginStateManager.dumpState(where);
   }
 
   /**
@@ -84,38 +69,17 @@ public class LoginThrottle {
 
   /** 当前是否处于水木的登录限制冷却期：完全基于时间戳，时间到自动解除 */
   public static boolean inCooldown() {
-    return System.currentTimeMillis() < Settings.getInstance().getLoginCooldownUntil();
+    return LoginStateManager.inCooldown();
   }
 
   /** 冷却剩余毫秒数，<=0 表示已解除 */
   public static long getRemainingCooldownMs() {
-    long remain = Settings.getInstance().getLoginCooldownUntil() - System.currentTimeMillis();
-    return Math.max(0, remain);
+    return LoginStateManager.getRemainingCooldownMs();
   }
 
   /** 是否允许自动登录（Worker 用）。用户未在线意愿(登录失败后暂停)、冷却期内、或距上次成功登录太近，都不允许。 */
   public static boolean canAutoLogin() {
-    Settings s = Settings.getInstance();
-    dumpState("canAutoLogin-enter");
-    if (!s.isUserOnline()) {
-      Log.i(TAG, "canAutoLogin=false: user offline (auto login paused after failure)");
-      return false;
-    }
-    if (isAutoLoginLocked()) {
-      Log.i(TAG, "canAutoLogin=false: auto login locked after silent login success");
-      return false;
-    }
-    if (inCooldown()) {
-      Log.w(TAG, "canAutoLogin=false: in cooldown until " + s.getLoginCooldownUntil());
-      return false;
-    }
-    long last = s.getLastLoginTime();
-    if (last > 0 && System.currentTimeMillis() - last < NORMAL_INTERVAL_MS) {
-      Log.i(TAG, "canAutoLogin=false: logged in recently, skip to preserve cookie");
-      return false;
-    }
-    Log.d(TAG_DBG, "canAutoLogin=TRUE -> allow");
-    return true;
+    return LoginStateManager.canAutoLogin();
   }
 
   /**
@@ -131,11 +95,7 @@ public class LoginThrottle {
 
   /** 静默登录成功后调用：记录登录时间 + 锁闭自动登录1分钟，避免短时间内二次登录塞满服务端会话。 */
   public static void onSilentLoginSuccess(String userId) {
-    Log.d(TAG_DBG, "onSilentLoginSuccess ENTER userId=" + userId);
-    onLoginSuccess(); // 记录登录时间/恢复在线等原有逻辑
-    Settings s = Settings.getInstance();
-    s.setAutoLoginLockedUntil(System.currentTimeMillis() + SILENT_SUCCESS_LOCK_MS);
-    Log.i(TAG, "onSilentLoginSuccess: " + userId + ", auto login LOCKED for 1min (cookie check only)");
+    LoginStateManager.onSilentLoginSuccess(userId);
   }
 
   /**
@@ -145,68 +105,22 @@ public class LoginThrottle {
    * 让锁自然到期间隔≥1分钟，打破循环。本方法只记录日志，不改任何状态。
    */
   public static void onCookieLost() {
-    dumpState("onCookieLost");
+    // 状态机下cookie失效不再直接改状态；状态由refreshState()验证后决定
+    LoginStateManager.dumpState("onCookieLost");
   }
 
   /** 是否处于静默登录成功后的锁定期（自动登录入口用；cookie检查不受此影响） */
   public static boolean isAutoLoginLocked() {
-    Settings s = Settings.getInstance();
-    long until = s.getAutoLoginLockedUntil();
-    if (until > System.currentTimeMillis()) {
-      Log.i(TAG, "isAutoLoginLocked=true, remain=" + ((until - System.currentTimeMillis()) / 1000) + "s");
-      return true;
-    }
-    return false;
+    return LoginStateManager.isLocked();
   }
 
   public static boolean canRetryAfterCookieLost() {
-    Settings s = Settings.getInstance();
-    dumpState("canRetryAfterCookieLost-enter");
-    if (!s.isUserOnline()) {
-      Log.i(TAG, "canRetryAfterCookieLost=false: user offline (auto login paused)");
-      return false;
-    }
-    if (isAutoLoginLocked()) {
-      Log.i(TAG, "canRetryAfterCookieLost=false: auto login locked after silent login success");
-      return false;
-    }
-    if (inCooldown()) {
-      Log.w(TAG, "canRetryAfterCookieLost=false: in cooldown");
-      return false;
-    }
-    // 距上次真实登录至少1分钟才允许重登：cookie失效多为"窗口过多"被踢，
-    // 马上重登只会再被踢。不再因为"cookie刚失效"就绕过这个保护。
-    long last = s.getLastLoginTime();
-    if (last > 0 && System.currentTimeMillis() - last < 60L * 1000) {
-      Log.i(TAG, "canRetryAfterCookieLost=false: logged in <1min ago");
-      Log.d(TAG_DBG, "canRetryAfterCookieLost=FALSE (logged in " + ((System.currentTimeMillis()-last)/1000) + "s ago, <60s)");
-      return false;
-    }
-    Log.d(TAG_DBG, "canRetryAfterCookieLost=TRUE -> allow re-login");
-    return true;
+    return LoginStateManager.canAutoLogin();
   }
 
   /** 登录成功：记录时间、清除冷却与受限状态，并恢复在线意愿（重新开启自动登录/掉线检测） */
   public static void onLoginSuccess() {
-    Log.d(TAG_DBG, "onLoginSuccess ENTER");
-    Settings s = Settings.getInstance();
-    s.setLastLoginTime(System.currentTimeMillis());
-    s.setLastLoginSuccess(true);
-    if (s.getLoginCooldownUntil() != 0) {
-      s.setLoginCooldownUntil(0);
-    }
-    if (s.getLoginRestrictionReason() != null && !s.getLoginRestrictionReason().isEmpty()) {
-      s.setLoginRestrictionReason("");
-    }
-    // 手动/普通登录成功：清掉可能残留的静默登录锁（onSilentLoginSuccess会在此之后再设新锁）
-    if (s.getAutoLoginLockedUntil() != 0) {
-      s.setAutoLoginLockedUntil(0);
-    }
-    // 成功完成一次登录后，重新开启自动登录/掉线检测
-    if (!s.isUserOnline()) {
-      s.setUserOnline(true);
-    }
-    Log.i(TAG, "onLoginSuccess: recorded login time, restriction cleared, auto login resumed");
+    LoginStateManager.onLoginSuccess(Settings.getInstance().getUsername());
   }
 
   /**
@@ -215,15 +129,7 @@ public class LoginThrottle {
    * （避免影响 30 分钟自动登录节流的节奏）。用于自愈之前误判遗留的 user_online=false。
    */
   public static void markSessionValid() {
-    Log.d(TAG_DBG, "markSessionValid ENTER (json已登录+board验证通过)");
-    Settings s = Settings.getInstance();
-    if (!s.isLastLoginSuccess()) s.setLastLoginSuccess(true);
-    if (!s.isUserOnline()) s.setUserOnline(true);
-    if (s.getLoginCooldownUntil() != 0) s.setLoginCooldownUntil(0);
-    if (s.getLoginRestrictionReason() != null && !s.getLoginRestrictionReason().isEmpty()) {
-      s.setLoginRestrictionReason("");
-    }
-    Log.i(TAG, "markSessionValid: session confirmed valid, online flag restored");
+    LoginStateManager.onSessionValid();
   }
 
   /**
@@ -234,38 +140,7 @@ public class LoginThrottle {
    * 手动登录入口不受影响——用户随时可以再去登录页输密码。
    */
   public static void onAnyLoginFailure(String reason) {
-    Log.e(TAG_DBG, "onAnyLoginFailure ENTER reason=" + reason);
-    dumpState("onAnyLoginFailure-enter");
-    Settings s = Settings.getInstance();
-    // 关闭在线意愿 → canAutoLogin/canRetryAfterCookieLost 立即返回 false
-    if (s.isUserOnline()) s.setUserOnline(false);
-    s.setLastLoginSuccess(false);
-    s.setLastLoginTime(0);
-    s.setLoginCooldownUntil(0);
-    s.setAutoLoginLockedUntil(0); // 登录失败：解除静默成功锁
-    s.setLoginRestrictionReason("");
-
-    // 清全局登录态
-    com.zfdang.SMTHApplication.activeUser = null;
-    com.zfdang.SMTHApplication.displayedUserId = "guest";
-
-    // 停掉线检测/保活
-    try {
-      com.zfdang.zsmth_android.services.KeepAliveService.stop(
-          com.zfdang.SMTHApplication.getAppContext());
-    } catch (Throwable t) {
-      Log.w(TAG, "stop keepalive failed: " + t.getMessage());
-    }
-
-    // 通知 UI 刷新为未登录态
-    if (com.zfdang.SMTHApplication.mUserStatusReceiver != null) {
-      try {
-        com.zfdang.SMTHApplication.mUserStatusReceiver.onServiceFailed();
-      } catch (Throwable t) {
-        Log.w(TAG, "notify UI failed: " + t.getMessage());
-      }
-    }
-    Log.w(TAG, "onAnyLoginFailure: " + reason + " -> logged out, auto login paused");
+    LoginStateManager.onLoginFailed(reason);
   }
 
   /**
@@ -308,18 +183,12 @@ public class LoginThrottle {
 
   /** 被判频繁登录：记录受限时间戳与原因，之后一律用「当前时间 vs 时间戳」判断 */
   public static void onTooFrequent(String reason) {
-    Settings s = Settings.getInstance();
-    long cooldownMs = cooldownMsFromReason(reason);
-    long until = System.currentTimeMillis() + cooldownMs;
-    s.setLoginCooldownUntil(until);
-    s.setLoginRestrictionReason(reason == null ? "登录受限" : reason);
-    Log.w(TAG, "onTooFrequent: " + reason + ", cooldown until " + until
-        + " (" + cooldownMs + "ms)");
+    LoginStateManager.onTooFrequent(reason);
   }
 
   /** 当前是否处于受限态：只看时间戳，时间到自动解除，不受残留 reason 影响 */
   public static boolean isRestricted() {
-    return inCooldown();
+    return LoginStateManager.isRestricted();
   }
 
   /**
@@ -328,24 +197,7 @@ public class LoginThrottle {
    * 返回两行：第一行原因，第二行剩余等待时间。
    */
   public static String[] getRestrictionHint() {
-    Settings s = Settings.getInstance();
-    String reason = s.getLoginRestrictionReason();
-    if (reason == null || reason.isEmpty()) reason = "服务器拒绝了本次登录";
-
-    long remainMs = getRemainingCooldownMs();
-    String waitText;
-    if (remainMs <= 0) {
-      waitText = "限制已解除，可点右侧「重试」重新登录";
-    } else {
-      long remainMin = (remainMs + 59999) / 60000;
-      // 不足1分钟时显示秒，让倒计时到末尾仍然准确
-      if (remainMin >= 1) {
-        waitText = "还需等待约 " + remainMin + " 分钟（剩余 " + (remainMs / 1000) + " 秒）";
-      } else {
-        waitText = "即将解除，剩余 " + (remainMs / 1000) + " 秒";
-      }
-    }
-    return new String[] { reason, waitText };
+    return LoginStateManager.getRestrictionHint();
   }
 
   /**
@@ -354,25 +206,13 @@ public class LoginThrottle {
    * 这里仅让「我的」页能显示「服务器未能登录：原因」。
    */
   public static void onLoginFailed(String reason) {
-    if (reason == null) reason = "unknown";
-    // 纯网络类失败（超时/连接错误）不是"受限"，不写 reason，避免误导。
-    // 也不设时间戳——isRestricted 只看时间戳，这些失败本就不该显示受限卡片。
-    if (reason.startsWith("timeout") || reason.startsWith("error:")) {
-      Log.w(TAG, "onLoginFailed: network failure, ignore (not a restriction): " + reason);
-      return;
+    LoginStateManager.onLoginFailed(reason);
+    // 网络类失败不写受限文案；其它写友好文案（保留原UI行为）
+    if (reason == null || (!reason.startsWith("timeout") && !reason.startsWith("error:"))) {
+      String friendly = "captcha".equals(reason) ? "需要验证码，请手动登录"
+          : (reason == null ? "登录失败" : "登录失败（" + reason + "）");
+      Settings.getInstance().setLoginRestrictionReason(friendly);
     }
-    String friendly;
-    if (reason.startsWith("timeout")) {
-      friendly = "登录超时，服务器响应过慢";
-    } else if (reason.startsWith("error:")) {
-      friendly = "登录出错：" + reason.substring(Math.min(reason.length(), 6));
-    } else if ("captcha".equals(reason)) {
-      friendly = "需要验证码，请手动登录";
-    } else {
-      friendly = "登录失败（" + reason + "）";
-    }
-    Settings.getInstance().setLoginRestrictionReason(friendly);
-    Log.w(TAG, "onLoginFailed: " + reason + " -> " + friendly);
   }
 
   /**
@@ -382,9 +222,7 @@ public class LoginThrottle {
    * 绕开冷却去登录、又撞窗口过多，形成"反复弹正在重新登录"的死循环(实测小米)。
    */
   public static void clearRestriction() {
-    Settings s = Settings.getInstance();
-    s.setLoginRestrictionReason("");
-    // 保留 cooldownUntil：冷却时间到会自动失效，无需在这里清零
+    LoginStateManager.clearRestrictionText();
   }
 
   /** WebView 登录页出现"账号过多/踢掉多余窗口/窗口过多"弹窗时调用 */

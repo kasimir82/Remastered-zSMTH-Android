@@ -49,8 +49,8 @@ public final class LoginRecoveryHelper {
     sLastAttempt = now;
 
     // 方案C核心：已停自动登录 → 静默登录必被挡，直接弹手动登录框
-    if (!Settings.getInstance().isUserOnline()) {
-      android.util.Log.d(LoginThrottle.TAG_DBG, "LoginRecovery[" + where + "] user_online=false -> direct manual login dialog");
+    if (LoginStateManager.isUserLoggedOut()) {
+      android.util.Log.d(LoginThrottle.TAG_DBG, "LoginRecovery[" + where + "] USER_LOGGED_OUT -> direct manual login dialog");
       showLoginDialog(activity, "登录已过期，请重新登录");
       return;
     }
@@ -85,6 +85,9 @@ public final class LoginRecoveryHelper {
     // LoginActivity.USERNAME/PASSWORD 是包级私有(helpers子包访问不到)，用相同字面量
     intent.putExtra("USERNAME", username);
     intent.putExtra("PASSWORD", password);
+    // 用户主动点"去登录"→强制真登录，绕过WebviewLoginActivity的"cookie有用户名就短路"检查
+    // (cookie被"拦guest"策略锁死时，不强制就会被短路成假成功，版面还是打不开)
+    intent.putExtra("force_login", true);
     try {
       activity.startActivityForResult(intent, LOGIN_REQUEST_CODE);
     } catch (Throwable t) {
