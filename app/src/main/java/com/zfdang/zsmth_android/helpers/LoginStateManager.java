@@ -28,6 +28,15 @@ public final class LoginStateManager {
     /** 距上次登录至少1分钟才允许重登，避免"窗口过多"循环 */
     private static final long MIN_RELOGIN_INTERVAL_MS = 1L * 60 * 1000;
 
+    /** 冷启动门禁：会话验证是否完成 / 会话是否有效；信息流刷新须等登录就绪 */
+    private static volatile boolean sColdStartSessionChecked = false;
+    private static volatile boolean sColdStartSessionValid = false;
+    /** 会话无效后，明确收到重登成功才算数（不能用isLoggedIn，那是可能过期的旧状态） */
+    private static volatile boolean sColdStartReLoginSucceeded = false;
+    private static final long FEED_GATE_TIMEOUT_MS = 15000L;
+    private static final long FEED_GATE_POLL_MS = 400L;
+    private static android.os.Handler sFeedGateHandler;
+
     private LoginStateManager() {}
 
     // ============ 状态读取 ============
@@ -51,6 +60,7 @@ public final class LoginStateManager {
     /** 登录成功（真提交表单并拿到新会话）→ LOGGED_IN，记录时间、清限流 */
     public static void onLoginSuccess(String userId) {
         Log.d(TAG_DBG, "onLoginSuccess ENTER userId=" + userId);
+        sColdStartReLoginSucceeded = true;
         Settings s = Settings.getInstance();
         s.setLoginState(LoginState.LOGGED_IN.name());
         s.setLastLoginTime(System.currentTimeMillis());
@@ -65,6 +75,7 @@ public final class LoginStateManager {
 
     /** 静默登录成功：转 LOGGED_IN + 上1分钟锁 */
     public static void onSilentLoginSuccess(String userId) {
+        sColdStartReLoginSucceeded = true;
         onLoginSuccess(userId);
         Settings.getInstance().setAutoLoginLockedUntil(System.currentTimeMillis() + SILENT_SUCCESS_LOCK_MS);
         Log.i(TAG, "onSilentLoginSuccess -> LOGGED_IN, lock 1min");
@@ -132,6 +143,7 @@ public final class LoginStateManager {
 
     /** 会话被确认有效 → LOGGED_IN（后台自愈，但不刷新lastLoginTime以免打乱节流） */
     public static void onSessionValid() {
+        sColdStartReLoginSucceeded = true;
         Settings s = Settings.getInstance();
         if (s.getLoginState().equals(LoginState.USER_LOGGED_OUT.name())) return;
         s.setLoginState(LoginState.LOGGED_IN.name());
@@ -159,10 +171,13 @@ public final class LoginStateManager {
         final LoginState before = getState();
         Log.d(TAG_DBG, "reconcileOnColdStart ENTER state=" + before);
         LoginValidator.verify(userId -> {
+            sColdStartSessionChecked = true;
             if (userId == null) {
+                sColdStartSessionValid = false;
                 Log.d(TAG_DBG, "reconcileOnColdStart: server session INVALID, keep " + before);
                 return;
             }
+            sColdStartSessionValid = true;
             // 服务端会话有效
             if (getState() == LoginState.LOGGED_IN) {
                 Log.d(TAG_DBG, "reconcileOnColdStart: already LOGGED_IN, no change");
@@ -177,6 +192,45 @@ public final class LoginStateManager {
             s.setLoginRestrictionReason("");
             Log.w(TAG_DBG, "reconcileOnColdStart: FORCE " + before + " -> LOGGED_IN (session valid, user=" + userId + ")");
         });
+    }
+
+    /**
+     * 冷启动信息流刷新门禁。
+     * - 会话有效 → 立即刷新
+     * - 会话无效 → 等重登成功(状态机转LOGGED_IN)才刷新；15秒超时/失败则取消
+     * 登录动作由reconcileOnColdStart+Worker自动进行，这里只等待结果。
+     */
+    public static void waitForFeedRefresh(final Runnable onReady) {
+        // 必须先等冷启动验证完成(sColdStartSessionChecked)，不能提前用isLoggedIn()——
+        // 进程刚起来时状态机可能还是上次持久化的LOGGED_IN，但会话其实已过期。
+        if (sColdStartSessionChecked && (sColdStartSessionValid || sColdStartReLoginSucceeded)) {
+            Log.d(TAG_DBG, "feed gate: session ready (valid=" + sColdStartSessionValid
+                + ", relogin=" + sColdStartReLoginSucceeded + "), refresh now");
+            if (onReady != null) onReady.run();
+            return;
+        }
+        // 冷启动检查未完成或会话失效：起轮询等待，最多15秒
+        if (sFeedGateHandler == null) {
+            sFeedGateHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        final long deadline = System.currentTimeMillis() + FEED_GATE_TIMEOUT_MS;
+        Log.d(TAG_DBG, "feed gate: waiting for login (15s timeout)");
+        Runnable poll = new Runnable() {
+            @Override public void run() {
+                if (sColdStartSessionChecked && (sColdStartSessionValid || sColdStartReLoginSucceeded)) {
+                    Log.d(TAG_DBG, "feed gate: login ready (valid=" + sColdStartSessionValid
+                        + ", relogin=" + sColdStartReLoginSucceeded + "), refresh now");
+                    if (onReady != null) onReady.run();
+                    return;
+                }
+                if (System.currentTimeMillis() >= deadline) {
+                    Log.w(TAG_DBG, "feed gate: TIMEOUT 15s, cancel feed refresh");
+                    return; // 超时取消，不刷新
+                }
+                sFeedGateHandler.postDelayed(this, FEED_GATE_POLL_MS);
+            }
+        };
+        sFeedGateHandler.post(poll);
     }
 
     /**

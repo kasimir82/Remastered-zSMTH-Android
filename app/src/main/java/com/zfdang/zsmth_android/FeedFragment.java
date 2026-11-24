@@ -161,7 +161,10 @@ public class FeedFragment extends Fragment {
     if (!FeedConfig.getInstance().isEnabled()) {
       return;
     }
-    loadFeed(false);
+    // 冷启动门禁：等登录态确认(必要时重登成功)后才刷信息流，
+    // 避免会话过期时服务端下发guest被刷新期拦截、cookie卡在假登录态导致死循环。
+    com.zfdang.zsmth_android.helpers.LoginStateManager.waitForFeedRefresh(
+        () -> loadFeed(false));
   }
 
   /** 标题栏的刷新按钮调用 */
