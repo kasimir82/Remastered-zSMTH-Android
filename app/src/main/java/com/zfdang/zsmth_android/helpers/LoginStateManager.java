@@ -201,10 +201,17 @@ public final class LoginStateManager {
      * 登录动作由reconcileOnColdStart+Worker自动进行，这里只等待结果。
      */
     public static void waitForFeedRefresh(final Runnable onReady) {
+        // 用户主动注销态：直接不刷信息流（连等都不等）。
+        // 注销后即使cookie残留导致服务端会话仍有效，也不该继续拉需要登录的内容。
+        if (getState() == LoginState.USER_LOGGED_OUT) {
+            Log.d(TAG_DBG, "feed gate: USER_LOGGED_OUT -> skip feed refresh entirely");
+            return;
+        }
         // 必须先等冷启动验证完成(sColdStartSessionChecked)，不能提前用isLoggedIn()——
         // 进程刚起来时状态机可能还是上次持久化的LOGGED_IN，但会话其实已过期。
-        if (sColdStartSessionChecked && (sColdStartSessionValid || sColdStartReLoginSucceeded)) {
-            Log.d(TAG_DBG, "feed gate: session ready (valid=" + sColdStartSessionValid
+        if (sColdStartSessionChecked && isLoggedIn()
+                && (sColdStartSessionValid || sColdStartReLoginSucceeded)) {
+            Log.d(TAG_DBG, "feed gate: LOGGED_IN confirmed (valid=" + sColdStartSessionValid
                 + ", relogin=" + sColdStartReLoginSucceeded + "), refresh now");
             if (onReady != null) onReady.run();
             return;
@@ -217,8 +224,9 @@ public final class LoginStateManager {
         Log.d(TAG_DBG, "feed gate: waiting for login (15s timeout)");
         Runnable poll = new Runnable() {
             @Override public void run() {
-                if (sColdStartSessionChecked && (sColdStartSessionValid || sColdStartReLoginSucceeded)) {
-                    Log.d(TAG_DBG, "feed gate: login ready (valid=" + sColdStartSessionValid
+                if (sColdStartSessionChecked && isLoggedIn()
+                        && (sColdStartSessionValid || sColdStartReLoginSucceeded)) {
+                    Log.d(TAG_DBG, "feed gate: LOGGED_IN confirmed (valid=" + sColdStartSessionValid
                         + ", relogin=" + sColdStartReLoginSucceeded + "), refresh now");
                     if (onReady != null) onReady.run();
                     return;
