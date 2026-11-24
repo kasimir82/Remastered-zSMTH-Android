@@ -22,31 +22,35 @@ import okhttp3.HttpUrl;
 public final class WebviewCookieHandler implements CookieJar {
     private static final String TAG = "CookieJar";
     private CookieManager webviewCookieManager = CookieManager.getInstance();
+    /** 仅信息流4路并发刷新期间拦截服务端下发的guest cookie（防并发写乱）。
+     *  非刷新期一律放行：让服务端能正常改cookie(注销/会话失效)，状态判断统一交给状态机。 */
+    private static volatile boolean sBlockGuestDuringFeed = false;
+    public static void setBlockGuestDuringFeed(boolean block) {
+        sBlockGuestDuringFeed = block;
+    }
     @Override
     public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
         String urlString = url.toString();
 
-        String currentUserId = readUtmpUserId();
-        // 新策略：服务端下发的 UTMPUSERID 是 guest 时，一律不写入(拦整批UTMP三件套)；
-        // 只有服务端下发非guest(真实用户名)才更新cookie。
-        // 理由：服务端反复下发guest会把本地登录态清掉导致掉线/反复登录；
-        // 不写guest就能保住本地的有效会话cookie。
-        boolean serverSendsGuest = false;
-        for (Cookie c : cookies) {
-          if ("main[UTMPUSERID]".equals(c.name()) && "guest".equalsIgnoreCase(c.value())) {
-            serverSendsGuest = true;
-            break;
+        // 仅信息流刷新期间拦截服务端下发的guest(防4路并发写乱cookie)。
+        // 其它时候一律放行：注销/会话失效时服务端需要正常把cookie改成guest，
+        // 登录态判断由 LoginStateManager 状态机负责，不再靠"拦cookie"维持。
+        boolean blockUtmp = false;
+        if (sBlockGuestDuringFeed) {
+          for (Cookie c : cookies) {
+            if ("main[UTMPUSERID]".equals(c.name()) && "guest".equalsIgnoreCase(c.value())) {
+              blockUtmp = true;
+              break;
+            }
           }
-        }
-        boolean blockUtmp = serverSendsGuest;
-        if (blockUtmp) {
-          Log.i(TAG, "COOKIE-BLOCK: server sends guest, keep local=" + currentUserId);
+          if (blockUtmp) {
+            Log.i(TAG, "COOKIE-BLOCK: feed refresh, blocked server guest");
+          }
         }
 
         for (Cookie cookie : cookies) {
-            // 拦截UTMP三件套：信息流刷新期间全拦；否则只拦"写guest"
             if (blockUtmp && cookie.name().contains("UTMP")) {
-              continue; // 跳过写入，保留本地登录态
+              continue; // 刷新期跳过guest三件套写入
             }
             webviewCookieManager.setCookie(urlString, cookie.toString());
         }

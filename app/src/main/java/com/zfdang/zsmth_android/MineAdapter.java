@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.facebook.drawee.view.SimpleDraweeView;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.LoginThrottle;
+import com.zfdang.zsmth_android.helpers.LoginStateManager;
 import com.zfdang.zsmth_android.newsmth.UserStatus;
 
 import java.util.List;
@@ -100,29 +101,33 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     void bind(MineItem item) {
       UserStatus user = SMTHApplication.activeUser;
-      boolean valid = SMTHApplication.isValidUser();
+      // 账号区显示完全只依据状态机，与activeUser无关。
+      // 进程重启后activeUser可能还是null(等Worker回填)，但状态机LOGGED_IN就该显示登录态。
+      boolean valid = LoginStateManager.isLoggedIn();
 
-      if (valid && user != null) {
-        userName.setText(user.getId());
-        userHint.setText(user.is_online() ? "水木社区 · 在线" : "水木社区 · 已登录");
+      if (valid) {
+        // 用户名取保存的账号(不依赖activeUser)
+        String uid = Settings.getInstance().getUsername();
+        if (TextUtils.isEmpty(uid) && user != null) uid = user.getId();
+        userName.setText(TextUtils.isEmpty(uid) ? "" : uid);
+        userHint.setText(user != null && user.is_online() ? "水木社区 · 在线" : "水木社区 · 已登录");
         loginAction.setText("注销");
         loginActionKey = "user_logout";
 
-        String faceUrl = user.getFace_url();
+        String faceUrl = user == null ? null : user.getFace_url();
         if (!TextUtils.isEmpty(faceUrl)) {
           avatar.setImageURI(Uri.parse(faceUrl));
         } else {
           avatar.setImageResource(R.drawable.ic_person_black_48dp);
         }
 
-        postValue.setText(statText(user.getPost_count()));
-        scoreValue.setText(statText(user.getScore_user()));
-        loginValue.setText(statText(user.getLogin_count()));
+        // 统计量：activeUser有就显示，没有显示"-"（不影响登录态判断）
+        postValue.setText(user == null ? "-" : statText(user.getPost_count()));
+        scoreValue.setText(user == null ? "-" : statText(user.getScore_user()));
+        loginValue.setText(user == null ? "-" : statText(user.getLogin_count()));
 
-        String level = user.getLevel();
-        if (TextUtils.isEmpty(level)) {
-          level = user.getLife();
-        }
+        String level = user == null ? null : user.getLevel();
+        if (TextUtils.isEmpty(level) && user != null) level = user.getLife();
         levelValue.setText(TextUtils.isEmpty(level) ? "-" : level);
       } else if (LoginThrottle.isRestricted()) {
         // 登录受限态：显示服务端原因 + 建议等待时间，提醒用户不要反复重试

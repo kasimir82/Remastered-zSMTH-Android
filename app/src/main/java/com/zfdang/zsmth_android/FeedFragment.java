@@ -230,8 +230,8 @@ public class FeedFragment extends Fragment {
       mEmptyHint.setVisibility(View.GONE);
     }
 
-    // 4路并发抓取：cookie保护统一由WebviewCookieHandler按"服务端是否下发guest"判断，
-    // 不再用刷新期开关。
+    // 4路并发抓取：仅刷新期间拦服务端guest cookie(防并发写乱)，结束后放行
+    com.zfdang.zsmth_android.WebviewCookieHandler.setBlockGuestDuringFeed(true);
     Observable.fromIterable(boards)
         .flatMap(new Function<Board, ObservableSource<List<Topic>>>() {
           @Override public ObservableSource<List<Topic>> apply(Board board) {
@@ -244,6 +244,7 @@ public class FeedFragment extends Fragment {
         .subscribe(new Consumer<List<List<Topic>>>() {
           @Override public void accept(List<List<Topic>> parts) {
             mLoading = false;
+            com.zfdang.zsmth_android.WebviewCookieHandler.setBlockGuestDuringFeed(false);
 
             List<Topic> merged = new ArrayList<>();
             for (List<Topic> part : parts) {
@@ -286,6 +287,7 @@ public class FeedFragment extends Fragment {
         }, new Consumer<Throwable>() {
           @Override public void accept(Throwable throwable) {
             mLoading = false;
+            com.zfdang.zsmth_android.WebviewCookieHandler.setBlockGuestDuringFeed(false);
             Log.e(TAG, "loadFeed: " + Log.getStackTraceString(throwable));
             showEmpty("信息流加载失败，下拉可以重试");
             finishRefresh();

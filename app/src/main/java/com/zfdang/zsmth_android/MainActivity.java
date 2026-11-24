@@ -208,6 +208,9 @@ public class MainActivity extends SMTHBaseActivity
     // setup receiver to receive user status update from periodical background service
     setupUserStatusReceiver();
 
+    // 冷启动校正：会话有效但状态机不是LOGGED_IN时强制纠正(解决注销后cookie未清的死锁)
+    com.zfdang.zsmth_android.helpers.LoginStateManager.reconcileOnColdStart();
+
     // schedule the periodical background service
     Data.Builder inputData = new Data.Builder();
     inputData.putBoolean(MaintainUserStatusWorker.REPEAT, true);

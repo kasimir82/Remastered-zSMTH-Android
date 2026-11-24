@@ -125,25 +125,9 @@ public final class LoginStateManager {
         if (s.getLoginState().equals(LoginState.USER_LOGGED_OUT.name())) return;
         s.setLoginState(LoginState.SESSION_LOST.name());
         s.setUserOnline(true);  // 被动失效：保持自动登录意愿
-        // 关键：清掉锁死的旧cookie用户名，让下次登录能走真登录(提交表单)而非SHORTCUT死循环
-        clearStaleUtmpCookie();
-        Log.w(TAG, "onSessionLost -> SESSION_LOST, reason=" + reason + ", stale UTMP cleared");
-    }
-
-    /** 清掉本地UTMP三件套(写guest+过期)，使下次登录必须走真提交、服务端下发新cookie */
-    private static void clearStaleUtmpCookie() {
-        try {
-            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
-            String url = "https://www.newsmth.net/";
-            // 写成guest值(水木判未登录的标准值)，让readUserId()返回guest
-            cm.setCookie(url, "main[UTMPUSERID]=guest; Domain=.newsmth.net; Path=/");
-            cm.setCookie(url, "main[UTMPKEY]=; Domain=.newsmth.net; Path=/; Max-Age=0");
-            cm.setCookie(url, "main[UTMPNUM]=; Domain=.newsmth.net; Path=/; Max-Age=0");
-            cm.flush();
-            Log.i(TAG, "clearStaleUtmpCookie done");
-        } catch (Throwable t) {
-            Log.w(TAG, "clearStaleUtmpCookie failed", t);
-        }
+        // 不主动写UTMP cookie：登录态完全靠状态机，cookie由服务端下发。
+        // 非刷新期服务端下发guest会正常写入，清掉旧会话。
+        Log.w(TAG, "onSessionLost -> SESSION_LOST, reason=" + reason);
     }
 
     /** 会话被确认有效 → LOGGED_IN（后台自愈，但不刷新lastLoginTime以免打乱节流） */
@@ -164,6 +148,36 @@ public final class LoginStateManager {
     }
 
     // ============ 会话验证（判定已登录的权威方式） ============
+
+    /**
+     * 冷启动专用校正：验证服务端会话，若实际有效但状态机不是LOGGED_IN，强制纠正。
+     * 解决"状态机停在USER_LOGGED_OUT但cookie/会话实际有效"的死锁——
+     * 此时版面能刷但"我的"页显示未登录，用户登录又因"窗口过多"被拒，无法自愈。
+     * 只在MainActivity.onCreate(真正冷启动)调用一次，运行状态不触发。
+     */
+    public static void reconcileOnColdStart() {
+        final LoginState before = getState();
+        Log.d(TAG_DBG, "reconcileOnColdStart ENTER state=" + before);
+        LoginValidator.verify(userId -> {
+            if (userId == null) {
+                Log.d(TAG_DBG, "reconcileOnColdStart: server session INVALID, keep " + before);
+                return;
+            }
+            // 服务端会话有效
+            if (getState() == LoginState.LOGGED_IN) {
+                Log.d(TAG_DBG, "reconcileOnColdStart: already LOGGED_IN, no change");
+                return;
+            }
+            // 强制纠正为LOGGED_IN(绕过onSessionValid对USER_LOGGED_OUT的保护)
+            Settings s = Settings.getInstance();
+            s.setLoginState(LoginState.LOGGED_IN.name());
+            s.setUserOnline(true);
+            s.setLastLoginSuccess(true);
+            s.setLoginCooldownUntil(0);
+            s.setLoginRestrictionReason("");
+            Log.w(TAG_DBG, "reconcileOnColdStart: FORCE " + before + " -> LOGGED_IN (session valid, user=" + userId + ")");
+        });
+    }
 
     /**
      * 同步验证（必须在IO线程调用，因内部有网络请求）。

@@ -223,6 +223,10 @@ public class WebviewLoginClient extends WebViewClient {
         done = true;
         polling = false;
         handler.removeCallbacks(pollRunnable);
+        // 真登录成功 → 通知状态机转 LOGGED_IN。
+        // 覆盖所有登录入口(我的页/版面/帖子/验证码页)，不依赖各调用方onActivityResult是否处理。
+        String okUser = readUserId();
+        com.zfdang.zsmth_android.helpers.LoginStateManager.onLoginSuccess(okUser);
         try {
             Intent resultIntent = new Intent();
             activity.setResult(Activity.RESULT_OK, resultIntent);
