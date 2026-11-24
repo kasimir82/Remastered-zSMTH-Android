@@ -460,7 +460,8 @@ public class ComposePostActivity extends SMTHBaseActivity {
   /** 敏感词拦截后的发布方式选择弹窗（按钮式，验证码图片 / 竖排） */
   private void showPublishMethodDialog() {
     View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
-    final AlertDialog dialog = new AlertDialog.Builder(this)
+    // 用与CopyTextDialog相同的无边框主题，避免AlertDialog默认背景套在自定义背景外面
+    final AlertDialog dialog = new AlertDialog.Builder(this, R.style.AppTheme_PopupOverlay)
         .setView(v)
         .setCancelable(true)
         .create();
@@ -486,6 +487,13 @@ public class ComposePostActivity extends SMTHBaseActivity {
       flowLog("USER CHOICE = CANCEL");
       dialog.dismiss();
     });
+    // 与复制文本对话框统一样式：底部弹出、宽度撑满、顶部圆角+描边
+    if (dialog.getWindow() != null) {
+      dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+      dialog.getWindow().setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+          android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+      dialog.getWindow().setGravity(android.view.Gravity.BOTTOM);
+    }
     flowLog("===== METHOD DIALOG SHOWN =====");
     dialog.show();
   }

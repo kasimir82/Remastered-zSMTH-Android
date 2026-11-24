@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 底部弹出对话框背景(复制文本/发布方式共用)：顶部圆角+细描边，颜色引用主题资源自动适配白天/夜间 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/body_background_night" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/recycler_view_divider" />
+    <corners
+        android:topLeftRadius="16dp"
+        android:topRightRadius="16dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="0dp" />
+</shape>

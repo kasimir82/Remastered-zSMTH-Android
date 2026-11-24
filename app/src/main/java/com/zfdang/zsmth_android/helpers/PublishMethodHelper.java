@@ -364,6 +364,7 @@ public final class PublishMethodHelper {
     try (FileOutputStream out = new FileOutputStream(file)) {
       bitmap.compress(Bitmap.CompressFormat.JPEG, 10, out); // Q10
       out.flush();
+      appendJpegPadding(file, JPEG_PADDING_TARGET_BYTES); // 撑到目标体积，避免小图被站方屏蔽
       result.files.add(file);
       Log.d(TAG, "captcha image: " + w + "x" + h + " lines=" + lines.size() + " size=" + file.length());
     } catch (Exception e) {
@@ -371,6 +372,40 @@ public final class PublishMethodHelper {
     }
     bitmap.recycle();
     return result;
+  }
+
+  /**
+   * 敏感词图片JPG目标大小：EOI(FFD9)后追加随机数据撑到约200KB。
+   * 实测水木对过小图片有屏蔽，撑大体积可正常发出；解码器遇EOI即停，追加数据不影响显示。设为0可关闭填充。
+   */
+  private static final int JPEG_PADDING_TARGET_BYTES = 200 * 1024;
+
+  /**
+   * 在JPEG文件末尾(EOI标记之后)追加随机字节，把文件撑到目标大小。
+   * JPEG解码器遇EOI即停止，之后的数据被忽略——像素内容完全不变。
+   */
+  private static void appendJpegPadding(File file, int targetBytes) {
+      if (targetBytes <= 0 || !file.exists() || file.length() >= targetBytes) return;
+      try {
+          java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "rw");
+          try {
+              raf.seek(raf.length());
+              long remain = targetBytes - raf.length();
+              byte[] buf = new byte[(int) Math.min(8192, remain)];
+              Random rnd = new Random();
+              while (remain > 0) {
+                  int n = (int) Math.min(buf.length, remain);
+                  rnd.nextBytes(buf);
+                  raf.write(buf, 0, n);
+                  remain -= n;
+              }
+          } finally {
+              raf.close();
+          }
+          Log.d(TAG, "jpeg padding: file=" + file.getName() + " size=" + file.length());
+      } catch (Exception e) {
+          Log.e(TAG, "append jpeg padding failed", e);
+      }
   }
 
   /** 干净模式参数：每行14字、无旋转/无干扰线/无噪点 */
@@ -420,6 +455,7 @@ public final class PublishMethodHelper {
     try (FileOutputStream out = new FileOutputStream(file)) {
       bitmap.compress(Bitmap.CompressFormat.JPEG, 10, out);
       out.flush();
+      appendJpegPadding(file, JPEG_PADDING_TARGET_BYTES); // 撑到目标体积，避免小图被站方屏蔽
       result.files.add(file);
       Log.d(TAG, "clean image: " + w + "x" + h + " lines=" + lines.size() + " size=" + file.length());
     } catch (Exception e) {

@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="@drawable/dialog_bottom_sheet_bg"
     android:paddingStart="20dp"
     android:paddingTop="18dp"
     android:paddingEnd="20dp"
