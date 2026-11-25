@@ -18,6 +18,7 @@ import android.widget.Toast;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.RecyclerViewUtil;
+import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.listeners.OnTopicFragmentInteractionListener;
 import com.zfdang.zsmth_android.listeners.OnVolumeUpDownListener;
 import com.zfdang.zsmth_android.models.Topic;
@@ -51,6 +52,8 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
   /** 需要抓取真实回帖数的帖子队列(十大标题括号是热度分不是回帖数) */
   private final java.util.List<Topic> mReplyFetchQueue = new java.util.ArrayList<>();
   private io.reactivex.disposables.Disposable mReplyFetchDisposable = null;
+  /** 抓取进行中锁：防止短时间多次下拉重复发起请求 */
+  private volatile boolean mFetching = false;
   /** 单条刷新：用户点进某帖返回时只刷这一条 */
   public void refreshSingleTopicReplyCount(Topic topic) {
     if (topic == null || topic.isCategory) return;
@@ -234,6 +237,9 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
       mReplyFetchQueue.clear();
     }
     if (batch.isEmpty()) return;
+    mFetching = true; // 加锁：抓取期间禁止新的批量刷新
+    com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_FETCH_START",
+        com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "本批次请求数=" + batch.size());
 
     final SMTHHelper helper = SMTHHelper.getInstance();
     // 每个请求之间间隔1秒(concatMap串行 + delay)，避免太频繁被服务端判失败。
@@ -248,6 +254,9 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
               int real = SMTHHelper.parseRealReplyCount(html);
               if (real >= 0) {
                 topic.setReplyCounts(String.valueOf(real));
+                com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_OK",
+                    com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+                    "board=" + topic.getBoardEngName() + " id=" + topic.getTopicID() + " real=" + real);
               } else {
                 // 记录解析失败(如返回guest-read-challenge验证页/限流页)，htmlBody前80字
                 String head = html.length() > 80 ? html.substring(0, 80) : html;
@@ -285,6 +294,11 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
             }))
         .subscribeOn(io.reactivex.schedulers.Schedulers.io())
         .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+        .doFinally(() -> {
+          mFetching = false; // 无论完成/出错/取消都解锁
+          com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_FETCH_DONE",
+              com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "本批次结束，锁已释放");
+        })
         .subscribe(topic -> {
           if (!"__FETCH_FAILED__".equals(topic.getCategory())
               && mRecyclerView != null && mRecyclerView.getAdapter() != null) {
@@ -295,24 +309,41 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
 
   /** 只把"本日十大热门话题"的10条加入队列(其余板块热帖太多，请求会被429限流) */
   private void enqueueAllTopicsForReplyCount() {
+    // 抓取中直接跳过，防止多次下拉叠加请求
+    if (mFetching) {
+      com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_SKIP",
+          com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "正在抓取中，跳过本次下拉");
+      return;
+    }
     synchronized (mReplyFetchQueue) {
       boolean inTop10 = false;
       int count = 0;
+      int total = TopicListContent.HOT_TOPICS.size();
+      StringBuilder structure = new StringBuilder();
       for (Topic t : TopicListContent.HOT_TOPICS) {
         if (t == null) continue;
         if (t.isCategory) {
-          if ("本日十大热门话题".equals(t.getCategory()) || "本日十大热门话题".equals(t.getTitle())) {
-            inTop10 = true; // 分隔符之后就是top10
+          String cat = t.getCategory();
+          structure.append("[SEP:").append(cat).append("]");
+          if ("本日十大热门话题".equals(cat)) {
+            inTop10 = true;
           } else if (inTop10) {
-            break; // 遇到下一个板块分隔符，top10结束
+            structure.append("(BREAK)");
+            break;
           }
           continue;
         }
-        if (inTop10 && t.getTopicID() != null && count < 10) {
+        // 只刷有阅读快照的帖子(你看过的)：没看过的是灰色纯数字，不需要真实回帖数
+        if (inTop10 && t.getTopicID() != null && count < 10
+            && ReadProgressManager.getInstance().getReplySnapshot(
+                t.getBoardEngName(), t.getTopicID()) > 0) {
           mReplyFetchQueue.add(t);
           count++;
         }
       }
+      com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_ENQUEUE",
+          com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+          "HOT_TOPICS总数=" + total + " 入队=" + count + " 结构=" + structure);
     }
     startReplyCountFetch();
   }
