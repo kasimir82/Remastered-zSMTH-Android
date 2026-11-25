@@ -143,10 +143,20 @@ public class SilentLoginHelper {
       }
 
       webView.setWebViewClient(new WebViewClient() {
+        @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+          super.onPageStarted(view, url, favicon);
+          // 诊断：记录每一次页面跳转，判断登录过程中是否走到www2→nForum中间页
+          Log.d(TAG, "PAGE_START: " + url);
+          DiagLogger.log("SilentLogin", "PAGE_START", DiagLogger.PASS, url);
+          LoginFailureLogger.log("page_start", url);
+        }
+
         @Override public void onPageFinished(WebView view, String url) {
           super.onPageFinished(view, url);
           if (done[0]) return;
           Log.d(TAG, "onPageFinished: " + url);
+          // 诊断：检测页面正文是否为"www2不再使用/5秒跳转nForum"的中间页
+          detectRedirectInterstitial(view, url);
           // 页面加载完后注入账号密码并提交
           injectCredentials(view, username, password);
           // 检测是否出现验证码页面
@@ -161,6 +171,17 @@ public class SilentLoginHelper {
           pollRunnable[0].run();
         }
 
+        @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view,
+            android.webkit.WebResourceRequest request) {
+          // 诊断：记录登录阶段发出的所有请求(方法+URL)，看表单提交到哪里、返回什么资源
+          if (request != null) {
+            String reqInfo = request.getMethod() + " " + request.getUrl();
+            DiagLogger.log("SilentLogin", "REQUEST", DiagLogger.PASS, reqInfo);
+            LoginFailureLogger.log("request", reqInfo);
+          }
+          return super.shouldInterceptRequest(view, request);
+        }
+
         @Override public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
           super.onReceivedError(view, errorCode, description, failingUrl);
           String detail = "code=" + errorCode + " desc=" + description + " url=" + failingUrl;
@@ -172,9 +193,16 @@ public class SilentLoginHelper {
             android.webkit.WebResourceResponse errorResponse) {
           super.onReceivedHttpError(view, request, errorResponse);
           if (errorResponse != null) {
+            String location = "";
+            try {
+              java.util.Map<String, String> headers = errorResponse.getResponseHeaders();
+              if (headers != null) location = String.valueOf(headers.get("Location"));
+            } catch (Throwable ignore) {}
             String detail = "status=" + errorResponse.getStatusCode()
                 + " reason=" + errorResponse.getReasonPhrase()
-                + " url=" + (request == null ? "null" : request.getUrl());
+                + " url=" + (request == null ? "null" : request.getUrl())
+                + " method=" + (request == null ? "?" : request.getMethod())
+                + " location=" + location;
             Log.e(TAG, "WebView HTTP error: " + detail);
             LoginFailureLogger.log("http_error", detail);
           }
@@ -238,12 +266,16 @@ public class SilentLoginHelper {
           if (done[0]) return;
           String userId = readUserId();
           // 每次 poll 都记录读到的登录 ID（guest/null/真实用户名），便于定位为何判定未登录
-          Log.d(TAG, "poll #" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
+          DiagLogger.log("SilentLogin", "POLL", DiagLogger.PASS, "#" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
           if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId)) {
             if (verifying[0]) return; // 验证进行中，不重复发起
             verifying[0] = true;
             Log.i(TAG, "cookie says logged in: " + userId + ", verifying board session...");
-            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin VERIFYING userId=" + userId + " poll#" + pollCount[0]);
+            DiagLogger.log("SilentLogin", "VERIFYING", DiagLogger.PASS, "userId=" + userId + " poll#" + pollCount[0]);
+            // 诊断：记录UTMP三件套完整状态，判断是"用户名变了但KEY/NUM没变"的假登录
+            String triple = readUtmpTriple();
+            Log.i(TAG, "UTMP TRIPLE at verify: " + triple);
+            DiagLogger.log("SilentLogin", "UTMP_TRIPLE", DiagLogger.PASS, "poll#" + pollCount[0] + " " + triple);
             // 关键：cookie有用户名还不够，必须版面验证通过才算真登录成功
             LoginValidator.verify(verifiedUser -> {
               if (verifiedUser != null) {
@@ -255,7 +287,7 @@ public class SilentLoginHelper {
                 callback.onSuccess(verifiedUser);
               } else {
                 // 验证失败 = cookie是假的(会话没建立)，继续poll等待真登录
-                android.util.Log.w(LoginThrottle.TAG_DBG, "SilentLogin VERIFY FAILED for " + userId + ", keep polling");
+                DiagLogger.log("SilentLogin", "VERIFY_FAILED", DiagLogger.FAIL, "userId=" + userId + ", keep polling");
                 verifying[0] = false;
                 if (++pollCount[0] > MAX_POLL) {
                   String detail = "cookie user=" + userId + " but verify failed after " + MAX_POLL + " polls";
@@ -273,7 +305,7 @@ public class SilentLoginHelper {
             String detail = "timeout after " + MAX_POLL + "s, last userId="
                 + (userId == null ? "null" : "'" + userId + "'");
             Log.w(TAG, "silent login " + detail + ", fallback to user interaction");
-            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin TIMEOUT: " + detail);
+            DiagLogger.log("SilentLogin", "TIMEOUT", DiagLogger.FAIL, detail);
             LoginFailureLogger.log("timeout", detail);
             finish(holder, callback, done, false, pollRunnable, watchdog);
             callback.onFailed("timeout");
@@ -350,7 +382,53 @@ public class SilentLoginHelper {
     return null;
   }
 
+  /** 读取UTMP三件套(USERID/KEY/NUM)，用于诊断"cookie有用户名但会话没建立"的假登录态 */
+  public static String readUtmpTriple() {
+    try {
+      String cookies = CookieManager.getInstance().getCookie(COOKIE_URL);
+      if (cookies == null) return "cookies=NULL";
+      String uid = null, key = null, num = null;
+      for (String part : cookies.split(";")) {
+        String p = part.trim();
+        if (p.startsWith("main[UTMPUSERID]=")) uid = p.substring("main[UTMPUSERID]=".length());
+        else if (p.startsWith("main[UTMPKEY]=")) key = p.substring("main[UTMPKEY]=".length());
+        else if (p.startsWith("main[UTMPNUM]=")) num = p.substring("main[UTMPNUM]=".length());
+      }
+      return "USERID=" + uid + " KEY=" + key + " NUM=" + num;
+    } catch (Throwable t) {
+      return "read error: " + t.getMessage();
+    }
+  }
+
   /** 注入账号密码并提交表单（与可见登录页一致的桌面版链路） */
+  /**
+   * 诊断：检测当前页面是否是"水木社区www2版本不再使用，5秒钟之后自动跳转到nForum版"中间页。
+   * 只读页面正文做日志，不改变登录流程。
+   */
+  private void detectRedirectInterstitial(WebView view, String url) {
+    if (view == null) return;
+    try {
+      String js = "(function(){"
+          + "var t=(document.body&&document.body.innerText)?document.body.innerText:'';"
+          + "var hit=(t.indexOf('www2')>=0 && (t.indexOf('不再使用')>=0 || t.indexOf('nForum')>=0))"
+          + " || t.indexOf('自动跳转')>=0;"
+          + "return hit ? t.substring(0,300).replace(/\\s+/g,' ') : '';"
+          + "})()";
+      view.evaluateJavascript(js, new android.webkit.ValueCallback<String>() {
+        @Override public void onReceiveValue(String value) {
+        if (value != null && !value.isEmpty() && !"\"\"".equals(value) && !"null".equals(value)) {
+          String detail = "url=" + url + " text=" + value;
+          Log.w(TAG, "REDIRECT_INTERSTITIAL DETECTED: " + detail);
+          DiagLogger.log("SilentLogin", "REDIRECT_INTERSTITIAL", DiagLogger.FAIL, detail);
+          LoginFailureLogger.log("redirect_interstitial", detail);
+        }
+        }
+      });
+    } catch (Throwable t) {
+      Log.w(TAG, "detect interstitial failed: " + t.getMessage());
+    }
+  }
+
   private void injectCredentials(WebView view, String username, String password) {
     final String js = "javascript:(function(){"
         + "var user=" + JSONObject.quote(username) + ";"

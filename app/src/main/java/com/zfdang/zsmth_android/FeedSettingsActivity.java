@@ -12,7 +12,6 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.widget.SwitchCompat;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -30,12 +29,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 信息流设置：总开关 + 从收藏夹挑选作为信息来源的版面。
+ * 信息流设置：从收藏夹挑选作为信息来源的版面（信息流已写死常开）。
  */
 public class FeedSettingsActivity extends SMTHBaseActivity {
   private static final String TAG = "FeedSettings";
 
-  private SwitchCompat mEnableSwitch;
   private TextView mEnableSummary;
   private RecyclerView mRecyclerView;
   private TextView mEmptyHint;
@@ -59,17 +57,11 @@ public class FeedSettingsActivity extends SMTHBaseActivity {
 
     setupBottomNavigation();
 
-    mEnableSwitch = findViewById(R.id.feed_enable_switch);
     mEnableSummary = findViewById(R.id.feed_enable_summary);
     mLoading = findViewById(R.id.feed_loading);
     mEmptyHint = findViewById(R.id.feed_empty_hint);
 
-    mEnableSwitch.setChecked(FeedConfig.getInstance().isEnabled());
     updateSummary();
-    mEnableSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-      FeedConfig.getInstance().setEnabled(isChecked);
-      updateSummary();
-    });
 
     findViewById(R.id.feed_reload).setOnClickListener(v -> loadBoards());
 
@@ -84,11 +76,7 @@ public class FeedSettingsActivity extends SMTHBaseActivity {
 
   private void updateSummary() {
     FeedConfig config = FeedConfig.getInstance();
-    if (config.isEnabled()) {
-      mEnableSummary.setText("信息流已开启，来源版面 " + config.getBoardCount() + " 个。刷新信息流时会汇总这些版面的新帖。");
-    } else {
-      mEnableSummary.setText("关闭时信息流页面显示十大导读；打开后在这里汇总所选版面的新帖。");
-    }
+    mEnableSummary.setText("信息流已开启，来源版面 " + config.getBoardCount() + " 个。刷新信息流时会汇总这些版面的新帖。");
   }
 
   @Override public boolean onOptionsItemSelected(@NonNull MenuItem item) {

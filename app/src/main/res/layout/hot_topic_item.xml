@@ -62,7 +62,7 @@
       android:gravity="right"
       android:paddingRight="8dp"
       android:text="Author"
-      android:textColor="@color/hot_topic_item_reply"
+      android:textColor="@color/board_topic_status"
       />
 
 </RelativeLayout>

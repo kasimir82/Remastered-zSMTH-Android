@@ -44,6 +44,11 @@ public class AllBoardFragment extends Fragment implements OnVolumeUpDownListener
   private RecyclerView mRecyclerView = null;
   private SearchView mSearchView = null;
   private QueryTextListener mQueryListener = null;
+  /** 当前搜索词，数据加载完成后重新应用过滤（解决异步加载导致过滤时数据为空） */
+  private String mCurrentQuery = "";
+  /** 从"版面"tab搜索跳过来的关键词，onCreateView里应用到搜索框 */
+  private String mPendingQuery = null;
+  public void setPendingQuery(String q) { this.mPendingQuery = q; }
 
   private OnBoardFragmentInteractionListener mListener = null;
   private BoardRecyclerViewAdapter mAdapter = null;
@@ -88,6 +93,10 @@ public class AllBoardFragment extends Fragment implements OnVolumeUpDownListener
       mQueryListener = new QueryTextListener((BoardRecyclerViewAdapter) mRecyclerView.getAdapter());
     }
     mSearchView.setOnQueryTextListener(mQueryListener);
+    if (mPendingQuery != null && !mPendingQuery.isEmpty()) {
+      mSearchView.setQuery(mPendingQuery, true); // 提交触发过滤
+      mPendingQuery = null;
+    }
 
     // set focus to recyclerview
     mRecyclerView.requestFocus();
@@ -177,7 +186,10 @@ public class AllBoardFragment extends Fragment implements OnVolumeUpDownListener
 
       @Override public void onComplete() {
         clearLoadingHints();
-
+        // 数据加载完成后，若有搜索词则重新过滤一次（过滤时数据可能还没加载完）
+        if (mCurrentQuery != null && !mCurrentQuery.isEmpty() && mAdapter != null) {
+          mAdapter.getFilter().filter(mCurrentQuery);
+        }
       }
     });
   }
@@ -218,6 +230,7 @@ public class AllBoardFragment extends Fragment implements OnVolumeUpDownListener
 
     @Override public boolean onQueryTextChange(String newText) {
       Log.d(TAG, newText);
+      mCurrentQuery = newText == null ? "" : newText;
       mAdapter.getFilter().filter(newText);
       return true;
     }

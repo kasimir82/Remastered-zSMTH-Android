@@ -574,15 +574,9 @@ public class MainActivity extends SMTHBaseActivity
     if (current != hotTopicFragment && current != feedFragment) {
       return;
     }
-    boolean feedEnabled = FeedConfig.getInstance().isEnabled();
-    if (feedEnabled && current != feedFragment) {
+    if (current != feedFragment) {
       getSupportFragmentManager().beginTransaction()
           .replace(R.id.content_frame, feedFragment)
-          .commitAllowingStateLoss();
-      setTitle(SMTHApplication.App_Title_Prefix + "信息流");
-    } else if (!feedEnabled && current == feedFragment) {
-      getSupportFragmentManager().beginTransaction()
-          .replace(R.id.content_frame, hotTopicFragment)
           .commitAllowingStateLoss();
       setTitle(SMTHApplication.App_Title_Prefix + "信息流");
     }
@@ -680,13 +674,13 @@ public class MainActivity extends SMTHBaseActivity
       if (tab == R.id.nav_mine && fragment != mineFragment) {
         target = mineFragment;
         title = "我的";
-      } else if (tab == R.id.nav_all_boards && fragment != allBoardFragment) {
-        target = allBoardFragment;
-        title = "所有版面";
+      } else if (tab == R.id.nav_all_boards && fragment != hotTopicFragment) {
+        target = hotTopicFragment;
+        title = "版面";
       } else if (tab == R.id.nav_favorite && fragment != favoriteBoardFragment) {
         target = favoriteBoardFragment;
         title = "收藏夹";
-      } else if (tab == R.id.nav_guidance && FeedConfig.getInstance().isEnabled() && fragment != feedFragment) {
+      } else if (tab == R.id.nav_guidance && fragment != feedFragment) {
         target = feedFragment;
         title = "信息流";
       }
@@ -903,25 +897,32 @@ public class MainActivity extends SMTHBaseActivity
     return onNavigationItemID(id);
   }
 
+  /** 从"版面"tab的搜索横条跳到"所有版面"页，并带关键词过滤 */
+  public void openAllBoardsWithSearch(String query) {
+    if (allBoardFragment == null) return;
+    allBoardFragment.setPendingQuery(query);
+    FragmentManager fm = getSupportFragmentManager();
+    fm.beginTransaction().replace(R.id.content_frame, allBoardFragment).commit();
+    setTitle(SMTHApplication.App_Title_Prefix + "所有版面");
+    SMTHApplication.currentTabId = R.id.nav_all_boards;
+  }
+
   public boolean onNavigationItemID(int menuID) {
     // Handle navigation view item clicks here.
     Fragment fragment = null;
     String title = "";
 
     if (menuID == R.id.nav_guidance) {
-      // 信息流开关关闭时仍然显示老的十大导读
-      if (FeedConfig.getInstance().isEnabled()) {
-        fragment = feedFragment;
-      } else {
-        fragment = hotTopicFragment;
-      }
+      // 信息流写死常开：此tab永远显示feedFragment，不再切回十大
+      fragment = feedFragment;
       title = "信息流";
     } else if (menuID == R.id.nav_favorite) {
       fragment = favoriteBoardFragment;
       title = "收藏夹";
     } else if (menuID == R.id.nav_all_boards) {
-      fragment = allBoardFragment;
-      title = "所有版面";
+      // 版面tab = 搜索版面横条 + 水木十大
+      fragment = hotTopicFragment;
+      title = "版面";
     } else if (menuID == R.id.nav_mail) {
       fragment = mailListFragment;
       title = "邮件";
@@ -1012,6 +1013,7 @@ public class MainActivity extends SMTHBaseActivity
     Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.content_frame);
     if (fragment == hotTopicFragment) {
       if (item.isCategory) return;
+      hotTopicFragment.refreshSingleTopicReplyCount(item); // 返回时只刷这一帖的真实回帖数
       Intent intent = new Intent(this, PostListActivity.class);
       intent.putExtra(SMTHApplication.TOPIC_OBJECT, item);
       intent.putExtra(SMTHApplication.FROM_BOARD, SMTHApplication.FROM_BOARD_HOT);

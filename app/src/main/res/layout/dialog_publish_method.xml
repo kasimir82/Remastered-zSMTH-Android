@@ -8,7 +8,7 @@
     android:paddingStart="20dp"
     android:paddingTop="18dp"
     android:paddingEnd="20dp"
-    android:paddingBottom="12dp">
+    android:paddingBottom="48dp">
 
     <TextView
         android:id="@+id/pm_title"

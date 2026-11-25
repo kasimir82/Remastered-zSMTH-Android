@@ -490,6 +490,26 @@ public class SMTHHelper {
     return post;
   }
 
+  /**
+   * 轻量提取帖子详情页的真实回帖数（只解析li.page-pre的"贴数:N"，不解析帖子列表）。
+   * 十大列表标题括号里的数字是热度分不是回帖数，用它覆盖才能正确显示"已读+新增"。
+   * @return 真实回帖数；解析失败返回 -1
+   */
+  public static int parseRealReplyCount(String content) {
+    if (content == null || content.isEmpty()) return -1;
+    try {
+      org.jsoup.nodes.Document doc = org.jsoup.Jsoup.parse(content);
+      org.jsoup.select.Elements lis = doc.select("li.page-pre");
+      if (lis.size() > 0) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)").matcher(lis.first().text());
+        if (m.find()) return Integer.parseInt(m.group(1));
+      }
+    } catch (Throwable t) {
+      Log.w(TAG, "parseRealReplyCount failed: " + t.getMessage());
+    }
+    return -1;
+  }
+
   public static List<Post> ParsePostListFromWWW(String content, Topic topic) {
     // final String TAG = "ParsePostListFromWWW";
     List<Post> results = new ArrayList<>();

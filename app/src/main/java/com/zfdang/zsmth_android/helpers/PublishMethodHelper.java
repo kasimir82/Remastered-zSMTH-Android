@@ -262,7 +262,7 @@ public final class PublishMethodHelper {
 
   /**
    * Captcha 风格图片（中度扭曲）：逐字符随机旋转/缩放 + 黑体楷体混排 + 干扰曲线 + 噪点，
-   * 每行最多 CAPTCHA_COLS 个中文字，JPEG quality=10 压缩。用于绕过站方图片文字识别。
+   * 每行最多 CAPTCHA_COLS 个中文字，JPEG quality=50 压缩。用于绕过站方图片文字识别。
    */
   private static final int CAPTCHA_COLS = 7;
   private static final int CAPTCHA_FONT = 44;
@@ -362,7 +362,7 @@ public final class PublishMethodHelper {
 
     File file = new File(dir, "captcha-" + java.util.UUID.randomUUID().toString().replace("-", "") + ".jpg");
     try (FileOutputStream out = new FileOutputStream(file)) {
-      bitmap.compress(Bitmap.CompressFormat.JPEG, 10, out); // Q10
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out); // Q50
       out.flush();
       appendJpegPadding(file, JPEG_PADDING_TARGET_BYTES); // 撑到目标体积，避免小图被站方屏蔽
       result.files.add(file);
@@ -416,7 +416,7 @@ public final class PublishMethodHelper {
 
   /**
    * 干净模式图片：正文超过40字时使用。正常字体、白底、无旋转/干扰线/噪点，
-   * 每行 CLEAN_COLS 个字，JPEG quality=10。保证长文可读性。
+   * 每行 CLEAN_COLS 个字，JPEG quality=50。保证长文可读性。
    */
   public static ImageResult textToCleanImages(Context context, String text) {
     ImageResult result = new ImageResult();
@@ -453,7 +453,7 @@ public final class PublishMethodHelper {
 
     File file = new File(dir, "clean-" + java.util.UUID.randomUUID().toString().replace("-", "") + ".jpg");
     try (FileOutputStream out = new FileOutputStream(file)) {
-      bitmap.compress(Bitmap.CompressFormat.JPEG, 10, out);
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out);
       out.flush();
       appendJpegPadding(file, JPEG_PADDING_TARGET_BYTES); // 撑到目标体积，避免小图被站方屏蔽
       result.files.add(file);

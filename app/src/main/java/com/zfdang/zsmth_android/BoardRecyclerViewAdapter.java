@@ -97,20 +97,32 @@ public class BoardRecyclerViewAdapter extends RecyclerView.Adapter<BoardRecycler
     });
 
     if (mDragMode) {
-      // 收藏夹页：删除转移到左侧 X 按钮，禁用整行长按(避免按住把手误触发删除)
-      holder.mView.setOnLongClickListener(null);
-      holder.mView.setLongClickable(false);
-      holder.mDeleteBtn.setVisibility(View.VISIBLE);
-      holder.mDeleteBtn.setOnClickListener(v -> {
-        if (mListener != null) mListener.onBoardLongClick(holder.mItem); // 复用原删除确认逻辑
-      });
-      // 拖拽把手：按住触发拖动；返回 true 消费事件，避免长按冒泡
+      // 收藏夹页：去掉红色X按钮，整行长按按x坐标分流
+      //   左80% → 删除(原长按逻辑)；右20% → 拖动排序
+      holder.mDeleteBtn.setVisibility(View.GONE);
+      holder.mDeleteBtn.setOnClickListener(null);
+
+      // 右侧把手仅作视觉提示，不再单独拦截触摸（让整行长按统一处理）
       holder.mDragHandle.setVisibility(View.VISIBLE);
-      holder.mDragHandle.setOnTouchListener((v, event) -> {
-        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN && mItemTouchHelper != null) {
-          mItemTouchHelper.startDrag(holder);
+      holder.mDragHandle.setOnTouchListener(null);
+
+      final int[] downX = {0};
+      holder.mView.setOnTouchListener((v, event) -> {
+        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+          downX[0] = (int) event.getX(); // 相对于整行的x坐标
         }
-        return true; // 消费事件，杜绝触发整行点击/长按
+        return false; // 不消费，保证长按检测正常触发
+      });
+      holder.mView.setOnLongClickListener(v -> {
+        int w = v.getWidth();
+        if (downX[0] < w * 0.8) {
+          // 左侧80%：删除
+          if (mListener != null) mListener.onBoardLongClick(holder.mItem);
+        } else {
+          // 右侧20%：拖动排序
+          if (mItemTouchHelper != null) mItemTouchHelper.startDrag(holder);
+        }
+        return true; // 消费长按
       });
     } else {
       // 全部版面页：无删除/把手，保留原长按(添加收藏)
@@ -130,9 +142,9 @@ public class BoardRecyclerViewAdapter extends RecyclerView.Adapter<BoardRecycler
   }
 
   @Override public Filter getFilter() {
-    if (mFilter == null) {
-      mFilter = new BoardFilter(this, mBoards);
-    }
+    // 每次过滤都基于全量数据源ALL_BOARDS重建filter，不要用mBoards(可能已是上次过滤结果)，
+    // 也不要缓存mFilter(其originalList是构造时的快照，数据异步加载后会过时)。
+    mFilter = new BoardFilter(this, com.zfdang.zsmth_android.models.BoardListContent.ALL_BOARDS);
     return mFilter;
   }
 

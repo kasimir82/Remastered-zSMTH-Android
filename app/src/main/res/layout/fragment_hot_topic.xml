@@ -1,21 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipeRefreshLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    >
-  <androidx.recyclerview.widget.RecyclerView
-      android:id="@+id/guidance_recycler_view"
-      android:name="com.zfdang.zsmth_android.GuidanceFragment"
+    android:orientation="vertical">
+
+  <!-- 搜索版面横条：输入并提交后跳到"所有版面"页并显示结果 -->
+  <SearchView
+      android:id="@+id/hot_board_search"
       android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:layout_marginLeft="0dp"
-      android:layout_marginRight="0dp"
-      android:scrollbars="vertical"
-      app:layoutManager="LinearLayoutManager"
-      tools:listitem="@layout/hot_topic_item"
-      />
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+      android:layout_height="wrap_content"
+      android:iconifiedByDefault="false"
+      android:queryHint="搜索版面中/英文名称..."
+      android:textSize="@dimen/zsmth_font_size_small" />
+
+  <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+      android:id="@+id/swipeRefreshLayout"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/guidance_recycler_view"
+        android:name="com.zfdang.zsmth_android.GuidanceFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:scrollbars="vertical"
+        app:layoutManager="LinearLayoutManager"
+        tools:listitem="@layout/hot_topic_item" />
+  </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+</LinearLayout>

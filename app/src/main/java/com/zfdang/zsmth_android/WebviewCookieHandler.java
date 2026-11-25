@@ -48,6 +48,23 @@ public final class WebviewCookieHandler implements CookieJar {
           }
         }
 
+        // 诊断：记录服务端本次下发的UTMP三件套完整值，便于追踪登录态变化
+        // (之前只有poll读到用户名时才记，看不到服务端实际下发/清空cookie的时刻)
+        StringBuilder utmp = new StringBuilder();
+        for (Cookie c : cookies) {
+            String n = c.name();
+            if (n != null && n.contains("UTMP")) {
+                if (utmp.length() > 0) utmp.append(" ");
+                utmp.append(n).append('=').append(c.value());
+            }
+        }
+        if (utmp.length() > 0) {
+            com.zfdang.zsmth_android.helpers.DiagLogger.log("CookieJar",
+                "SERVER_UTMP", blockUtmp ? com.zfdang.zsmth_android.helpers.DiagLogger.FAIL
+                                         : com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+                "from=" + urlString + " | " + utmp + (blockUtmp ? " | BLOCKED" : ""));
+        }
+
         for (Cookie cookie : cookies) {
             if (blockUtmp && cookie.name().contains("UTMP")) {
               continue; // 刷新期跳过guest三件套写入

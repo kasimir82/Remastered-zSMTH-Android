@@ -326,11 +326,7 @@ public class MyPreferenceFragment extends PreferenceFragmentCompat {
       return;
     }
     FeedConfig config = FeedConfig.getInstance();
-    if (config.isEnabled()) {
-      feed_setting.setSummary("已开启，来源版面 " + config.getBoardCount() + " 个");
-    } else {
-      feed_setting.setSummary("未开启，信息流显示十大导读");
-    }
+    feed_setting.setSummary("来源版面 " + config.getBoardCount() + " 个");
   }
 
   @Override public void onCreatePreferences(Bundle bundle, String s) {

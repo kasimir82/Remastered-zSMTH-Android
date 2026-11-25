@@ -86,11 +86,24 @@ public class BoardTopicActivity extends SMTHBaseActivity
     private Settings mSetting;
 
     private boolean isSearchMode = false;
+    /** 是否进过帖子详情页；从帖子返回时onResume需刷新列表以更新阅读进度(蓝色回复数) */
+    private boolean hasEnteredPost = false;
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         SwipeBackHelper.onDestroy(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 从帖子详情返回时刷新列表：replySpannable 依赖阅读进度，
+        // 不重新bind的话回复数不会变成蓝色"已读+新增"。首次进入不刷新(数据由onCreate加载)。
+        if (hasEnteredPost && mRecyclerView != null && mRecyclerView.getAdapter() != null) {
+            mRecyclerView.getAdapter().notifyDataSetChanged();
+            hasEnteredPost = false;
+        }
     }
 
     @Override
@@ -637,6 +650,7 @@ public class BoardTopicActivity extends SMTHBaseActivity
         item.setBoardChsName(mBoard.getBoardChsName());
         intent.putExtra(SMTHApplication.TOPIC_OBJECT, item);
         intent.putExtra(SMTHApplication.FROM_BOARD, SMTHApplication.FROM_BOARD_BOARD);
+        hasEnteredPost = true;
         startActivity(intent);
     }
 

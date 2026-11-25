@@ -37,6 +37,12 @@ public class TopicListContent {
     if (BlockListManager.getInstance().isBlocked(item.getAuthor(), item.getTitle())) {
       return false;
     }
+    // 必须把版面名写入topic：replySpannable按(boardEngName,topicID)查阅读进度快照，
+    // 之前boardName参数传进来却没用，导致刷新后新解析的topic没有boardEngName、
+    // 查不到快照，回复数颜色(蓝色已读)全部丢失。
+    if (item.getBoardEngName() == null || item.getBoardEngName().isEmpty()) {
+      item.setBoardEngName(boardName);
+    }
     BOARD_TOPICS.add(item);
     return true;
   }

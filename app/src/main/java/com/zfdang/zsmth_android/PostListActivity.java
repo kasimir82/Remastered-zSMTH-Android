@@ -663,16 +663,11 @@ public class PostListActivity extends SMTHBaseActivity
     // Log.d(TAG, String.format("Post by %s is long clicked",
     // PostListContent.POSTS.get(position).getAuthor()));
     List<PostActionAlertDialogItem> menuItemsArray = new ArrayList<PostActionAlertDialogItem>();
-    menuItemsArray.add(new PostActionAlertDialogItem(
-        getString(R.string.post_reply_post), R.drawable.ic_reply_black_48dp, ACT_REPLY_POST));
-    menuItemsArray.add(new PostActionAlertDialogItem(
-        getString(R.string.post_like_post), R.drawable.like_black, ACT_LIKE));
+    // 其余项保持原相对顺序；底部四项从下往上=回复/like/黑名单/复制(见下方注释)
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_query_author), R.drawable.ic_person_black_48dp, ACT_QUERY_AUTHOR));
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_filter_author), R.drawable.ic_find_in_page_black_48dp, ACT_FILTER_AUTHOR));
-    menuItemsArray.add(new PostActionAlertDialogItem(
-        getString(R.string.post_copy_content), R.drawable.ic_content_copy_black_48dp, ACT_COPY_CONTENT));
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_foward), R.drawable.ic_send_black_48dp, ACT_FORWARD));
     menuItemsArray.add(new PostActionAlertDialogItem(
@@ -681,9 +676,6 @@ public class PostListActivity extends SMTHBaseActivity
         getString(R.string.post_delete_post), R.drawable.ic_delete_black_48dp, ACT_DELETE_POST));
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_edit_post), R.drawable.ic_edit_black_48dp, ACT_EDIT_POST));
-    // 把发帖人加入黑名单（图标复用白色 block，用 tint 染成主题色）
-    menuItemsArray.add(new PostActionAlertDialogItem(
-        getString(R.string.post_block_author), R.drawable.ic_mine_block, ACT_BLOCK_AUTHOR));
 
     if (Settings.getInstance().isBoardMasterOnly()) {
       menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_topic_delete),
@@ -695,6 +687,16 @@ public class PostListActivity extends SMTHBaseActivity
       menuItemsArray.add(new PostActionAlertDialogItem(getString(R.string.post_topic_readonly),
           R.drawable.baseline_admin_panel_settings_black_48, ACT_TOPIC_READONLY));
     }
+
+    // 底部四项(从上往下:复制/黑名单/like/回复 → 从下往上:回复/like/黑名单/复制)
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_copy_content), R.drawable.ic_content_copy_black_48dp, ACT_COPY_CONTENT));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_block_author), R.drawable.ic_mine_block, ACT_BLOCK_AUTHOR));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_like_post), R.drawable.like_black, ACT_LIKE));
+    menuItemsArray.add(new PostActionAlertDialogItem(
+        getString(R.string.post_reply_post), R.drawable.ic_reply_black_48dp, ACT_REPLY_POST));
 
     PostActionAlertDialogItem[] menuItems = new PostActionAlertDialogItem[menuItemsArray.size()];
     menuItemsArray.toArray(menuItems);
@@ -730,17 +732,32 @@ public class PostListActivity extends SMTHBaseActivity
       }
     };
 
-    AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.post_alert_title))
+    AlertDialog dialog = new AlertDialog.Builder(this, R.style.AppTheme_PopupOverlay)
+        .setTitle(getString(R.string.post_alert_title))
         .setAdapter(adapter, new DialogInterface.OnClickListener() {
           public void onClick(DialogInterface dialog, int which) {
             onPostPopupMenuItem(position, menuItems[which].action);
           }
         })
         .create();
+    // 统一底部弹窗风格：底部全宽、圆角描边背景(颜色自动适配白天夜间)
+    if (dialog.getWindow() != null) {
+      dialog.getWindow().setBackgroundDrawableResource(R.drawable.dialog_bottom_sheet_bg);
+      dialog.getWindow().setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+          android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+      dialog.getWindow().setGravity(android.view.Gravity.BOTTOM);
+    }
     dialog.setCanceledOnTouchOutside(true);
     dialog.setCancelable(true);
 
     dialog.show();
+    // 底部留白：和其他底部弹窗(48dp)一致，给ListView加底部padding把菜单内容往上顶。
+    // 用padding而非footer：addFooterView必须在setAdapter前调用才生效，这里已show晚了。
+    android.widget.ListView lv = dialog.getListView();
+    if (lv != null) {
+      int padPx = (int) (48 * getResources().getDisplayMetrics().density);
+      lv.setPadding(lv.getPaddingLeft(), lv.getPaddingTop(), lv.getPaddingRight(), padPx);
+    }
     return true;
   }
 

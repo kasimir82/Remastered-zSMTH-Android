@@ -39,7 +39,8 @@ public class FeedConfig {
   }
 
   public boolean isEnabled() {
-    return mEnabled;
+    // 信息流写死常开（2026-11-24）：去掉开关后永远启用
+    return true;
   }
 
   public void setEnabled(boolean enabled) {
