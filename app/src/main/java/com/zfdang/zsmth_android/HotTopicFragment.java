@@ -132,7 +132,12 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
 
   @Override public void onResume() {
     super.onResume();
-    // 回复数更新由 refreshSingleTopicReplyCount() 的抓取队列完成，这里不再简单重bind
+    // 从帖子详情返回时必须重新bind：详情页onPause刚更新了阅读快照，
+    // 而单条抓取的notify发生在用户还在详情页时（点击后1秒），返回时若不重bind，
+    // 显示的还是抓取那一刻的旧快照（要点第二次才更新）。
+    if (mRecyclerView != null && mRecyclerView.getAdapter() != null) {
+      mRecyclerView.getAdapter().notifyDataSetChanged();
+    }
   }
 
   public void showLoadingHints() {
