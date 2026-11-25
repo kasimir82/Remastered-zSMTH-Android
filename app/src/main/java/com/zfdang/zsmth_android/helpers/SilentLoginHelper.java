@@ -32,6 +32,7 @@ public class SilentLoginHelper {
   private static final String LOGIN_URL = "https://www.newsmth.net/index.html";
   public static final String COOKIE_URL = "https://www.newsmth.net/";
   private static final String COOKIE_USER_KEY = "main[UTMPUSERID]=";
+  private static final String COOKIE_KEY_KEY = "main[UTMPKEY]=";
   private static final int POLL_INTERVAL_MS = 1000;
   private static final int MAX_POLL = 20; // 最多等 20 秒
 
@@ -64,6 +65,10 @@ public class SilentLoginHelper {
   }
 
   private void doLogin(final Callback callback, final Runnable onStart) {
+    // 照搬手动登录(WebviewLoginClient)：记录提交前的UTMPKEY，
+    // 登录成功判定 = 用户名非guest 且 KEY发生变化(说明服务端真下发了新会话)
+    final String baselineKey = readUtmpKey();
+    DiagLogger.log("SilentLogin", "BASELINE_KEY", DiagLogger.PASS, "baseline UTMPKEY=" + baselineKey);
     LoginThrottle.dumpState("SilentLogin.doLogin-enter");
     android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin.doLogin thread=" + Thread.currentThread().getName());
     if (running) {
@@ -267,39 +272,25 @@ public class SilentLoginHelper {
           String userId = readUserId();
           // 每次 poll 都记录读到的登录 ID（guest/null/真实用户名），便于定位为何判定未登录
           DiagLogger.log("SilentLogin", "POLL", DiagLogger.PASS, "#" + pollCount[0] + " userId=" + (userId == null ? "null" : "'" + userId + "'"));
-          if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId)) {
-            if (verifying[0]) return; // 验证进行中，不重复发起
-            verifying[0] = true;
-            Log.i(TAG, "cookie says logged in: " + userId + ", verifying board session...");
-            DiagLogger.log("SilentLogin", "VERIFYING", DiagLogger.PASS, "userId=" + userId + " poll#" + pollCount[0]);
-            // 诊断：记录UTMP三件套完整状态，判断是"用户名变了但KEY/NUM没变"的假登录
-            String triple = readUtmpTriple();
-            Log.i(TAG, "UTMP TRIPLE at verify: " + triple);
-            DiagLogger.log("SilentLogin", "UTMP_TRIPLE", DiagLogger.PASS, "poll#" + pollCount[0] + " " + triple);
-            // 关键：cookie有用户名还不够，必须版面验证通过才算真登录成功
-            LoginValidator.verify(verifiedUser -> {
-              if (verifiedUser != null) {
-                // cookie + 版面都通过 = 真成功
-                Log.i(TAG, "silent login success (verified): " + verifiedUser);
-                android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS(verified) userId=" + verifiedUser);
-                LoginThrottle.onSilentLoginSuccess(verifiedUser);
-                finish(holder, callback, done, true, pollRunnable, watchdog);
-                callback.onSuccess(verifiedUser);
-              } else {
-                // 验证失败 = cookie是假的(会话没建立)，继续poll等待真登录
-                DiagLogger.log("SilentLogin", "VERIFY_FAILED", DiagLogger.FAIL, "userId=" + userId + ", keep polling");
-                verifying[0] = false;
-                if (++pollCount[0] > MAX_POLL) {
-                  String detail = "cookie user=" + userId + " but verify failed after " + MAX_POLL + " polls";
-                  LoginFailureLogger.log("verify_failed", detail);
-                  finish(holder, callback, done, false, pollRunnable, watchdog);
-                  callback.onFailed("verify_failed");
-                  return;
-                }
-                mainHandler.postDelayed(pollRunnable[0], POLL_INTERVAL_MS);
-              }
-            });
-            return; // 验证异步进行，本次poll不再postDelayed
+          // 照搬手动登录判定：用户名非guest 且 UTMPKEY变化 = 服务端真下发了新会话 → 登录成功。
+          // 不再做版面验证(实测board/NewExpress?ajax会把刚建立的会话踢成guest导致失败)。
+          String currentKey = readUtmpKey();
+          boolean keyChanged = currentKey != null && !currentKey.equals(baselineKey);
+          if (userId != null && !userId.isEmpty() && !"guest".equalsIgnoreCase(userId) && keyChanged) {
+            Log.i(TAG, "silent login success: UTMPUSERID=" + userId
+                + " UTMPKEY " + baselineKey + " -> " + currentKey + " (changed)");
+            DiagLogger.log("SilentLogin", "SUCCESS_KEY_CHANGED", DiagLogger.PASS,
+                "userId=" + userId + " KEY " + baselineKey + " -> " + currentKey);
+            android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS(keyChanged) userId=" + userId);
+            LoginThrottle.onSilentLoginSuccess(userId);
+            finish(holder, callback, done, true, pollRunnable, watchdog);
+            callback.onSuccess(userId);
+            return;
+          }
+          // 用户名有但KEY没变：服务端还没下发新会话，继续poll
+          if (userId != null && !"guest".equalsIgnoreCase(userId) && !keyChanged && pollCount[0] % 3 == 0) {
+            DiagLogger.log("SilentLogin", "WAIT_KEY_CHANGE", DiagLogger.PASS,
+                "poll#" + pollCount[0] + " user=" + userId + " KEY not changed yet (" + currentKey + ")");
           }
           if (++pollCount[0] > MAX_POLL) {
             String detail = "timeout after " + MAX_POLL + "s, last userId="
@@ -378,6 +369,21 @@ public class SilentLoginHelper {
       android.util.Log.d(LoginThrottle.TAG_DBG, "readUserId: no UTMPUSERID in cookies (len=" + cookies.length() + ")");
     } catch (Throwable t) {
       Log.e(TAG, "readUserId failed", t);
+    }
+    return null;
+  }
+
+  /** 读取UTMPKEY，用于照搬手动登录的"KEY变化即成功"判定 */
+  public static String readUtmpKey() {
+    try {
+      String cookies = CookieManager.getInstance().getCookie(COOKIE_URL);
+      if (cookies == null) return null;
+      for (String part : cookies.split(";")) {
+        String p = part.trim();
+        if (p.startsWith(COOKIE_KEY_KEY)) return p.substring(COOKIE_KEY_KEY.length());
+      }
+    } catch (Throwable t) {
+      Log.w(TAG, "readUtmpKey failed: " + t.getMessage());
     }
     return null;
   }
