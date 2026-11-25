@@ -18,7 +18,6 @@ import android.widget.Toast;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.RecyclerViewUtil;
-import com.zfdang.zsmth_android.helpers.ReadProgressManager;
 import com.zfdang.zsmth_android.listeners.OnTopicFragmentInteractionListener;
 import com.zfdang.zsmth_android.listeners.OnVolumeUpDownListener;
 import com.zfdang.zsmth_android.models.Topic;
@@ -49,28 +48,6 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
 
   private RecyclerView mRecyclerView = null;
   private SwipeRefreshLayout mRefreshLayout = null;
-  /** 需要抓取真实回帖数的帖子队列(十大标题括号是热度分不是回帖数) */
-  private final java.util.List<Topic> mReplyFetchQueue = new java.util.ArrayList<>();
-  private io.reactivex.disposables.Disposable mReplyFetchDisposable = null;
-  /** 抓取进行中锁：防止短时间多次下拉重复发起请求 */
-  private volatile boolean mFetching = false;
-  /** 单条刷新：用户点进某帖返回时只刷这一条 */
-  public void refreshSingleTopicReplyCount(Topic topic) {
-    if (topic == null || topic.isCategory) return;
-    synchronized (mReplyFetchQueue) {
-      mReplyFetchQueue.clear();
-      mReplyFetchQueue.add(topic);
-    }
-    startReplyCountFetch();
-  }
-
-  /**
-   * Mandatory empty constructor for the fragment manager to instantiate the
-   * fragment (e.g. upon screen orientation changes).
-   */
-  public HotTopicFragment() {
-  }
-
   @Override public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
@@ -132,9 +109,7 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
 
   @Override public void onResume() {
     super.onResume();
-    // 从帖子详情返回时必须重新bind：详情页onPause刚更新了阅读快照，
-    // 而单条抓取的notify发生在用户还在详情页时（点击后1秒），返回时若不重bind，
-    // 显示的还是抓取那一刻的旧快照（要点第二次才更新）。
+    // 从帖子详情返回时重新bind：详情页onPause可能更新了阅读快照，需重绘反映最新状态。
     if (mRecyclerView != null && mRecyclerView.getAdapter() != null) {
       mRecyclerView.getAdapter().notifyDataSetChanged();
     }
@@ -204,9 +179,6 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
         }
 
         clearLoadingHints();
-        // 十大标题括号是热度分不是回帖数：批量、每帖间隔1秒抓详情页真实回帖数，
-        // 这样看过+新增(蓝色AA+BB)才能正确显示。手工下拉刷新也走这里。
-        enqueueAllTopicsForReplyCount();
       }
     });
   }
@@ -226,131 +198,6 @@ public class HotTopicFragment extends Fragment implements OnVolumeUpDownListener
   @Override public void onDetach() {
     super.onDetach();
     mListener = null;
-  }
-
-  /**
-   * 串行抓取队列里每个帖子的真实回帖数，每个请求间隔1秒，避免太频繁被服务端判失败。
-   * 抓到后写入topic.replyCounts(优先于title括号的假数字)，并刷新对应行。
-   */
-  private void startReplyCountFetch() {
-    java.util.List<Topic> batch;
-    synchronized (mReplyFetchQueue) {
-      if (mReplyFetchDisposable != null && !mReplyFetchDisposable.isDisposed()) {
-        mReplyFetchDisposable.dispose(); // 有新的刷新请求，取消旧的
-      }
-      batch = new java.util.ArrayList<>(mReplyFetchQueue);
-      mReplyFetchQueue.clear();
-    }
-    if (batch.isEmpty()) return;
-    mFetching = true; // 加锁：抓取期间禁止新的批量刷新
-    com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_FETCH_START",
-        com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "本批次请求数=" + batch.size());
-
-    final SMTHHelper helper = SMTHHelper.getInstance();
-    // 每个请求之间间隔1秒(concatMap串行 + delay)，避免太频繁被服务端判失败。
-    // 单条失败用 onErrorResumeNext 发一个假Topic占位(RxJava2不允许null)，保证队列继续。
-    mReplyFetchDisposable = io.reactivex.Observable.fromIterable(batch)
-        .concatMap(topic -> io.reactivex.Observable
-            .timer(1, java.util.concurrent.TimeUnit.SECONDS) // 请求前先等1秒，真正间隔
-            .flatMap(ignored -> helper.wService.getPostListByPage(
-                topic.getBoardEngName(), topic.getTopicID(), 1, null))
-            .map(resp -> {
-              String html = resp.string();
-              int real = SMTHHelper.parseRealReplyCount(html);
-              if (real >= 0) {
-                topic.setReplyCounts(String.valueOf(real));
-                com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_OK",
-                    com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
-                    "board=" + topic.getBoardEngName() + " id=" + topic.getTopicID() + " real=" + real);
-              } else {
-                // 记录解析失败(如返回guest-read-challenge验证页/限流页)，htmlBody前80字
-                String head = html.length() > 80 ? html.substring(0, 80) : html;
-                com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_PARSE_FAIL",
-                    com.zfdang.zsmth_android.helpers.DiagLogger.FAIL,
-                    "board=" + topic.getBoardEngName() + " id=" + topic.getTopicID()
-                        + " httpLen=" + html.length() + " head=" + head.replace("\n", " "));
-              }
-              return topic;
-            })
-            .onErrorResumeNext(e -> {
-              // 429限流：等2秒重试一次；其它错误直接记日志跳过
-              String errMsg = e.getMessage() == null ? "" : e.getMessage();
-              if (errMsg.contains("429")) {
-                Log.w(TAG, "fetch reply 429, retry after 2s: " + topic.getTopicID());
-                return io.reactivex.Observable.timer(2, java.util.concurrent.TimeUnit.SECONDS)
-                    .flatMap(ignored2 -> helper.wService.getPostListByPage(
-                        topic.getBoardEngName(), topic.getTopicID(), 1, null))
-                    .map(resp -> {
-                      int real = SMTHHelper.parseRealReplyCount(resp.string());
-                      if (real >= 0) topic.setReplyCounts(String.valueOf(real));
-                      return topic;
-                    })
-                    .onErrorResumeNext(e2 -> {
-                      Log.w(TAG, "fetch reply retry FAILED: " + topic.getTopicID() + " : " + e2.getMessage());
-                      return io.reactivex.Observable.just(new Topic("__FETCH_FAILED__"));
-                    });
-              }
-              Log.w(TAG, "fetch reply FAILED board=" + topic.getBoardEngName()
-                  + " id=" + topic.getTopicID() + " : " + errMsg);
-              com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_FETCH",
-                  com.zfdang.zsmth_android.helpers.DiagLogger.FAIL,
-                  "board=" + topic.getBoardEngName() + " id=" + topic.getTopicID() + " err=" + errMsg);
-              return io.reactivex.Observable.just(new Topic("__FETCH_FAILED__"));
-            }))
-        .subscribeOn(io.reactivex.schedulers.Schedulers.io())
-        .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
-        .doFinally(() -> {
-          mFetching = false; // 无论完成/出错/取消都解锁
-          com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_FETCH_DONE",
-              com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "本批次结束，锁已释放");
-        })
-        .subscribe(topic -> {
-          if (!"__FETCH_FAILED__".equals(topic.getCategory())
-              && mRecyclerView != null && mRecyclerView.getAdapter() != null) {
-            mRecyclerView.getAdapter().notifyDataSetChanged();
-          }
-        }, e -> Log.w(TAG, "fetch reply queue error: " + e.getMessage()));
-  }
-
-  /** 只把"本日十大热门话题"的10条加入队列(其余板块热帖太多，请求会被429限流) */
-  private void enqueueAllTopicsForReplyCount() {
-    // 抓取中直接跳过，防止多次下拉叠加请求
-    if (mFetching) {
-      com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_SKIP",
-          com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "正在抓取中，跳过本次下拉");
-      return;
-    }
-    synchronized (mReplyFetchQueue) {
-      boolean inTop10 = false;
-      int count = 0;
-      int total = TopicListContent.HOT_TOPICS.size();
-      StringBuilder structure = new StringBuilder();
-      for (Topic t : TopicListContent.HOT_TOPICS) {
-        if (t == null) continue;
-        if (t.isCategory) {
-          String cat = t.getCategory();
-          structure.append("[SEP:").append(cat).append("]");
-          if ("本日十大热门话题".equals(cat)) {
-            inTop10 = true;
-          } else if (inTop10) {
-            structure.append("(BREAK)");
-            break;
-          }
-          continue;
-        }
-        // 只刷有阅读快照的帖子(你看过的)：没看过的是灰色纯数字，不需要真实回帖数
-        if (inTop10 && t.getTopicID() != null && count < 10
-            && ReadProgressManager.getInstance().getReplySnapshot(
-                t.getBoardEngName(), t.getTopicID()) > 0) {
-          mReplyFetchQueue.add(t);
-          count++;
-        }
-      }
-      com.zfdang.zsmth_android.helpers.DiagLogger.log("HotTopic", "REPLY_ENQUEUE",
-          com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
-          "HOT_TOPICS总数=" + total + " 入队=" + count + " 结构=" + structure);
-    }
-    startReplyCountFetch();
   }
 
   @Override public boolean onOptionsItemSelected(MenuItem item) {

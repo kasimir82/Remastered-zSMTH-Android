@@ -1013,7 +1013,6 @@ public class MainActivity extends SMTHBaseActivity
     Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.content_frame);
     if (fragment == hotTopicFragment) {
       if (item.isCategory) return;
-      hotTopicFragment.refreshSingleTopicReplyCount(item); // 返回时只刷这一帖的真实回帖数
       Intent intent = new Intent(this, PostListActivity.class);
       intent.putExtra(SMTHApplication.TOPIC_OBJECT, item);
       intent.putExtra(SMTHApplication.FROM_BOARD, SMTHApplication.FROM_BOARD_HOT);
