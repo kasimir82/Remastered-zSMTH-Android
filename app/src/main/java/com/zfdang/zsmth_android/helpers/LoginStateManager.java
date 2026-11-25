@@ -70,6 +70,8 @@ public final class LoginStateManager {
         // 兼容旧字段：同步user_online/last_login_success，供尚未迁移的读取点使用
         s.setUserOnline(true);
         s.setLastLoginSuccess(true);
+        // 登录成功：开2分钟三件套保护锁，防止刚建立的会话被版面检查请求踢回guest
+        com.zfdang.zsmth_android.WebviewCookieHandler.onLoginSuccessProtect();
         Log.i(TAG, "onLoginSuccess -> LOGGED_IN, " + userId);
     }
 
@@ -92,6 +94,8 @@ public final class LoginStateManager {
         s.setUserOnline(false);
         s.setLastLoginSuccess(false);
         clearActiveUser();
+        // 注销：清除保护锁，让服务端下发的guest三件套能正常写入
+        com.zfdang.zsmth_android.WebviewCookieHandler.clearLoginProtect();
         Log.i(TAG, "onUserLogout -> USER_LOGGED_OUT (auto login disabled)");
     }
 

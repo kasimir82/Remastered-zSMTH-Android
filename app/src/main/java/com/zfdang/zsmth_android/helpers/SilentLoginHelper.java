@@ -68,7 +68,8 @@ public class SilentLoginHelper {
     // 照搬手动登录(WebviewLoginClient)：记录提交前的UTMPKEY，
     // 登录成功判定 = 用户名非guest 且 KEY发生变化(说明服务端真下发了新会话)
     final String baselineKey = readUtmpKey();
-    DiagLogger.log("SilentLogin", "BASELINE_KEY", DiagLogger.PASS, "baseline UTMPKEY=" + baselineKey);
+    DiagLogger.log("SilentLogin", "BASELINE_KEY", DiagLogger.PASS,
+        "baseline UTMPKEY=" + baselineKey + " | " + readUtmpTriple());
     LoginThrottle.dumpState("SilentLogin.doLogin-enter");
     android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin.doLogin thread=" + Thread.currentThread().getName());
     if (running) {
@@ -158,6 +159,8 @@ public class SilentLoginHelper {
 
         @Override public void onPageFinished(WebView view, String url) {
           super.onPageFinished(view, url);
+          // 保护期内：WebView自己写cookie不经过OkHttp拦截器，页面加载后检查并写回真三件套
+          com.zfdang.zsmth_android.WebviewCookieHandler.restoreTripleIfNeeded(view);
           if (done[0]) return;
           Log.d(TAG, "onPageFinished: " + url);
           // 诊断：检测页面正文是否为"www2不再使用/5秒跳转nForum"的中间页
@@ -280,7 +283,8 @@ public class SilentLoginHelper {
             Log.i(TAG, "silent login success: UTMPUSERID=" + userId
                 + " UTMPKEY " + baselineKey + " -> " + currentKey + " (changed)");
             DiagLogger.log("SilentLogin", "SUCCESS_KEY_CHANGED", DiagLogger.PASS,
-                "userId=" + userId + " KEY " + baselineKey + " -> " + currentKey);
+                "userId=" + userId + " KEY " + baselineKey + " -> " + currentKey
+                    + " | " + readUtmpTriple());
             android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SUCCESS(keyChanged) userId=" + userId);
             LoginThrottle.onSilentLoginSuccess(userId);
             finish(holder, callback, done, true, pollRunnable, watchdog);

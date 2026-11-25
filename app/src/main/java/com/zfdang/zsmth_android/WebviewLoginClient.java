@@ -104,6 +104,8 @@ public class WebviewLoginClient extends WebViewClient {
     @Override
     public void onPageFinished(WebView view, String url) {
         super.onPageFinished(view, url);
+        // 保护期内：WebView自己写cookie不经过OkHttp拦截器，页面加载后检查并写回真三件套
+        com.zfdang.zsmth_android.WebviewCookieHandler.restoreTripleIfNeeded(view);
         if (done || url == null || !url.contains("newsmth.net")) {
             return;
         }
@@ -226,6 +228,11 @@ public class WebviewLoginClient extends WebViewClient {
         // 真登录成功 → 通知状态机转 LOGGED_IN。
         // 覆盖所有登录入口(我的页/版面/帖子/验证码页)，不依赖各调用方onActivityResult是否处理。
         String okUser = readUserId();
+        // 手动登录成功也记完整三件套到日志(和静默登录SUCCESS_KEY_CHANGED一致)
+        com.zfdang.zsmth_android.helpers.DiagLogger.log("ManualLogin", "SUCCESS",
+            com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+            "userId=" + okUser + " | "
+                + com.zfdang.zsmth_android.helpers.SilentLoginHelper.readUtmpTriple());
         com.zfdang.zsmth_android.helpers.LoginStateManager.onLoginSuccess(okUser);
         try {
             Intent resultIntent = new Intent();
