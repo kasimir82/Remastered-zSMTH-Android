@@ -73,6 +73,8 @@ public final class LoginManager {
       }
       @Override public void onFailed(String reason2) {
         android.util.Log.e(LoginThrottle.TAG_DBG, "autoLogin[" + reason + "] onFailed " + reason2);
+        DiagLogger.log("LoginManager", "AUTO_LOGIN_FAILED", DiagLogger.FAIL,
+            "from=" + reason + " reason=" + reason2);
         // 只要弹过"正在重新登录"，任何结果都必须给提示，不能让用户悬着。
         // cooldown(窗口过多/频繁)、no_credentials(没存账号)过去被当"预期跳过"静默处理，
         // 但它们其实是真实失败，需要明确告知用户。

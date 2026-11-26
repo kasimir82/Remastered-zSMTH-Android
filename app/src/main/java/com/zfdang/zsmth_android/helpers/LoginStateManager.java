@@ -73,6 +73,7 @@ public final class LoginStateManager {
         // 登录成功：开2分钟三件套保护锁，防止刚建立的会话被版面检查请求踢回guest
         com.zfdang.zsmth_android.WebviewCookieHandler.onLoginSuccessProtect();
         Log.i(TAG, "onLoginSuccess -> LOGGED_IN, " + userId);
+        DiagLogger.log("LoginState", "LOGIN_SUCCESS", DiagLogger.PASS, "userId=" + userId);
     }
 
     /** 静默登录成功：转 LOGGED_IN + 上1分钟锁 */
@@ -81,6 +82,7 @@ public final class LoginStateManager {
         onLoginSuccess(userId);
         Settings.getInstance().setAutoLoginLockedUntil(System.currentTimeMillis() + SILENT_SUCCESS_LOCK_MS);
         Log.i(TAG, "onSilentLoginSuccess -> LOGGED_IN, lock 1min");
+        DiagLogger.log("LoginState", "SILENT_SUCCESS", DiagLogger.PASS, "userId=" + userId + ", lock 1min");
     }
 
     /** 用户主动注销 → USER_LOGGED_OUT，禁止自动登录 */
@@ -97,11 +99,13 @@ public final class LoginStateManager {
         // 注销：清除保护锁，让服务端下发的guest三件套能正常写入
         com.zfdang.zsmth_android.WebviewCookieHandler.clearLoginProtect();
         Log.i(TAG, "onUserLogout -> USER_LOGGED_OUT (auto login disabled)");
+        DiagLogger.log("LoginState", "USER_LOGOUT", DiagLogger.PASS, "auto login disabled");
     }
 
     /** 任何登录失败 → SESSION_LOST（区别于用户主动退出！） */
     public static void onLoginFailed(String reason) {
         Log.e(TAG_DBG, "onLoginFailed ENTER reason=" + reason);
+        DiagLogger.log("LoginState", "ON_FAILED", DiagLogger.FAIL, "reason=" + reason);
         Settings s = Settings.getInstance();
         // 若用户已主动退出，失败不改变其"主动退出"态
         if (s.getLoginState().equals(LoginState.USER_LOGGED_OUT.name())) {
@@ -114,6 +118,7 @@ public final class LoginStateManager {
         s.setAutoLoginLockedUntil(0);
         clearActiveUser();
         Log.w(TAG, "onLoginFailed -> SESSION_LOST, reason=" + reason);
+        DiagLogger.log("LoginState", "LOGIN_FAILED", DiagLogger.FAIL, "reason=" + reason);
     }
 
     /**
@@ -143,6 +148,7 @@ public final class LoginStateManager {
         // 不主动写UTMP cookie：登录态完全靠状态机，cookie由服务端下发。
         // 非刷新期服务端下发guest会正常写入，清掉旧会话。
         Log.w(TAG, "onSessionLost -> SESSION_LOST, reason=" + reason);
+        DiagLogger.log("LoginState", "SESSION_LOST", DiagLogger.FAIL, "reason=" + reason);
     }
 
     /** 会话被确认有效 → LOGGED_IN（后台自愈，但不刷新lastLoginTime以免打乱节流） */
@@ -312,29 +318,35 @@ public final class LoginStateManager {
 
         if (state == LoginState.USER_LOGGED_OUT) {
             Log.i(TAG_DBG, "canAutoLogin=false: USER_LOGGED_OUT");
+        DiagLogger.log("LoginState", "CAN_AUTO_SKIP", DiagLogger.FAIL, "reason=USER_LOGGED_OUT");
             return false;
         }
         if (state == LoginState.LOGGED_IN) {
             Log.d(TAG_DBG, "canAutoLogin=false: already LOGGED_IN");
+        DiagLogger.log("LoginState", "CAN_AUTO_SKIP", DiagLogger.FAIL, "reason=already LOGGED_IN");
             return false;
         }
         // SESSION_LOST：检查自动登录意愿(密码错误等场景会撤销)
         if (!Settings.getInstance().isUserOnline()) {
             Log.i(TAG_DBG, "canAutoLogin=false: user_online=false (auto login paused)");
+        DiagLogger.log("LoginState", "CAN_AUTO_SKIP", DiagLogger.FAIL, "reason=user_online=false (auto login paused)");
             return false;
         }
         // SESSION_LOST：检查限流
         if (inCooldown()) {
             Log.w(TAG_DBG, "canAutoLogin=false: in cooldown");
+        DiagLogger.log("LoginState", "CAN_AUTO_SKIP", DiagLogger.FAIL, "reason=in cooldown");
             return false;
         }
         if (isLocked()) {
             Log.i(TAG_DBG, "canAutoLogin=false: silent success lock");
+        DiagLogger.log("LoginState", "CAN_AUTO_SKIP", DiagLogger.FAIL, "reason=silent success lock");
             return false;
         }
         long last = s.getLastLoginTime();
         if (last > 0 && System.currentTimeMillis() - last < MIN_RELOGIN_INTERVAL_MS) {
             Log.i(TAG_DBG, "canAutoLogin=false: logged in <1min ago");
+        DiagLogger.log("LoginState", "CAN_AUTO_SKIP", DiagLogger.FAIL, "reason=logged in <1min ago");
             return false;
         }
         Log.d(TAG_DBG, "canAutoLogin=TRUE (SESSION_LOST, no limits)");

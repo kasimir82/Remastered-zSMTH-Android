@@ -95,12 +95,15 @@ public class SilentLoginHelper {
         if (verifiedUser != null) {
           // cookie + 版面都通过 = 真已登录
           android.util.Log.d(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFIED " + verifiedUser);
+          DiagLogger.log("SilentLogin", "SHORTCUT_VERIFIED", DiagLogger.PASS, "userId=" + verifiedUser);
           // 上1分钟锁：否则SHORTCUT反复成功但不上锁，导致并发autoLogin反复触发、反复弹"登录成功"
           LoginThrottle.onSilentLoginSuccess(verifiedUser);
           callback.onSuccess(verifiedUser);
         } else {
           // 验证失败 = 假cookie(会话没建立)：LoginValidator内部已清假cookie，这里报失败
           android.util.Log.w(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFY FAILED");
+          DiagLogger.log("SilentLogin", "SHORTCUT_VERIFY_FAILED", DiagLogger.FAIL,
+              "cookie had user but board verify failed");
           callback.onFailed("verify_failed");
         }
       });
