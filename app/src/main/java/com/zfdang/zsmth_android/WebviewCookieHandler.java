@@ -72,6 +72,23 @@ public final class WebviewCookieHandler implements CookieJar {
         } catch (Throwable t) {}
         return new String[]{uid, key, num};
     }
+    /** 手动写入完整三件套到WebView cookie（供"恢复UTMP"功能用） */
+    public static void writeTriple(String userId, String key, String num) {
+        try {
+            String domain = ".newsmth.net";
+            webviewCookieManager.setCookie(domain, "main[UTMPUSERID]=" + userId + "; Path=/; Domain=" + domain);
+            webviewCookieManager.setCookie(domain, "main[UTMPKEY]=" + key + "; Path=/; Domain=" + domain);
+            webviewCookieManager.setCookie(domain, "main[UTMPNUM]=" + num + "; Path=/; Domain=" + domain);
+            webviewCookieManager.flush();
+            com.zfdang.zsmth_android.helpers.DiagLogger.log("CookieJar", "MANUAL_WRITE_TRIPLE",
+                com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+                "USERID=" + userId + " KEY=" + key + " NUM=" + num);
+        } catch (Throwable t) {
+            com.zfdang.zsmth_android.helpers.DiagLogger.log("CookieJar", "MANUAL_WRITE_FAIL",
+                com.zfdang.zsmth_android.helpers.DiagLogger.FAIL, String.valueOf(t));
+        }
+    }
+
     /**
      * WebView页面加载完成后调用：保护期内若cookie被WebView写成guest，
      * 立即写回登录时的真三件套（WebView写cookie不经过OkHttp拦截器，保护锁拦不到）。

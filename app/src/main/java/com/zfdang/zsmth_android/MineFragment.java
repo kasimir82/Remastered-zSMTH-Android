@@ -25,6 +25,7 @@ import com.zfdang.SMTHApplication;
 import com.zfdang.zsmth_android.helpers.BlockListManager;
 import com.zfdang.zsmth_android.helpers.FileLess;
 import com.zfdang.zsmth_android.helpers.FileSizeUtil;
+import com.zfdang.zsmth_android.helpers.TripleLogReader;
 import com.zfdang.zsmth_android.models.MailListContent;
 import com.zfdang.zsmth_android.newsmth.SMTHHelper;
 
@@ -158,6 +159,9 @@ public class MineFragment extends Fragment {
     items.add(MineItem.row("clear_image", R.drawable.ic_mine_clean, "清除图片缓存", imageCacheSummary));
     items.add(MineItem.row("clear_http", R.drawable.ic_mine_clean, "清除帖子缓存", httpCacheSummary));
     items.add(MineItem.row("about", R.drawable.ic_mine_info, "关于 RzSMTH", versionSummary()));
+    items.add(MineItem.section("调试"));
+    items.add(MineItem.row("restore_utmp_logout", R.drawable.ic_mine_info,
+        "恢复UTMP并注销", "从日志读取最后三件套"));
 
     Log.d(TAG, "buildItems: " + items.size() + " items, about=" + versionSummary());
     adapter.notifyDataSetChanged();
@@ -245,6 +249,30 @@ public class MineFragment extends Fragment {
     }).start();
   }
 
+  /** 恢复UTMP并注销：从日志读最后三件套→写cookie→LOGGED_IN→弹注销确认 */
+  private void handleRestoreUtmpAndLogout(MainActivity activity) {
+    TripleLogReader.Triple triple = TripleLogReader.readLastValidTriple();
+    if (triple == null || !triple.isValid()) {
+      Toast.makeText(activity, "日志中未找到有效的三件套", Toast.LENGTH_SHORT).show();
+      com.zfdang.zsmth_android.helpers.DiagLogger.log("MineFragment", "RESTORE_UTMP",
+          com.zfdang.zsmth_android.helpers.DiagLogger.FAIL, "no valid triple in log");
+      return;
+    }
+    // 写cookie + 转LOGGED_IN
+    com.zfdang.zsmth_android.WebviewCookieHandler.writeTriple(
+        triple.userId, triple.key, triple.num);
+    com.zfdang.zsmth_android.helpers.LoginStateManager.onLoginSuccess(triple.userId);
+    Toast.makeText(activity, "已恢复: " + triple, Toast.LENGTH_LONG).show();
+
+    // 弹"是否强制注销"对话框
+    new AlertDialog.Builder(activity)
+        .setTitle("是否强制注销")
+        .setMessage("UTMP已恢复为 " + triple.userId + "，是否强制注销？")
+        .setPositiveButton("注销", (dialog, which) -> activity.onLogout())
+        .setNegativeButton("取消", null)
+        .show();
+  }
+
   private void onItemClicked(MineItem item) {
     if (!(getActivity() instanceof MainActivity)) {
       return;
@@ -271,6 +299,11 @@ public class MineFragment extends Fragment {
             .setPositiveButton("退出", (dialog, which) -> activity.onLogout())
             .setNegativeButton("取消", null)
             .show();
+        break;
+
+      case "restore_utmp_logout":
+        // 调试：从本地日志读取最后成功三件套→写cookie→转LOGGED_IN→弹"是否强制注销"
+        handleRestoreUtmpAndLogout(activity);
         break;
 
       case "user_login":
