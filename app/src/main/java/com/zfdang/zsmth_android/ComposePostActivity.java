@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.net.Uri;
 import android.text.TextUtils;
 import androidx.activity.result.ActivityResultLauncher;
@@ -95,6 +96,9 @@ public class ComposePostActivity extends SMTHBaseActivity {
   private File cameraAttachment;
   private boolean importingImages;
   private boolean reportSending;
+
+  // 回帖时「发布方式」弹窗的自动兜底时间：到时无人操作即按「正常发送」
+  private static final long PUBLISH_METHOD_TIMEOUT_MS = 10_000L;
   private final ActivityResultLauncher<PickVisualMediaRequest> imagePicker =
       registerForActivityResult(new ActivityResultContracts.PickMultipleVisualMedia(5), this::importImages);
   private final ActivityResultLauncher<Uri> cameraPicker =
@@ -449,7 +453,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
         return;
       }
       blockedOriginalContent = content;
-      showPublishMethodDialog();
+      showPublishMethodDialog(true); // 回帖：10 秒无操作自动正常发送
       return;
     }
     // 用户主动点发送：这是一次全新发布，重置「转换后重试」标记
@@ -457,8 +461,14 @@ public class ComposePostActivity extends SMTHBaseActivity {
     doPublishPost();
   }
 
-  /** 敏感词拦截后的发布方式选择弹窗（按钮式，验证码图片 / 竖排） */
-  private void showPublishMethodDialog() {
+  /**
+   * 发布方式选择弹窗（正常发送 / 验证码图片 / 竖排 / 取消）。
+   *
+   * @param autoSendAfterTimeout 回帖点发送时为 true：10 秒内没有任何点击就自动按「正常发送」，
+   *                             倒计时实时显示在该按钮文字上（如「正常发送 9s」）；
+   *                             敏感词拦截回调里为 false，避免把同一段被拦截的内容反复重发成死循环。
+   */
+  private void showPublishMethodDialog(boolean autoSendAfterTimeout) {
     View v = getLayoutInflater().inflate(R.layout.dialog_publish_method, null);
     // 用与CopyTextDialog相同的无边框主题，避免AlertDialog默认背景套在自定义背景外面
     final AlertDialog dialog = new AlertDialog.Builder(this, R.style.AppTheme_PopupOverlay)
@@ -466,8 +476,29 @@ public class ComposePostActivity extends SMTHBaseActivity {
         .setCancelable(true)
         .create();
 
+    final Button normalButton = v.findViewById(R.id.pm_btn_normal);
+    final CountDownTimer countDownTimer;
+    if (autoSendAfterTimeout) {
+      countDownTimer = new CountDownTimer(PUBLISH_METHOD_TIMEOUT_MS, 1000L) {
+        @Override public void onTick(long millisUntilFinished) {
+          // 10 -> 9 -> ... -> 1，与「正常发送」之间留一个空格
+          int seconds = (int) Math.ceil(millisUntilFinished / 1000.0);
+          normalButton.setText(String.format(Locale.CHINA, "正常发送 %ds", seconds));
+        }
+
+        @Override public void onFinish() {
+          flowLog("AUTO CHOICE = NORMAL (10s timeout, no user action)");
+          // 复用正常发送点击逻辑，保证与手点完全一致
+          normalButton.performClick();
+        }
+      };
+    } else {
+      countDownTimer = null;
+    }
+
     v.findViewById(R.id.pm_btn_normal).setOnClickListener(x -> {
       flowLog("USER CHOICE = NORMAL");
+      if (countDownTimer != null) countDownTimer.cancel();
       dialog.dismiss();
       blockedOriginalContent = null; // 正常发送用编辑框当前内容
       isRetriedPublish = false;
@@ -475,17 +506,24 @@ public class ComposePostActivity extends SMTHBaseActivity {
     });
     v.findViewById(R.id.pm_btn_jpg).setOnClickListener(x -> {
       flowLog("USER CHOICE = CAPTCHA IMAGE");
+      if (countDownTimer != null) countDownTimer.cancel();
       dialog.dismiss();
       publishAsJpg();
     });
     v.findViewById(R.id.pm_btn_vertical).setOnClickListener(x -> {
       flowLog("USER CHOICE = VERTICAL");
+      if (countDownTimer != null) countDownTimer.cancel();
       dialog.dismiss();
       publishAsVertical();
     });
     v.findViewById(R.id.pm_btn_cancel).setOnClickListener(x -> {
       flowLog("USER CHOICE = CANCEL");
+      if (countDownTimer != null) countDownTimer.cancel();
       dialog.dismiss();
+    });
+    // 用户主动关掉弹窗（返回键 / 点空白处）视为放弃，不再自动发送
+    dialog.setOnDismissListener(d -> {
+      if (countDownTimer != null) countDownTimer.cancel();
     });
     // 与复制文本对话框统一样式：底部弹出、宽度撑满、顶部圆角+描边
     if (dialog.getWindow() != null) {
@@ -496,6 +534,9 @@ public class ComposePostActivity extends SMTHBaseActivity {
     }
     flowLog("===== METHOD DIALOG SHOWN =====");
     dialog.show();
+    if (countDownTimer != null) {
+      countDownTimer.start(); // 立刻回调一次 onTick，按钮初始即为「正常发送 10s」
+    }
   }
 
   /** 方式①：用户输入转 captcha 风格图片，作为附件；正文只保留引用块(+简短说明) */
@@ -747,7 +788,7 @@ public class ComposePostActivity extends SMTHBaseActivity {
               flowLog("blockedOriginalContent=\n" + blockedOriginalContent);
               Toast.makeText(ComposePostActivity.this,
                   "站方提示内容需审核，文章未发出。请选择其它发布方式。", Toast.LENGTH_LONG).show();
-              showPublishMethodDialog();
+              showPublishMethodDialog(false); // 敏感词拦截：不自动重发，等用户明确选择
               return;
             }
 
