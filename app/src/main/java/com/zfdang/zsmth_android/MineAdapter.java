@@ -86,6 +86,10 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     final TextView scoreValue;
     final TextView loginValue;
     final TextView levelValue;
+    // 已经加载过的头像 URL：同一个 URL 不重复 setImageURI，否则 DraweeView 会先退回
+    // placeholderImage（灰色人像），等 Fresco 重新取图才恢复。帖子页刷图把内存缓存挤掉后，
+    // 这个"退回占位图"的过程会有明显可见的一段空白，看起来就像头像没了。
+    String boundFaceUrl = null;
 
     UserCardHolder(View itemView) {
       super(itemView);
@@ -116,8 +120,13 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         String faceUrl = user == null ? null : user.getFace_url();
         if (!TextUtils.isEmpty(faceUrl)) {
-          avatar.setImageURI(Uri.parse(faceUrl));
+          // 同一个人、同一个 URL 时直接复用当前已显示的图，避免闪回占位图
+          if (!faceUrl.equals(boundFaceUrl)) {
+            boundFaceUrl = faceUrl;
+            avatar.setImageURI(Uri.parse(faceUrl));
+          }
         } else {
+          boundFaceUrl = null;
           avatar.setImageResource(R.drawable.ic_person_black_48dp);
         }
 
@@ -142,6 +151,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             .getColor(com.zfdang.zsmth_android.R.color.login_restricted_warn));
         loginAction.setText("重试");
         loginActionKey = "user_login";
+        boundFaceUrl = null;
         avatar.setImageResource(R.drawable.ic_person_black_48dp);
         postValue.setText("-");
         scoreValue.setText("-");
@@ -157,6 +167,7 @@ public class MineAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             .getColor(com.zfdang.zsmth_android.R.color.mine_row_summary));
         loginAction.setText("登录");
         loginActionKey = "user_login";
+        boundFaceUrl = null;
         avatar.setImageResource(R.drawable.ic_person_black_48dp);
         postValue.setText("-");
         scoreValue.setText("-");

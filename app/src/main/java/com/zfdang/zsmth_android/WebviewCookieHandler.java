@@ -90,6 +90,32 @@ public final class WebviewCookieHandler implements CookieJar {
     }
 
     /**
+     * 清除本地已失效的 UTMP 三件套（把三个 cookie 置为过期）。
+     *
+     * <p>只在「cookie 里还有用户名，但服务端已经不认这个会话」时使用：例如账号在别处登录
+     * 被顶号、或会话过期后服务端一直按 guest 响应。这种情况下本地的三件套是"假登录"，
+     * 必须先清掉，否则登录页和自动登录会一直以为是已登录状态，永远无法真正重建会话。
+     *
+     * <p>注意：这不是伪造登录态，只是删除自己的失效凭据，真正的三件套仍由服务端下发。
+     */
+    public static void clearUtmpTriple(String reason) {
+        try {
+            String domain = ".newsmth.net";
+            String expire = "=; Path=/; Domain=" + domain
+                + "; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            webviewCookieManager.setCookie(domain, "main[UTMPUSERID]" + expire);
+            webviewCookieManager.setCookie(domain, "main[UTMPKEY]" + expire);
+            webviewCookieManager.setCookie(domain, "main[UTMPNUM]" + expire);
+            webviewCookieManager.flush();
+            com.zfdang.zsmth_android.helpers.DiagLogger.log("CookieJar", "CLEAR_UTMP",
+                com.zfdang.zsmth_android.helpers.DiagLogger.PASS, "reason=" + reason);
+        } catch (Throwable t) {
+            com.zfdang.zsmth_android.helpers.DiagLogger.log("CookieJar", "CLEAR_UTMP_FAIL",
+                com.zfdang.zsmth_android.helpers.DiagLogger.FAIL, String.valueOf(t));
+        }
+    }
+
+    /**
      * WebView页面加载完成后调用：保护期内若cookie被WebView写成guest，
      * 立即写回登录时的真三件套（WebView写cookie不经过OkHttp拦截器，保护锁拦不到）。
      */

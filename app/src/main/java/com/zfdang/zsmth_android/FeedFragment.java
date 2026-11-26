@@ -11,6 +11,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -366,6 +367,7 @@ public class FeedFragment extends Fragment {
       final TextView author;
       final TextView reply;
       final TextView date;
+      final ImageView attach;
 
       Holder(View itemView) {
         super(itemView);
@@ -374,10 +376,13 @@ public class FeedFragment extends Fragment {
         author = itemView.findViewById(R.id.feed_topic_author);
         reply = itemView.findViewById(R.id.feed_topic_reply);
         date = itemView.findViewById(R.id.feed_topic_date);
+        attach = itemView.findViewById(R.id.feed_topic_attach);
       }
 
       void bind(final Topic topic) {
         title.setText(topic.getTitle());
+        // 带附件（图片等）的帖子在标题右侧显示曲别针，与版面列表保持一致
+        attach.setVisibility(topic.hasAttach() ? View.VISIBLE : View.GONE);
 
         String boardName = topic.getBoardChsName();
         if (TextUtils.isEmpty(boardName)) {

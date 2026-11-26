@@ -31,6 +31,8 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
   private OnItemLongClickListener mListener;
   private RecyclerView recyclerView;
   private int mScreenHeight;
+  // 上一次真正弹出长按菜单的时间：手势层的单击判定据此丢弃"长按抬起"造成的一次误点击
+  private long mLastLongPressAt = 0;
 
   public RecyclerViewGestureListener() {
   }
@@ -46,6 +48,12 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
   private static final String TAG_TURN = "PageTurn";
 
   @Override public boolean onSingleTapUp(MotionEvent e) {
+    // 刚弹过长按菜单：抬手会被当成一次单击，这里直接吃掉，避免菜单背后误翻页
+    if (mLastLongPressAt > 0
+        && android.os.SystemClock.uptimeMillis() - mLastLongPressAt < 800) {
+      android.util.Log.d(TAG_TURN, "TAP ignored (right after long press)");
+      return true;
+    }
     int touchY = (int) e.getRawY();
     android.util.Log.d(TAG_TURN, "TAP x=" + (int) e.getRawX() + " y=" + touchY
         + " screenH=" + mScreenHeight + " ratio=" + String.format("%.2f", touchY * 1.0f / mScreenHeight));
@@ -299,7 +307,18 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     }
   }
 
+  /**
+   * 系统 GestureDetector 自带的长按（约 500ms）不再弹菜单。
+   * 长按延时改由宿主 PostListActivity 用自己的计时器控制（LONG_PRESS_TIMEOUT_MS，当前 1000ms），
+   * 到点后调用 {@link #dispatchLongPress(MotionEvent)}。这里留空是为了避免两个入口重复弹窗。
+   */
   @Override public void onLongPress(MotionEvent e) {
+    super.onLongPress(e);
+  }
+
+  /** 真正执行长按逻辑：由宿主计时器到点后调用 */
+  public void dispatchLongPress(MotionEvent e) {
+    mLastLongPressAt = android.os.SystemClock.uptimeMillis();
     float x = e.getRawX();
     float y = e.getRawY();
     int[] location = new int[2];
@@ -324,8 +343,6 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     if (mListener != null) {
       mListener.onItemLongClicked(position, targetView);
     }
-
-    super.onLongPress(e);
   }
 
   /** 在楼层 view 里递归查找触点下带 image_tag 的子 view；x/y 是相对 recyclerView 的坐标 */

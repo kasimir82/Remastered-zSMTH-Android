@@ -153,6 +153,31 @@ public class PostListActivity extends SMTHBaseActivity
   private RecyclerViewGestureListener mGestureListener;
   private LinearLayoutManager linearLayoutManager;
 
+  // 长按触发延时：长按帖子菜单与长按图片菜单共用这一个值。
+  // 系统 GestureDetector 自带的长按(~500ms)已在 RecyclerViewGestureListener 里屏蔽，
+  // 实际计时由下面的计时器控制，因此这个值可以随意调整。
+  private static final long LONG_PRESS_TIMEOUT_MS = 1000L;
+  private final android.os.Handler mLongPressHandler =
+      new android.os.Handler(android.os.Looper.getMainLooper());
+  private MotionEvent mLongPressDownEvent = null;
+  private boolean mLongPressFired = false;
+  private float mLongPressDownX = 0f;
+  private float mLongPressDownY = 0f;
+  private final Runnable mLongPressRunnable = new Runnable() {
+    @Override public void run() {
+      if (mLongPressFired || mLongPressDownEvent == null) {
+        return;
+      }
+      mLongPressFired = true;
+      MotionEvent down = mLongPressDownEvent;
+      mLongPressDownEvent = null;
+      if (mGestureListener != null) {
+        mGestureListener.dispatchLongPress(down);
+      }
+      down.recycle();
+    }
+  };
+
   // used for captureViewInternal
   View capView1;
   View capView2;
@@ -616,37 +641,38 @@ public class PostListActivity extends SMTHBaseActivity
       return false;
     }
     final Post post = PostListContent.POSTS.get(position);
-    new AlertDialog.Builder(this)
-        .setTitle("图片操作")
-        .setItems(new String[]{"查看大图", "分享图片"}, (dialog, which) -> {
-          if (which == 0) {
-            Intent intent = new Intent(this, FSImageViewerActivity.class);
-            ArrayList<String> urls = new ArrayList<>();
-            List<Attachment> attaches = post.getAttachFiles();
-            if (attaches != null) {
-              for (Attachment attach : attaches) {
-                urls.add(attach.getOriginalImageSource());
-              }
-            }
-            if (urls.isEmpty()) {
-              return;
-            }
-            int idx = imageIndex;
-            if (idx < 0 || idx >= urls.size()) {
-              idx = 0;
-            }
-            intent.putStringArrayListExtra(SMTHApplication.ATTACHMENT_URLS, urls);
-            intent.putExtra(SMTHApplication.ATTACHMENT_CURRENT_POS, idx);
-            startActivity(intent);
-          } else {
-            List<Attachment> attaches = post.getAttachFiles();
-            if (imageIndex >= 0 && attaches != null && imageIndex < attaches.size()) {
-              ShareImageHelper.shareImage(this, attaches.get(imageIndex).getOriginalImageSource());
-            }
+    // 与长按帖子菜单统一为底部样式：同样的行布局、图标、圆角描边背景、底部 48dp 留白
+    PostActionAlertDialogItem[] menuItems = new PostActionAlertDialogItem[] {
+        new PostActionAlertDialogItem("查看大图", R.drawable.ic_view_large_black_24dp, 0),
+        new PostActionAlertDialogItem("分享图片", R.drawable.ic_share_black_24dp, 1)
+    };
+    showBottomSheetMenu("图片操作", createMenuAdapter(menuItems), (dlg, which) -> {
+      if (which == 0) {
+        Intent intent = new Intent(this, FSImageViewerActivity.class);
+        ArrayList<String> urls = new ArrayList<>();
+        List<Attachment> attaches = post.getAttachFiles();
+        if (attaches != null) {
+          for (Attachment attach : attaches) {
+            urls.add(attach.getOriginalImageSource());
           }
-        })
-        .setNegativeButton("取消", null)
-        .show();
+        }
+        if (urls.isEmpty()) {
+          return;
+        }
+        int idx = imageIndex;
+        if (idx < 0 || idx >= urls.size()) {
+          idx = 0;
+        }
+        intent.putStringArrayListExtra(SMTHApplication.ATTACHMENT_URLS, urls);
+        intent.putExtra(SMTHApplication.ATTACHMENT_CURRENT_POS, idx);
+        startActivity(intent);
+      } else {
+        List<Attachment> attaches = post.getAttachFiles();
+        if (imageIndex >= 0 && attaches != null && imageIndex < attaches.size()) {
+          ShareImageHelper.shareImage(this, attaches.get(imageIndex).getOriginalImageSource());
+        }
+      }
+    });
     return true;
   }
 
@@ -701,46 +727,50 @@ public class PostListActivity extends SMTHBaseActivity
     PostActionAlertDialogItem[] menuItems = new PostActionAlertDialogItem[menuItemsArray.size()];
     menuItemsArray.toArray(menuItems);
 
-    ListAdapter adapter = new ArrayAdapter<PostActionAlertDialogItem>(getApplicationContext(),
+    showBottomSheetMenu(getString(R.string.post_alert_title), createMenuAdapter(menuItems),
+        (dlg, which) -> onPostPopupMenuItem(position, menuItems[which].action));
+    return true;
+  }
+
+  /** 菜单行适配器：图标 + 文字，长按帖子菜单和长按图片菜单共用同一套外观 */
+  private ListAdapter createMenuAdapter(final PostActionAlertDialogItem[] menuItems) {
+    return new ArrayAdapter<PostActionAlertDialogItem>(getApplicationContext(),
         R.layout.post_popup_menu_item, menuItems) {
-      ViewHolder holder;
+      class Holder {
+        ImageView mIcon;
+        TextView mTitle;
+      }
 
-      public View getView(int position, View convertView, ViewGroup parent) {
-        final LayoutInflater inflater = (LayoutInflater) getApplicationContext()
-            .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-
+      @Override public View getView(int position, View convertView, ViewGroup parent) {
+        Holder holder;
         if (convertView == null) {
+          final LayoutInflater inflater = (LayoutInflater) getApplicationContext()
+              .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
           convertView = inflater.inflate(R.layout.post_popup_menu_item, null);
-
-          holder = new ViewHolder();
-          holder.mIcon = (ImageView) convertView.findViewById(R.id.post_popupmenu_icon);
-          holder.mTitle = (TextView) convertView.findViewById(R.id.post_popupmenu_title);
+          holder = new Holder();
+          holder.mIcon = convertView.findViewById(R.id.post_popupmenu_icon);
+          holder.mTitle = convertView.findViewById(R.id.post_popupmenu_title);
           convertView.setTag(holder);
         } else {
-          // view already defined, retrieve view holder
-          holder = (ViewHolder) convertView.getTag();
+          holder = (Holder) convertView.getTag();
         }
-
         holder.mTitle.setText(menuItems[position].text);
         holder.mIcon.setImageResource(menuItems[position].icon);
         return convertView;
       }
-
-      class ViewHolder {
-        ImageView mIcon;
-        TextView mTitle;
-      }
     };
+  }
 
+  /**
+   * 统一的底部弹窗菜单：底部全宽、圆角描边背景（白天/夜间自动适配）、底部 48dp 留白。
+   * 长按帖子与长按图片都走这里，保证两处样式完全一致。
+   */
+  private AlertDialog showBottomSheetMenu(String title, ListAdapter adapter,
+      DialogInterface.OnClickListener onClick) {
     AlertDialog dialog = new AlertDialog.Builder(this, R.style.AppTheme_PopupOverlay)
-        .setTitle(getString(R.string.post_alert_title))
-        .setAdapter(adapter, new DialogInterface.OnClickListener() {
-          public void onClick(DialogInterface dialog, int which) {
-            onPostPopupMenuItem(position, menuItems[which].action);
-          }
-        })
+        .setTitle(title)
+        .setAdapter(adapter, onClick)
         .create();
-    // 统一底部弹窗风格：底部全宽、圆角描边背景(颜色自动适配白天夜间)
     if (dialog.getWindow() != null) {
       dialog.getWindow().setBackgroundDrawableResource(R.drawable.dialog_bottom_sheet_bg);
       dialog.getWindow().setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -749,16 +779,14 @@ public class PostListActivity extends SMTHBaseActivity
     }
     dialog.setCanceledOnTouchOutside(true);
     dialog.setCancelable(true);
-
     dialog.show();
-    // 底部留白：和其他底部弹窗(48dp)一致，给ListView加底部padding把菜单内容往上顶。
-    // 用padding而非footer：addFooterView必须在setAdapter前调用才生效，这里已show晚了。
+    // 底部留白：给ListView加padding把菜单内容往上顶（addFooterView此时已太晚）
     android.widget.ListView lv = dialog.getListView();
     if (lv != null) {
       int padPx = (int) (48 * getResources().getDisplayMetrics().density);
       lv.setPadding(lv.getPaddingLeft(), lv.getPaddingTop(), lv.getPaddingRight(), padPx);
     }
-    return true;
+    return dialog;
   }
 
   private void onPostPopupMenuItem(int position, int action) {
@@ -1152,8 +1180,43 @@ public class PostListActivity extends SMTHBaseActivity
 
   @Override
   public boolean onTouch(View v, MotionEvent event) {
+    switch (event.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        cancelPendingLongPress();
+        mLongPressFired = false;
+        mLongPressDownX = event.getRawX();
+        mLongPressDownY = event.getRawY();
+        mLongPressDownEvent = MotionEvent.obtain(event);
+        mLongPressHandler.postDelayed(mLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
+        break;
+      case MotionEvent.ACTION_MOVE:
+        // 手指移动超过触摸阈值 → 用户是在滑动翻页，取消长按
+        if (!mLongPressFired) {
+          int slop = android.view.ViewConfiguration.get(v.getContext()).getScaledTouchSlop();
+          if (Math.abs(event.getRawX() - mLongPressDownX) > slop
+              || Math.abs(event.getRawY() - mLongPressDownY) > slop) {
+            cancelPendingLongPress();
+          }
+        }
+        break;
+      case MotionEvent.ACTION_UP:
+      case MotionEvent.ACTION_CANCEL:
+        cancelPendingLongPress();
+        break;
+      default:
+        break;
+    }
     mGestureDetector.onTouchEvent(event);
     return false;
+  }
+
+  /** 取消尚未触发的长按计时（抬手/滑动时调用），并回收缓存的按下事件 */
+  private void cancelPendingLongPress() {
+    mLongPressHandler.removeCallbacks(mLongPressRunnable);
+    if (mLongPressDownEvent != null) {
+      mLongPressDownEvent.recycle();
+      mLongPressDownEvent = null;
+    }
   }
 
   @Override

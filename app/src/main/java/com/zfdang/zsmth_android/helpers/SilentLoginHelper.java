@@ -45,6 +45,8 @@ public class SilentLoginHelper {
   private static SilentLoginHelper instance;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private boolean running = false;
+  // 本轮登录是否已经因为「SHORTCUT 验证失败」清过失效 cookie 并重试过；防止清不掉时无限递归
+  private boolean shortcutFallbackTried = false;
 
   public static synchronized SilentLoginHelper getInstance() {
     if (instance == null) instance = new SilentLoginHelper();
@@ -61,6 +63,7 @@ public class SilentLoginHelper {
    * 真正要提交登录时触发。登录门面可据此弹"正在重新登录"，避免并发时被SKIP还误弹提示。
    */
   public void login(final Callback callback, final Runnable onStart) {
+    shortcutFallbackTried = false; // 每次新的自动登录都允许回退一次
     mainHandler.post(() -> doLogin(callback, onStart));
   }
 
@@ -100,11 +103,25 @@ public class SilentLoginHelper {
           LoginThrottle.onSilentLoginSuccess(verifiedUser);
           callback.onSuccess(verifiedUser);
         } else {
-          // 验证失败 = 假cookie(会话没建立)：LoginValidator内部已清假cookie，这里报失败
+          // 验证失败 = cookie 里的三件套服务端已经不认了（别处登录顶号 / 会话过期后服务端一直按 guest 响应）。
+          // 旧逻辑在这里直接 onFailed("verify_failed") 放弃，但本地 cookie 还留着用户名，
+          // 下一次自动登录又会走同一个 SHORTCUT 分支、再次失败，永远爬不起来，只能人工登录。
+          // 现在改为：清掉这份失效凭据，然后立刻重走一次真正的表单登录。
           android.util.Log.w(LoginThrottle.TAG_DBG, "SilentLogin SHORTCUT VERIFY FAILED");
           DiagLogger.log("SilentLogin", "SHORTCUT_VERIFY_FAILED", DiagLogger.FAIL,
               "cookie had user but board verify failed");
-          callback.onFailed("verify_failed");
+          if (shortcutFallbackTried) {
+            // 已经清过一次仍然验证失败：属于真失败（网络/限流等），按原逻辑上报，避免递归
+            callback.onFailed("verify_failed");
+            return;
+          }
+          shortcutFallbackTried = true;
+          // 先解除登录保护锁，否则刚清掉的三件套可能被 restoreTripleIfNeeded 写回去
+          com.zfdang.zsmth_android.WebviewCookieHandler.clearLoginProtect();
+          com.zfdang.zsmth_android.WebviewCookieHandler.clearUtmpTriple("shortcut verify failed");
+          DiagLogger.log("SilentLogin", "SHORTCUT_FALLBACK_REAL_LOGIN", DiagLogger.PASS,
+              "stale UTMP cleared, retry as real login (cookie had user but server rejected it)");
+          mainHandler.post(() -> doLogin(callback, onStart));
         }
       });
       return;
