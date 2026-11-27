@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
@@ -53,6 +55,8 @@ public class FeedFragment extends Fragment {
 
   /** 内存缓存：切换标签页时不重复请求 */
   private static final List<Topic> FEED_TOPICS = new ArrayList<>();
+  /** 刷新进度Toast(仅"按发帖时间"排序时显示)，复用实例避免多次show排队 */
+  private Toast mProgressToast = null;
   private static long sLastLoadTime = 0L;
   private static String sCachedSignature = "";
   private static final long CACHE_TTL = 10 * 60 * 1000L;
@@ -234,12 +238,37 @@ public class FeedFragment extends Fragment {
       mEmptyHint.setVisibility(View.GONE);
     }
 
+    // 刷新进度Toast：仅"按发帖时间"排序时显示(该模式要多页预读+本地重排，耗时更久)
+    final boolean showProgress = Settings.getInstance().getFeedSortMode()
+        == Settings.SORT_BY_PUBLISH_TIME;
+    final AtomicInteger doneBoards = new AtomicInteger(0);
+    final int totalBoards = boards.size();
+    if (showProgress && getActivity() != null) {
+      mProgressToast = Toast.makeText(getActivity(),
+          "正在刷新 0/" + totalBoards + " 版面...", Toast.LENGTH_SHORT);
+      mProgressToast.show();
+    }
+
     // 4路并发抓取：仅刷新期间拦服务端guest cookie(防并发写乱)，结束后放行
     com.zfdang.zsmth_android.WebviewCookieHandler.setBlockGuestDuringFeed(true);
     Observable.fromIterable(boards)
         .flatMap(new Function<Board, ObservableSource<List<Topic>>>() {
           @Override public ObservableSource<List<Topic>> apply(Board board) {
-            return fetchBoardTopics(board);
+            return fetchBoardTopics(board)
+                // 每个版面抓完(IO线程完成)后切主线程更新进度Toast
+                .doOnNext(topics -> {
+                  if (showProgress) {
+                    final int done = doneBoards.incrementAndGet();
+                    if (getActivity() != null) {
+                      getActivity().runOnUiThread(() -> {
+                        if (mProgressToast != null) {
+                          mProgressToast.setText("正在刷新 " + done + "/" + totalBoards + " 版面...");
+                          mProgressToast.show();
+                        }
+                      });
+                    }
+                  }
+                });
           }
         }, MAX_CONCURRENCY)
         .toList()
@@ -249,6 +278,10 @@ public class FeedFragment extends Fragment {
           @Override public void accept(List<List<Topic>> parts) {
             mLoading = false;
             com.zfdang.zsmth_android.WebviewCookieHandler.setBlockGuestDuringFeed(false);
+            if (showProgress && mProgressToast != null && getActivity() != null) {
+              mProgressToast.setText("刷新完成，共 " + mergedTopicCount(parts) + " 帖");
+              mProgressToast.show();
+            }
 
             List<Topic> merged = new ArrayList<>();
             for (List<Topic> part : parts) {
@@ -292,6 +325,10 @@ public class FeedFragment extends Fragment {
           @Override public void accept(Throwable throwable) {
             mLoading = false;
             com.zfdang.zsmth_android.WebviewCookieHandler.setBlockGuestDuringFeed(false);
+            if (showProgress && mProgressToast != null && getActivity() != null) {
+              mProgressToast.setText("刷新失败，下拉可重试");
+              mProgressToast.show();
+            }
             Log.e(TAG, "loadFeed: " + Log.getStackTraceString(throwable));
             showEmpty("信息流加载失败，下拉可以重试");
             finishRefresh();
@@ -299,8 +336,19 @@ public class FeedFragment extends Fragment {
         });
   }
 
+  /** 统计各版面抓取结果的帖子总数(用于完成提示) */
+  private int mergedTopicCount(List<List<Topic>> parts) {
+    int n = 0;
+    if (parts != null) {
+      for (List<Topic> part : parts) {
+        if (part != null) n += part.size();
+      }
+    }
+    return n;
+  }
+
   /** 单个版面：按智能预读策略串行加载多页（含当天就继续，到上限或无当天就停） */
-  private ObservableSource<List<Topic>> fetchBoardTopics(final Board board) {
+  private Observable<List<Topic>> fetchBoardTopics(final Board board) {
     final boolean byReply = Settings.getInstance().getFeedSortMode() == Settings.SORT_BY_LAST_REPLY;
     // 按回复排序：服务端已按最后回复倒序，每个版面只读第一页即可，不预读多页
     // 按发帖排序：服务端是按回复排的，才需要预读多页后本地重排
