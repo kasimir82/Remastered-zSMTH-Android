@@ -35,6 +35,13 @@ public final class WebviewCookieHandler implements CookieJar {
     private static final long LOGIN_PROTECT_MS = 2L * 60 * 1000;
     /** 登录成功时的真三件套快照（用于WebView被踢后写回） */
     private static volatile String[] sProtectedTriple = null; // {userid, key, num}
+    /** 登录保护窗口是否仍在生效。
+     *  保护期内服务端仍可能对个别版面请求下发 guest（会话还没在服务端完全铺开），
+     *  此时的「版面验证」结果不可信，不能据此把刚建立的登录态判死。 */
+    public static boolean isLoginProtected() {
+        return sLoginProtectUntil > System.currentTimeMillis() && sProtectedTriple != null;
+    }
+
     /** 登录成功(拿到非guest完整三件套)时调用，开启2分钟保护并快照真三件套 */
     public static void onLoginSuccessProtect(String userId, String key, String num) {
         sProtectedTriple = new String[]{userId, key, num};
@@ -254,6 +261,11 @@ public final class WebviewCookieHandler implements CookieJar {
         String urlString = url.toString();
         String cookiesString = webviewCookieManager.getCookie(urlString);
 
+        // 诊断：记录本次请求实际带出去的 UTMP 三件套（USERID/KEY/NUM 全记）。
+        // 用来区分「服务端踢会话」还是「客户端带了 guest cookie」：
+        // 带了新 KEY 仍被回 guest → 服务端问题；带的就是 guest → 客户端 cookie 被覆盖了。
+        logOutgoingUtmp(urlString, cookiesString);
+
         if (cookiesString != null && !cookiesString.isEmpty()) {
           //We can split on the ';' char as the cookie manager only returns cookies
           //that match the url and haven't expired, so the cookie attributes aren't included
@@ -268,5 +280,33 @@ public final class WebviewCookieHandler implements CookieJar {
         }
 
         return Collections.emptyList();
+    }
+
+    /**
+     * 记录一次请求实际携带的 UTMP 三件套（USERID / KEY / NUM 全量），同时写 logcat 和本地日志文件。
+     * 只读取准备发出去的 cookie 字符串，不修改任何状态。
+     */
+    private static void logOutgoingUtmp(String url, String cookiesString) {
+        try {
+            String uid = null, key = null, num = null;
+            if (cookiesString != null && !cookiesString.isEmpty()) {
+                for (String part : cookiesString.split(";")) {
+                    String p = part.trim();
+                    if (p.startsWith("main[UTMPUSERID]=")) {
+                        uid = p.substring("main[UTMPUSERID]=".length());
+                    } else if (p.startsWith("main[UTMPKEY]=")) {
+                        key = p.substring("main[UTMPKEY]=".length());
+                    } else if (p.startsWith("main[UTMPNUM]=")) {
+                        num = p.substring("main[UTMPNUM]=".length());
+                    }
+                }
+            }
+            String detail = "USERID=" + uid + " KEY=" + key + " NUM=" + num + " | " + url;
+            Log.d(TAG, "SEND_UTMP " + detail);
+            com.zfdang.zsmth_android.helpers.DiagLogger.log("CookieJar", "SEND_UTMP",
+                com.zfdang.zsmth_android.helpers.DiagLogger.PASS, detail);
+        } catch (Throwable ignored) {
+            // 诊断日志失败绝不影响请求
+        }
     }
 }

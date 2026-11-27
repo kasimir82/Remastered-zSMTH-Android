@@ -113,17 +113,30 @@ public class MaintainUserStatusWorker extends Worker {
                 //Log.d(TAG, "3.0 call: " + userStatus.toString());
                 if (!TextUtils.equals(userStatus.getId(), "guest")) {
                     // valid user
-                    if (SMTHApplication.activeUser != null && TextUtils.equals(userStatus.getId(), SMTHApplication.activeUser.getId())) {
-                        // current user is already cached in SMTHApplication
-                        //Log.d(TAG, "call: " + "3.1 New user is the same with cached user, copy faceURL from local");
-                        userStatus.setFace_url(SMTHApplication.activeUser.getFace_url());
+                    // 注意：ajax_session 返回的 face_url 是**默认头像**(face_default_m.jpg)，
+                    // 真实头像只出现在 /nForum/user/query/{id}.json 里。
+                    // 所以缓存里即使有值，只要是默认头像也不能复用，必须去远端取真头像。
+                    String cachedFace = SMTHApplication.activeUser == null
+                        ? null : SMTHApplication.activeUser.getFace_url();
+                    boolean cachedUsable = !TextUtils.isEmpty(cachedFace)
+                        && !cachedFace.contains("face_default");
+                    if (SMTHApplication.activeUser != null
+                        && TextUtils.equals(userStatus.getId(), SMTHApplication.activeUser.getId())
+                        && cachedUsable) {
+                        // current user is already cached in SMTHApplication，且缓存的是真头像 → 复用
+                        userStatus.setFace_url(cachedFace);
                     } else {
                         // get correct faceURL
-                        //Log.d(TAG, "call: " + "3.2 New user is different with cached user, get real face URL from remote");
+                        // 走到这里有两种情况：缓存为空(静默重登后新建的 activeUser)，
+                        // 或缓存的是默认头像(ajax_session 给的那个) → 都去远端取真头像。
                         UserInfo userInfo = helper.wService.queryUserInformation(userStatus.getId()).blockingFirst();
-                        if (userInfo != null) {
+                        if (userInfo != null && !TextUtils.isEmpty(userInfo.getFace_url())) {
                             userStatus.setFace_url(userInfo.getFace_url());
                         }
+                        com.zfdang.zsmth_android.helpers.DiagLogger.log("UserInfo", "FACE_URL",
+                            com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+                            "id=" + userStatus.getId() + " cached=" + cachedFace
+                                + " resolved=" + userStatus.getFace_url());
                     }
                 } else {
                     //Log.d(TAG, "call: 3.3 " + "invalid logined user");

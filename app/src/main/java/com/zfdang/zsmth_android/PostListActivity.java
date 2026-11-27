@@ -156,7 +156,7 @@ public class PostListActivity extends SMTHBaseActivity
   // 长按触发延时：长按帖子菜单与长按图片菜单共用这一个值。
   // 系统 GestureDetector 自带的长按(~500ms)已在 RecyclerViewGestureListener 里屏蔽，
   // 实际计时由下面的计时器控制，因此这个值可以随意调整。
-  private static final long LONG_PRESS_TIMEOUT_MS = 1000L;
+  private static final long LONG_PRESS_TIMEOUT_MS = 800L;
   private final android.os.Handler mLongPressHandler =
       new android.os.Handler(android.os.Looper.getMainLooper());
   private MotionEvent mLongPressDownEvent = null;
@@ -721,8 +721,6 @@ public class PostListActivity extends SMTHBaseActivity
         getString(R.string.post_block_author), R.drawable.ic_mine_block, ACT_BLOCK_AUTHOR));
     menuItemsArray.add(new PostActionAlertDialogItem(
         getString(R.string.post_like_post), R.drawable.like_black, ACT_LIKE));
-    menuItemsArray.add(new PostActionAlertDialogItem(
-        getString(R.string.post_reply_post), R.drawable.ic_reply_black_48dp, ACT_REPLY_POST));
 
     PostActionAlertDialogItem[] menuItems = new PostActionAlertDialogItem[menuItemsArray.size()];
     menuItemsArray.toArray(menuItems);
@@ -789,6 +787,21 @@ public class PostListActivity extends SMTHBaseActivity
     return dialog;
   }
 
+  /** 直接对指定楼层发起回帖（供长按菜单和楼层"回"字按钮共用） */
+  public void startReplyToPost(Post post) {
+    if (post == null || mTopic == null) return;
+    ComposePostContext postContext = new ComposePostContext();
+    postContext.setBoardEngName(mTopic.getBoardEngName());
+    postContext.setPostId(post.getPostID());
+    postContext.setPostTitle(mTopic.getTitle());
+    postContext.setPostAuthor(post.getRawAuthor());
+    postContext.setPostContent(post.getRawContent());
+    postContext.setComposingMode(ComposePostContext.MODE_REPLY_POST);
+    Intent intent = new Intent(this, ComposePostActivity.class);
+    intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
+    startActivityForResult(intent, ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE);
+  }
+
   private void onPostPopupMenuItem(int position, int action) {
     if (position >= PostListContent.POSTS.size()) {
       Log.e(TAG, "onPostPopupMenuItem: " + "Invalid Post index" + position);
@@ -797,16 +810,7 @@ public class PostListActivity extends SMTHBaseActivity
 
     Post post = PostListContent.POSTS.get(position);
     if (action == ACT_REPLY_POST) {
-      ComposePostContext postContext = new ComposePostContext();
-      postContext.setBoardEngName(mTopic.getBoardEngName());
-      postContext.setPostId(post.getPostID());
-      postContext.setPostTitle(mTopic.getTitle());
-      postContext.setPostAuthor(post.getRawAuthor());
-      postContext.setPostContent(post.getRawContent());
-      postContext.setComposingMode(ComposePostContext.MODE_REPLY_POST);
-      Intent intent = new Intent(this, ComposePostActivity.class);
-      intent.putExtra(SMTHApplication.COMPOSE_POST_CONTEXT, postContext);
-      startActivityForResult(intent, ComposePostActivity.COMPOSE_ACTIVITY_REQUEST_CODE);
+      startReplyToPost(post);
     } else if (action == ACT_LIKE) {
       PopupLikeWindow popup = new PopupLikeWindow();
       popup.initPopupWindow(this);

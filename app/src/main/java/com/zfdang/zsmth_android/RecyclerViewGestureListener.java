@@ -65,18 +65,18 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     }
     // 点在「本贴结束」空白区域 → 返回上一界面（仅末楼已顶到标题时）
     if (handleEndMarkerTap(e)) {
-      vibrateOnPageTurn(); // 返回也震一下，与翻页反馈一致
+      vibrateFeedback(); // 返回也震一下，与翻页反馈一致
       android.util.Log.d(TAG_TURN, "  -> HIT end marker, return to list + vibrate");
       return true;
     }
     if (touchY < mScreenHeight * 0.40) {
       android.util.Log.d(TAG_TURN, "  -> PAGE UP (top zone)");
-      vibrateOnPageTurn();
+      vibrateFeedback();
       scrollToAdjacentPost(false);
       return true;
     } else if (touchY > mScreenHeight * 0.60) {
       android.util.Log.d(TAG_TURN, "  -> PAGE DOWN (bottom zone)");
-      vibrateOnPageTurn();
+      vibrateFeedback();
       scrollToAdjacentPost(true);
       return true;
     }
@@ -84,21 +84,10 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
     return super.onSingleTapUp(e);
   }
 
-  /** 翻页时按用户设置震动一下(开关关闭或时长<=0则不震) */
-  private void vibrateOnPageTurn() {
-    try {
-      com.zfdang.zsmth_android.Settings st = com.zfdang.zsmth_android.Settings.getInstance();
-      if (st == null || !st.isPageTurnVibrate() || st.getPageTurnVibrateMs() <= 0) return;
-      android.os.Vibrator v = (android.os.Vibrator) recyclerView.getContext()
-          .getSystemService(android.content.Context.VIBRATOR_SERVICE);
-      if (v == null || !v.hasVibrator()) return;
-      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-        v.vibrate(android.os.VibrationEffect.createOneShot(st.getPageTurnVibrateMs(),
-            android.os.VibrationEffect.DEFAULT_AMPLITUDE));
-      } else {
-        v.vibrate(st.getPageTurnVibrateMs());
-      }
-    } catch (Throwable ignored) {
+  /** 翻页/长按弹出菜单时按用户设置震动一下(开关关闭或时长<=0则不震) */
+  private void vibrateFeedback() {
+    if (recyclerView != null) {
+      com.zfdang.zsmth_android.helpers.HapticFeedback.vibrate(recyclerView.getContext());
     }
   }
 
@@ -309,15 +298,17 @@ public class RecyclerViewGestureListener extends GestureDetector.SimpleOnGesture
 
   /**
    * 系统 GestureDetector 自带的长按（约 500ms）不再弹菜单。
-   * 长按延时改由宿主 PostListActivity 用自己的计时器控制（LONG_PRESS_TIMEOUT_MS，当前 1000ms），
+   * 长按延时改由宿主 PostListActivity 用自己的计时器控制（LONG_PRESS_TIMEOUT_MS，当前 800ms），
    * 到点后调用 {@link #dispatchLongPress(MotionEvent)}。这里留空是为了避免两个入口重复弹窗。
    */
   @Override public void onLongPress(MotionEvent e) {
     super.onLongPress(e);
   }
 
-  /** 真正执行长按逻辑：由宿主计时器到点后调用 */
+  /** 真正执行长按逻辑：由宿主计时器到点后调用（长按帖子菜单和长按图片菜单共用） */
   public void dispatchLongPress(MotionEvent e) {
+    // 长按出菜单时先震一下，与翻页震动共用同一个开关和时长
+    vibrateFeedback();
     mLastLongPressAt = android.os.SystemClock.uptimeMillis();
     float x = e.getRawX();
     float y = e.getRawY();

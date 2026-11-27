@@ -151,17 +151,28 @@ public class MailContentActivity extends SMTHBaseActivity {
     List<ContentSegment> contents = post.getContentSegments();
     if (contents == null) return;
 
+    final LayoutInflater inflater = getLayoutInflater();
+
     if (contents.size() > 0) {
       // there are multiple segments, add the first contentView first
       // contentView is always available, we don't have to inflate it again
       ContentSegment content = contents.get(0);
-      QuoteTextHelper.bind(contentView, content, MailContentActivity.this, false);
-
-      viewGroup.addView(contentView);
+      if (content.getType() == ContentSegment.SEGMENT_TEXT && content.isQuote()) {
+        // 引文段换成普通 TextView：LinkConsumableTextView 的 onTouchEvent 对非链接点击
+        // 固定返回 false，控件不会成为触摸目标，OnClickListener 永远不触发。
+        TextView quoteView =
+            (TextView) inflater.inflate(R.layout.post_item_content_plain, viewGroup, false);
+        QuoteTextHelper.bind(quoteView, content, MailContentActivity.this, false);
+        QuoteTextHelper.makeQuoteClickable(quoteView);
+        viewGroup.addView(quoteView);
+        mPostContent.setVisibility(View.GONE);
+      } else {
+        QuoteTextHelper.bind(contentView, content, MailContentActivity.this, false);
+        viewGroup.addView(contentView);
+      }
     }
 
     // http://stackoverflow.com/questions/13438473/clicking-html-link-in-textview-fires-weird-androidruntimeexception
-    final LayoutInflater inflater = getLayoutInflater();
     for (int i = 1; i < contents.size(); i++) {
       ContentSegment content = contents.get(i);
 
@@ -179,13 +190,21 @@ public class MailContentActivity extends SMTHBaseActivity {
         viewGroup.addView(image);
       } else if (content.getType() == ContentSegment.SEGMENT_TEXT) {
         // Log.d("CreateView", "Text: " + content.getSpanned().toString());
+        if (content.isQuote()) {
+          // 引文段用普通 TextView，才能收到点击（原因同上）
+          TextView quoteView =
+              (TextView) inflater.inflate(R.layout.post_item_content_plain, viewGroup, false);
+          QuoteTextHelper.bind(quoteView, content, MailContentActivity.this, false);
+          QuoteTextHelper.makeQuoteClickable(quoteView);
+          viewGroup.addView(quoteView);
+        } else {
+          // Add the links and make the links clickable
+          LinkConsumableTextView tv = (LinkConsumableTextView) inflater.inflate(R.layout.post_item_content, viewGroup, false);
+          QuoteTextHelper.bind(tv, content, MailContentActivity.this, true);
 
-        // Add the links and make the links clickable
-        LinkConsumableTextView tv = (LinkConsumableTextView) inflater.inflate(R.layout.post_item_content, viewGroup, false);
-        QuoteTextHelper.bind(tv, content, MailContentActivity.this, true);
-
-        // Add the text view to the parent layout
-        viewGroup.addView(tv);
+          // Add the text view to the parent layout
+          viewGroup.addView(tv);
+        }
       }
     }
   }

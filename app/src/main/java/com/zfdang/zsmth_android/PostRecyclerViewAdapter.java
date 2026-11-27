@@ -225,6 +225,19 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
         return false;
       }
     });
+    // 红色"回"字：点击直接回帖。
+    // 用OnTouchListener消费ACTION_UP并触发回帖(返回true)：既不冒泡到父View手势层触发翻页/长按，
+    // 也避免setOnTouchListener返回true吞掉onClick的问题。
+    final Post replyPost = post;
+    holder.mPostReplyBtn.setOnTouchListener(new View.OnTouchListener() {
+      @Override public boolean onTouch(View v, MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_UP && mListener instanceof PostListActivity) {
+          com.zfdang.zsmth_android.helpers.HapticFeedback.vibrate(v.getContext());
+          ((PostListActivity) mListener).startReplyToPost(replyPost);
+        }
+        return true; // 完全消费，不传给父View的翻页/长按手势层
+      }
+    });
   }
 
   @Override public int getItemCount() {
@@ -240,6 +253,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
   public class ViewHolder extends RecyclerView.ViewHolder {
     public final View mView;
     public final TextView mPostAuthor;
+    public final TextView mPostReplyBtn;
     public final TextView mPostIndex;
     public final TextView mPostPublishDate;
     private final LinearLayout mViewGroup;
@@ -250,6 +264,7 @@ public class PostRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.V
       super(view);
       mView = view;
       mPostAuthor = (TextView) view.findViewById(R.id.post_author);
+      mPostReplyBtn = (TextView) view.findViewById(R.id.post_reply_btn);
       mPostIndex = (TextView) view.findViewById(R.id.post_index);
       mPostPublishDate = (TextView) view.findViewById(R.id.post_publish_date);
       mViewGroup = (LinearLayout) view.findViewById(R.id.post_content_holder);

@@ -55,12 +55,16 @@ public class QuoteTextHelper {
     // 防抖：帖子页 TextView 自身 OnTouch 与 RecyclerView 手势可能都识别到同一次点击，
     // 300ms 内只处理一次，避免展开后立刻又被收起。
     long now = System.currentTimeMillis();
-    if (now - sLastToggleTime < 300) return true;
-    sLastToggleTime = now;
     Object expandedTag = tv.getTag(R.id.quote_expanded);
-    if (!(expandedTag instanceof Boolean)) return false; // 不是引文 TextView
     Object full = tv.getTag(R.id.quote_full_text);
     Object lineCount = tv.getTag(R.id.quote_line_count);
+    DiagLogger.log("Quote", "TOGGLE_ENTER", DiagLogger.PASS,
+        "tv=" + tv.hashCode() + " sinceLast=" + (now - sLastToggleTime)
+            + " expanded=" + expandedTag + " hasFull=" + (full != null)
+            + " lineCount=" + lineCount);
+    if (now - sLastToggleTime < 300) return true;
+    sLastToggleTime = now;
+    if (!(expandedTag instanceof Boolean)) return false; // 不是引文 TextView
     if (full == null || !(lineCount instanceof Integer)) return false;
 
     boolean expanded = (Boolean) expandedTag;
@@ -77,6 +81,24 @@ public class QuoteTextHelper {
   /** 判断这个 TextView 当前是不是折叠状态 */
   public static boolean isQuoteCollapsed(TextView tv) {
     return tv != null && Boolean.FALSE.equals(tv.getTag(R.id.quote_expanded));
+  }
+
+  /**
+   * 让引文 TextView 自己响应点击（展开/收起）。
+   *
+   * <p>用于没有「父容器会消费触摸」的场景，例如邮件正文页：那里容器是普通 LinearLayout，
+   * 容器的 OnTouchListener 对 ACTION_DOWN 返回 false，就不会成为手势目标，
+   * 后续的 ACTION_UP 根本收不到，导致三角点了没反应。给 TextView 挂 OnClickListener
+   * 后它会变成 clickable，直接消费点击，稳妥得多。
+   */
+  public static void makeQuoteClickable(final TextView tv) {
+    if (tv == null) return;
+    if (!(tv.getTag(R.id.quote_expanded) instanceof Boolean)) return; // 不是引文 TextView
+    tv.setClickable(true);
+    tv.setOnClickListener(v -> {
+      DiagLogger.log("Quote", "CLICK", DiagLogger.PASS, "tv=" + v.hashCode());
+      toggleQuote((TextView) v);
+    });
   }
 
   /**

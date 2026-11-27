@@ -7,9 +7,9 @@ def getDate() {
     def formattedDate = date.format('yy.MM.dd')
     return formattedDate
 }
-// 每次改版 versionCode 加一；versionName 手动递增，不用构建日期，便于按版本追踪
-def releaseVersionCode = 1361
-def appVersion = '26.13.61'
+// 姣忔鏀圭増 versionCode 鍔犱竴锛泇ersionName 鎵嬪姩閫掑锛屼笉鐢ㄦ瀯寤烘棩鏈燂紝渚夸簬鎸夌増鏈拷韪?
+def releaseVersionCode = 1379
+def appVersion = '26.13.79'
 
 android {
     compileSdkVersion rootProject.compileSdkVersion
@@ -49,7 +49,7 @@ android {
     android.applicationVariants.all { variant ->
         variant.outputs.all { output ->
             if(buildType.name == "release") {
-                // 发布包不带版本号，便于固定分享路径
+                // 鍙戝竷鍖呬笉甯︾増鏈彿锛屼究浜庡浐瀹氬垎浜矾寰?
                 output.outputFileName = new File("RzSMTH-release.apk" );
             } else {
                 output.outputFileName = new File("RzSMTH" + "-" + buildType.name + "-v" + defaultConfig.versionName + ".apk" );
@@ -130,7 +130,7 @@ dependencies {
     implementation "com.squareup.retrofit2:converter-gson:$RETROFIT_VERSION"
 
 
-    // 友盟统计 SDK 已移除（v26.12.54）
+    // 鍙嬬洘缁熻 SDK 宸茬Щ闄わ紙v26.12.54锛?
 
     // Official WeChat SDK for user-initiated webpage card sharing.
     implementation 'com.tencent.mm.opensdk:wechat-sdk-android:6.8.40'
@@ -147,9 +147,9 @@ dependencies {
     implementation 'com.oguzdev:CircularFloatingActionMenu:1.0.2'
     // implementation 'com.wx.wheelview:wheelview:1.3.4'
     implementation files('libs/wheelview_1.3.3.jar')
-    implementation  'io.github.scwang90:refresh-layout-kernel:2.1.0'      //核心必须依赖
-    implementation  'io.github.scwang90:refresh-header-classics:2.1.0'    //经典刷新头
-    implementation  'io.github.scwang90:refresh-footer-classics:2.1.0'    //经典加载
+    implementation  'io.github.scwang90:refresh-layout-kernel:2.1.0'      //鏍稿績蹇呴』渚濊禆
+    implementation  'io.github.scwang90:refresh-header-classics:2.1.0'    //缁忓吀鍒锋柊澶?
+    implementation  'io.github.scwang90:refresh-footer-classics:2.1.0'    //缁忓吀鍔犺浇
 
     implementation 'com.klinkerapps:link_builder:1.6.1'
     implementation 'com.esotericsoftware:kryo:4.0.2'

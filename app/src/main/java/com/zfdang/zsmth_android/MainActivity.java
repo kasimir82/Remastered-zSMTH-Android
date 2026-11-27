@@ -866,9 +866,30 @@ public class MainActivity extends SMTHBaseActivity
   }
 
   public void onLogout() {
+    onLogout(null);
+  }
+
+  /**
+   * 注销登录。onDone 可为 null；无论成功失败都会在结束时回调一次（最多一次），
+   * 供「批量清理历史 UTMP 会话」这类需要串行等待的流程使用。
+   */
+  public void onLogout(final Runnable onDone) {
     // 状态机：用户主动注销 → USER_LOGGED_OUT（禁止自动登录）
     com.zfdang.zsmth_android.helpers.LoginStateManager.onUserLogout();
     UpdateNavigationViewHeader();
+
+    // 兜底：网络卡住时最多等 5 秒也要继续下一步，避免批量流程停滞
+    final android.os.Handler handler = new android.os.Handler(getMainLooper());
+    final boolean[] done = {false};
+    final Runnable finish = () -> {
+      if (done[0]) return;
+      done[0] = true;
+      handler.removeCallbacksAndMessages(null);
+      if (onDone != null) onDone.run();
+    };
+    if (onDone != null) {
+      handler.postDelayed(finish, 5000);
+    }
 
     SMTHHelper helper = SMTHHelper.getInstance();
     helper.wService.logout()
@@ -885,9 +906,11 @@ public class MainActivity extends SMTHBaseActivity
 
           @Override public void onError(@NonNull Throwable e) {
             Toast.makeText(MainActivity.this, "退出登录失败!\n" + e.toString(), Toast.LENGTH_LONG).show();
+            finish.run();
           }
 
           @Override public void onComplete() {
+            finish.run();
           }
         });
   }

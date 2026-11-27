@@ -424,6 +424,15 @@ public class Post {
 
       if (signatureMode == 1) continue; // 签名档正文隐藏
 
+      // ===== 引文内容行(: 开头)，收集到折叠区 =====
+      // 必须先于「标题行」判断：嵌套引文的标题行(如 ": 【 在 xxx 的大作中提到: 】")
+      // 是引文内容的一部分，如果先按标题处理会把外层标题覆盖成内层作者。
+      if (line.startsWith(":")) {
+        quoteContent.append("<font color=#00B4AE>").append(line).append("</font><br />");
+        linebreak = 0;
+        continue;
+      }
+
       // ===== 引文标题行(可能正文与标题挤在同一行) =====
       if (line.contains("的大作中提到")) {
         int qIdx = line.indexOf("【 在");
@@ -441,15 +450,12 @@ public class Post {
         continue;
       }
 
-      // ===== 引文内容行(: 开头)，收集到折叠区 =====
-      if (line.startsWith(":")) {
-        quoteContent.append("<font color=#00B4AE>").append(line).append("</font><br />");
-        linebreak = 0;
-        continue;
-      }
-
       // 空行：正文区内全部过滤掉(用户要求正文不留空白行，行与行紧贴)
       if (line.trim().length() == 0) {
+        continue;
+      }
+      // 只有一个冒号的行是引文块的分隔残留，不作为正文显示
+      if (line.trim().equals(":")) {
         continue;
       }
       linebreak = 0;

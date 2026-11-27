@@ -161,7 +161,7 @@ public class MineFragment extends Fragment {
     items.add(MineItem.row("about", R.drawable.ic_mine_info, "关于 RzSMTH", versionSummary()));
     items.add(MineItem.section("调试"));
     items.add(MineItem.row("restore_utmp_logout", R.drawable.ic_mine_info,
-        "恢复UTMP并注销", "从日志读取最后三件套"));
+        "恢复UTMP并注销", "清理近2小时会话"));
 
     Log.d(TAG, "buildItems: " + items.size() + " items, about=" + versionSummary());
     adapter.notifyDataSetChanged();
@@ -249,15 +249,68 @@ public class MineFragment extends Fragment {
     }).start();
   }
 
-  /** 恢复UTMP并注销：从日志读最后三件套→写cookie→LOGGED_IN→弹注销确认 */
+  /** 历史会话清理范围：只处理最近 2 小时内下发的三件套 */
+  private static final long HISTORY_WINDOW_MS = 2L * 60 * 60 * 1000;
+
+  /**
+   * 恢复UTMP并注销（增强版）：
+   * 1. 从日志里取出所有非 guest 的三件套（按时间顺序、去重）；
+   * 2. 最新一组始终留到最后恢复；除它以外、**且是最近 2 小时内下发**的，
+   *    逐条执行「先写入cookie → 再注销」，把这段时间的历史会话清掉；
+   * 3. 最后对最新一组走原流程：写入cookie → 恢复登录态 → 弹框询问是否强制注销。
+   */
   private void handleRestoreUtmpAndLogout(MainActivity activity) {
-    TripleLogReader.Triple triple = TripleLogReader.readLastValidTriple();
-    if (triple == null || !triple.isValid()) {
+    java.util.List<TripleLogReader.Triple> all = TripleLogReader.readAllValidTriples();
+    if (all == null || all.isEmpty()) {
       Toast.makeText(activity, "日志中未找到有效的三件套", Toast.LENGTH_SHORT).show();
       com.zfdang.zsmth_android.helpers.DiagLogger.log("MineFragment", "RESTORE_UTMP",
           com.zfdang.zsmth_android.helpers.DiagLogger.FAIL, "no valid triple in log");
       return;
     }
+    final TripleLogReader.Triple newest = all.get(all.size() - 1);
+    // 只挑最近 2 小时内、且不是最新一组的历史记录
+    final long cutoff = System.currentTimeMillis() - HISTORY_WINDOW_MS;
+    final java.util.List<TripleLogReader.Triple> cleanupList = new java.util.ArrayList<>();
+    for (TripleLogReader.Triple t : all) {
+      if (t == newest) continue;
+      if (t.timestampMs >= cutoff) cleanupList.add(t);
+    }
+    com.zfdang.zsmth_android.helpers.DiagLogger.log("MineFragment", "RESTORE_UTMP_LIST",
+        com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+        "total=" + all.size() + " within2h=" + cleanupList.size()
+            + " newest=" + newest);
+    if (cleanupList.isEmpty()) {
+      restoreLastTripleAndAsk(activity, newest);
+      return;
+    }
+    Toast.makeText(activity,
+        "2小时内共 " + cleanupList.size() + " 组历史三件套，开始清理",
+        Toast.LENGTH_SHORT).show();
+    cleanHistoryTriple(activity, cleanupList, newest, 0);
+  }
+
+  /** 逐条清理历史会话：写入该组cookie → 注销 → 完成后处理下一组，全部清完再恢复最新一组 */
+  private void cleanHistoryTriple(final MainActivity activity,
+      final java.util.List<TripleLogReader.Triple> cleanupList,
+      final TripleLogReader.Triple newest, final int index) {
+    if (index >= cleanupList.size()) {
+      restoreLastTripleAndAsk(activity, newest);
+      return;
+    }
+    final TripleLogReader.Triple t = cleanupList.get(index);
+    Toast.makeText(activity, "清理历史会话 " + (index + 1) + "/" + cleanupList.size(),
+        Toast.LENGTH_SHORT).show();
+    com.zfdang.zsmth_android.WebviewCookieHandler.clearLoginProtect();
+    com.zfdang.zsmth_android.WebviewCookieHandler.writeTriple(t.userId, t.key, t.num);
+    com.zfdang.zsmth_android.helpers.DiagLogger.log("MineFragment", "CLEANUP_HISTORY",
+        com.zfdang.zsmth_android.helpers.DiagLogger.PASS,
+        "idx=" + index + "/" + cleanupList.size() + " " + t);
+    activity.onLogout(() -> activity.runOnUiThread(
+        () -> cleanHistoryTriple(activity, cleanupList, newest, index + 1)));
+  }
+
+  /** 最后一组：写入cookie → 恢复登录态 → 弹「是否强制注销」 */
+  private void restoreLastTripleAndAsk(MainActivity activity, TripleLogReader.Triple triple) {
     // 写cookie + 转LOGGED_IN
     com.zfdang.zsmth_android.WebviewCookieHandler.writeTriple(
         triple.userId, triple.key, triple.num);

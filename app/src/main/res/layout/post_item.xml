@@ -30,6 +30,20 @@
         android:orientation="horizontal"
         >
 
+      <!-- 红色"回"字：紧贴右上角楼层标记左侧，点击直接进回帖界面 -->
+      <TextView
+          android:id="@+id/post_reply_btn"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginRight="6dp"
+          android:text="回"
+          android:textColor="#E53935"
+          android:textSize="@dimen/zsmth_font_size_small"
+          android:textStyle="bold"
+          android:clickable="true"
+          android:focusable="true"
+          />
+
       <TextView
           android:id="@+id/post_index"
           android:layout_width="wrap_content"

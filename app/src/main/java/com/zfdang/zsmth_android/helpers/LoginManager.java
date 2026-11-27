@@ -63,6 +63,9 @@ public final class LoginManager {
           SMTHApplication.activeUser.setId(userId);
           SMTHApplication.activeUser.setIs_login(true);
           toast("登录成功");
+          // 刚建出来的 activeUser 只有 id/is_login，没有 face_url。不补一次会一直显示默认头像
+          // （Worker 过去还会把这个 null 当"缓存头像"复用下去），所以这里立刻触发一次状态刷新。
+          requestStatusRefresh();
           if (callback != null) callback.onSuccess(userId);
         });
       }
@@ -97,5 +100,23 @@ public final class LoginManager {
         toast("登录失败，请手动登录");
       }
     }, () -> toast("正在重新登录..."));
+  }
+
+  /**
+   * 立即触发一次后台用户状态检查，用来补全 activeUser 的 face_url 等字段。
+   * unique work 名与 MainActivity.updateUserStatusNow 一致，重复调用只会保留最新一次。
+   */
+  private static void requestStatusRefresh() {
+    try {
+      android.content.Context ctx = SMTHApplication.getAppContext();
+      androidx.work.OneTimeWorkRequest request =
+          new androidx.work.OneTimeWorkRequest.Builder(
+              com.zfdang.zsmth_android.services.MaintainUserStatusWorker.class).build();
+      androidx.work.WorkManager.getInstance(ctx)
+          .enqueueUniqueWork("user_status_check_now",
+              androidx.work.ExistingWorkPolicy.REPLACE, request);
+    } catch (Throwable t) {
+      android.util.Log.w("LoginManager", "requestStatusRefresh failed: " + t);
+    }
   }
 }

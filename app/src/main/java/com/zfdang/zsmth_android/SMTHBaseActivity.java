@@ -36,11 +36,15 @@ public class SMTHBaseActivity extends AppCompatActivity {
       return;
     }
     nav.setOnNavigationItemSelectedListener(item -> {
+      // 单击底栏任一按钮都震一下(切页/回主页)
+      com.zfdang.zsmth_android.helpers.HapticFeedback.vibrate(this);
       onBottomNavItemSelected(item.getItemId());
       return true;
     });
     // 重复点击当前已选中的标签不会走上面的 Selected 回调，而是走这里
     nav.setOnNavigationItemReselectedListener(item -> {
+      // 再次点击同一个按钮(双击刷新)也震一下
+      com.zfdang.zsmth_android.helpers.HapticFeedback.vibrate(this);
       onBottomNavItemReselected(item.getItemId());
     });
 

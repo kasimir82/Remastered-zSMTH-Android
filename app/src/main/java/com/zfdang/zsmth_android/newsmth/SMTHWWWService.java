@@ -95,9 +95,12 @@ public interface SMTHWWWService {
                                       @Field("content") String content, @Field("signature") String signature, @Field("backup") String backup, @Field("num") String num);
 
     // 服务端 WAF 要求同时带 X-Requested-With 与 Referer, 缺 Referer 会返回 403
+    // 必须禁用缓存：会话状态响应可能带 set-cookie: guest，被 OkHttp 磁盘缓存重放后
+    // 会反复把已登录的 cookie 覆盖成 guest，导致「登录成功→立刻掉线」的死循环。
     @Headers({
         "X-Requested-With: XMLHttpRequest",
-        "Referer: https://www.newsmth.net/nForum/"
+        "Referer: https://www.newsmth.net/nForum/",
+        "Cache-Control: no-cache"
     })
     @GET("/nForum/user/ajax_session.json")
     Observable<UserStatus> queryActiveUserStatus();
@@ -200,6 +203,13 @@ public interface SMTHWWWService {
     // 登录检测版面：按用户要求改用 NewExpress。
     // 注意：原注释记载 NewExpress 需要较高积分，积分不足的账号访问会返回错误页，
     // 可能把已登录误判为未登录——用户已知悉此风险并坚持改用 NewExpress。
+    // Cache-Control: no-cache 必须加：这条响应会被 OkHttp 缓存，里面带着
+    // set-cookie: guest + 游客版面HTML，重放时会让刚登录的会话被判成未登录。
+    @Headers({
+        "X-Requested-With: XMLHttpRequest",
+        "Referer: https://www.newsmth.net/nForum/",
+        "Cache-Control: no-cache"
+    })
     @GET("/nForum/board/NewExpress?ajax")
     Call<String> keepAlive();
 }

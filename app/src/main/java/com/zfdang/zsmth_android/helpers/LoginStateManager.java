@@ -266,6 +266,13 @@ public final class LoginStateManager {
         if (userId != null) {
             onSessionValid();
             after = LoginState.LOGGED_IN;
+        } else if (before == LoginState.LOGGED_IN
+                && com.zfdang.zsmth_android.WebviewCookieHandler.isLoginProtected()) {
+            // 登录保护期内服务端仍可能对版面请求下发 guest（会话刚建立还没完全生效），
+            // 此时版面验证失败不代表真的掉线，保持 LOGGED_IN，等保护期结束后的检查再说。
+            DiagLogger.log("LoginState", "VERIFY_FAILED_IN_PROTECT", DiagLogger.FAIL,
+                "board verify failed but login protect active, keep LOGGED_IN");
+            after = LoginState.LOGGED_IN;
         } else {
             onSessionLost("board verify failed");
             after = LoginState.SESSION_LOST;
@@ -290,6 +297,12 @@ public final class LoginStateManager {
             LoginState after;
             if (userId != null) {
                 onSessionValid();
+                after = LoginState.LOGGED_IN;
+            } else if (before == LoginState.LOGGED_IN
+                    && com.zfdang.zsmth_android.WebviewCookieHandler.isLoginProtected()) {
+                // 同上：登录保护期内的版面验证失败不可信，保持 LOGGED_IN
+                DiagLogger.log("LoginState", "VERIFY_FAILED_IN_PROTECT", DiagLogger.FAIL,
+                    "board verify failed but login protect active, keep LOGGED_IN");
                 after = LoginState.LOGGED_IN;
             } else {
                 onSessionLost("board verify failed");

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 引文折叠提示专用：普通 TextView。
+     不能用 LinkConsumableTextView —— 它的 onTouchEvent 对非链接点击固定返回 false，
+     导致控件不会成为触摸目标，挂在上面的 OnClickListener 永远不触发。 -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/post_content"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="2dp"
+    android:paddingBottom="0dp"
+    android:paddingLeft="2dp"
+    android:paddingRight="4dp"
+    android:textColor="@color/status_text_night"
+    android:textSize="@dimen/zsmth_font_size_medium"
+    />
