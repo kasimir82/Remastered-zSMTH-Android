@@ -496,6 +496,23 @@ public class ComposePostActivity extends SMTHBaseActivity {
       countDownTimer = null;
     }
 
+    v.findViewById(R.id.pm_btn_random_symbols).setOnClickListener(x -> {
+      flowLog("USER CHOICE = RANDOM_SYMBOL_FILL");
+      if (countDownTimer != null) countDownTimer.cancel();
+      dialog.dismiss();
+      // 用被拦截时的原文(而非编辑框可能被改动的内容)处理：
+      // 正文随机插符号，引文整段换成「（引文已经省略）」
+      String content = (blockedOriginalContent != null && !blockedOriginalContent.isEmpty())
+          ? blockedOriginalContent : mContent.getText().toString();
+      String filled = com.zfdang.zsmth_android.helpers.PublishMethodHelper
+          .randomInsertWithQuoteOmitted(content);
+      mContent.setText(filled);
+      // 照竖排/图片转换的做法：设重试标志，再次点右上角发送直接真发，不再弹方式选择窗
+      isRetriedPublish = true;
+      flowLog("===== RANDOM SYMBOL RESULT =====");
+      flowLog(filled);
+      Toast.makeText(this, "已随机插入符号，请检查后点发送", Toast.LENGTH_LONG).show();
+    });
     v.findViewById(R.id.pm_btn_normal).setOnClickListener(x -> {
       flowLog("USER CHOICE = NORMAL");
       if (countDownTimer != null) countDownTimer.cancel();

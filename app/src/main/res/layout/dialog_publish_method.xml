@@ -53,6 +53,14 @@
         android:textAllCaps="false" />
 
     <Button
+        android:id="@+id/pm_btn_random_symbols"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginTop="8dp"
+        android:text="随机填充字符发帖"
+        android:textAllCaps="false" />
+
+    <Button
         android:id="@+id/pm_btn_normal"
         android:layout_width="match_parent"
         android:layout_height="60dp"

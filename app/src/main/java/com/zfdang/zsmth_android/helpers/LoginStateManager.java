@@ -72,6 +72,8 @@ public final class LoginStateManager {
         s.setLastLoginSuccess(true);
         // 登录成功：开2分钟三件套保护锁，防止刚建立的会话被版面检查请求踢回guest
         com.zfdang.zsmth_android.WebviewCookieHandler.onLoginSuccessProtect();
+        // 丢弃旧会话下抓的信息流缓存(可能含"未登录"导致的空版面)，强制下次重抓
+        com.zfdang.zsmth_android.FeedFragment.invalidateCache();
         Log.i(TAG, "onLoginSuccess -> LOGGED_IN, " + userId);
         DiagLogger.log("LoginState", "LOGIN_SUCCESS", DiagLogger.PASS, "userId=" + userId);
     }

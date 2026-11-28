@@ -486,6 +486,73 @@ public final class PublishMethodHelper {
     return sb.toString();
   }
 
+  /** 随机插入符号用的符号池 */
+  private static final char[] RANDOM_SYMBOLS = { '`', '~', '^', '_', '"' };
+
+  private static boolean isCjk(char c) {
+    return (c >= '\u4e00' && c <= '\u9fff') || (c >= '\u3400' && c <= '\u4dbf');
+  }
+
+  private static boolean isAsciiWordChar(char c) {
+    return c < 128 && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'));
+  }
+
+  /** 两个字符之间是否插入：只要一边是中文，且另一边不是空白/标点，就插 */
+  private static boolean shouldInsertBetween(char a, char b) {
+    if (!isCjk(a) && !isCjk(b)) return false;
+    if (Character.isWhitespace(a) || Character.isWhitespace(b)) return false;
+    char other = isCjk(a) ? b : a;
+    return isCjk(other) || isAsciiWordChar(other);
+  }
+
+  /**
+   * 随机填充符号发帖：在中文相关边界随机插入 1~3 个相同符号打断敏感词匹配。
+   * - 中-中 / 中-英 / 英-中 / 中-数 / 数-中 都插
+   * - 英文单词内部(字母-字母)、数字内部、空格、标点、换行不插
+   * - 每次插入随机选一个符号池字符，只插 1 个
+   * - 保留原文本的所有换行和字符，去掉插入符号后 = 原文
+   */
+  public static String randomInsertSymbols(String text) {
+    if (text == null || text.isEmpty()) return text;
+    java.util.Random random = new java.util.Random(); // 真随机，每次结果不同
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      sb.append(c);
+      if (i + 1 < text.length() && shouldInsertBetween(c, text.charAt(i + 1))) {
+        char sym = RANDOM_SYMBOLS[random.nextInt(RANDOM_SYMBOLS.length)];
+        sb.append(sym); // 统一只插 1 个符号
+      }
+    }
+    return sb.toString();
+  }
+
+  /**
+   * 随机填充发帖：正文随机插入符号；引用块整段替换为「（引文已经省略）」。
+   * 保留原文的分段结构：无引文时返回纯插入后的正文；有引文时
+   * = randomInsertSymbols(userText) + "\n\n（引文已经省略）"
+   */
+  public static String randomInsertWithQuoteOmitted(String content) {
+    if (content == null) return content;
+    SplitResult split = split(content);
+    String filled = randomInsertSymbols(split.userText);
+    if (split.hasQuote) {
+      // 保留「【 在 xxx 的大作中提到: 】」这一行，只把它下面的引文内容省略掉
+      String markerLine = null;
+      String[] lines = split.quotePart.replace("\r\n", "\n").replace("\r", "\n").split("\n");
+      for (String line : lines) {
+        if (line.contains(QUOTE_MARKER)) {
+          markerLine = line.trim();
+          break;
+        }
+      }
+      // 省略文案跟在「【 在 xxx 的大作中提到: 】」同一行后面——省略的是被引用的内容
+      String quote = (markerLine != null ? markerLine + " " : "") + "（引文已经省略）";
+      return filled + "\n\n" + quote;
+    }
+    return filled;
+  }
+
   /**
    * 竖排文本生成（不再插入下划线填充）。
    * 之前会在字间插入全角下划线试图打断敏感词，但实际无用（竖排的丨格子本身已隔开字符），

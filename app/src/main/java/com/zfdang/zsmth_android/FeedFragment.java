@@ -76,6 +76,14 @@ public class FeedFragment extends Fragment {
   /** 当前列表实际使用的排序方式，用于判断缓存是否还能直接复用 */
   private int mAppliedSortMode = -1;
 
+  /** 登录成功时调用：丢弃旧会话下抓取的缓存，避免重登后仍显示空/脏数据 */
+  public static void invalidateCache() {
+    FEED_TOPICS.clear();
+    sLastLoadTime = 0L;
+    sCachedSignature = "";
+    Log.d(TAG, "invalidateCache: feed cache cleared after login");
+  }
+
   @Override public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setHasOptionsMenu(true);
