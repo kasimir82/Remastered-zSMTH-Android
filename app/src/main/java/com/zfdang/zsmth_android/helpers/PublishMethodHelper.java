@@ -534,23 +534,37 @@ public final class PublishMethodHelper {
    */
   public static String randomInsertWithQuoteOmitted(String content) {
     if (content == null) return content;
-    SplitResult split = split(content);
-    String filled = randomInsertSymbols(split.userText);
-    if (split.hasQuote) {
-      // 保留「【 在 xxx 的大作中提到: 】」这一行，只把它下面的引文内容省略掉
-      String markerLine = null;
-      String[] lines = split.quotePart.replace("\r\n", "\n").replace("\r", "\n").split("\n");
-      for (String line : lines) {
-        if (line.contains(QUOTE_MARKER)) {
-          markerLine = line.trim();
-          break;
-        }
+    // 局部修复：不用公共split()(它只按"大作中提到"子串找第一次出现，
+    // 正文里提到这几个字或引用在正文前时会误判)。这里用严格的引用标记行正则逐行扫描。
+    String normalized = content.replace("\r\n", "\n").replace("\r", "\n");
+    String[] lines = normalized.split("\n", -1);
+    int markerIndex = -1;
+    String markerLine = null;
+    for (int i = 0; i < lines.length; i++) {
+      String t = lines[i].trim();
+      // 完整的引用标记行：【 在 xxx 的大作中提到: 】
+      if (t.startsWith("【") && t.contains("大作中提到") && t.endsWith("】")) {
+        markerIndex = i;
+        markerLine = t;
+        break;
       }
-      // 省略文案跟在「【 在 xxx 的大作中提到: 】」同一行后面——省略的是被引用的内容
-      String quote = (markerLine != null ? markerLine + " " : "") + "（引文已经省略）";
-      return filled + "\n\n" + quote;
     }
-    return filled;
+    if (markerIndex < 0) {
+      // 没有真正的引用标记行：整段当正文处理
+      return randomInsertSymbols(content);
+    }
+    // 正文 = marker行之前的全部(去掉尾部空行)
+    StringBuilder body = new StringBuilder();
+    for (int i = 0; i < markerIndex; i++) {
+      if (body.length() > 0) body.append('\n');
+      body.append(lines[i]);
+    }
+    String bodyStr = body.toString();
+    while (bodyStr.endsWith("\n")) bodyStr = bodyStr.substring(0, bodyStr.length() - 1);
+    String filled = randomInsertSymbols(bodyStr);
+    // 省略文案写成引文内容行(": "开头)：渲染层会把它收进 marker 行下面的折叠区，
+    // 显示位置就是「大作标题 → 展开引文 → 来源」之间（否则会留在正文末尾）
+    return filled + "\n\n" + markerLine + "\n: （引文已经省略）";
   }
 
   /**

@@ -8,8 +8,8 @@ def getDate() {
     return formattedDate
 }
 // 姣忔鏀圭増 versionCode 鍔犱竴锛泇ersionName 鎵嬪姩閫掑锛屼笉鐢ㄦ瀯寤烘棩鏈燂紝渚夸簬鎸夌増鏈拷韪?
-def releaseVersionCode = 1386
-def appVersion = '26.13.86'
+def releaseVersionCode = 1389
+def appVersion = '26.13.89'
 
 android {
     compileSdkVersion rootProject.compileSdkVersion
